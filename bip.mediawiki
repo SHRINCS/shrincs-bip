@@ -1,0 +1,233 @@
+<pre>
+  BIP: Tapscript Leaf Version 0xC2
+  Layer: Consensus (soft fork)
+  Title: Post-Quantum Signature Algorithms
+  Authors: Mike Casey <mcasey0827@gmail.com>
+           conduition <conduition@proton.me>
+           Ethan Heilman <1ethan.r.heilman@gmail.com>
+           Mikhail Kudinov <m.kudinov@tue.nl>
+           Oleksandr Kurbatov <olkurbatov@gmail.com>
+           Jonas Nick <jonas@n-ck.net>
+  Status: Draft
+  Type: Specification
+  License: BSD-3-Clause
+  Created: 2026-04-07
+  Version: 0.0.1
+  Requires: 340, 341, 342, 360
+</pre>
+
+==Introduction==
+
+===Abstract===
+
+This BIP introduces a softfork via Tapscript leaf version 0xC2, which redefines OP_CHECKSIG to support cryptographic agility through algorithm flags attached to public keys. This BIP specifies two such flags: <code>0x02</code>to verify BIP340 Schnorr signatures and the <code>0x01</code> to verify SHRINCS signatures. Reserved flags are defined as always-succeed paths, so that new signature verification algorithms may be added in the future. It also lifts the 520-byte witness stack element size limit within this leaf version to 5000 bytes.
+
+===Copyright===
+
+This document is licensed under the 3-clause BSD license.
+
+==Motivation==
+
+Bitcoin’s security rests on the computational hardness of the elliptic curve discrete log problem (ECDLP) over secp256k1. Shor’s algorithm, running on a cryptographically relevant quantum computer (CRQC), can solve ECDLP in polynomial time, breaking both ECDSA and Schnorr signatures. The timeline for a CRQC remains uncertain, but the trend is toward shorter estimates. Whether a CRQC arrives in 2030 or 2040 (or never), Bitcoin must be prepared before it arrives; migration under duress is far riskier than proactive preparation.
+
+===Why Hash-Based Signatures===
+
+Among PQ signature families, hash-based schemes occupy a unique position: their security relies solely on the security of the underlying hash function. This is, arguably, the most conservative and well-studied assumption available. In conditions where acceptance of a cryptographic signature requires a network-wide soft fork, conservatism in cryptographic assumptions is the most significant decision parameter.
+
+One can also construct the shortest suitable Post-Quantum sig+pub schemes (among lattice-, hash-based, and multivariate schemes) using hash-based designs.
+
+This conservative nature permits a long-term strategy of cryptographic agility for Bitcoin holders: By committing to hash-based public keys alongside keys of a more “risky” algorithm inside the leaves of a script tree, a Bitcoin user may retain the usage benefits of the risky scheme and the robust security of the hash-based scheme. This technique can hedge against cryptanalytic breakthroughs over the scale of decades.
+
+===Why SHRINCS===
+
+NIST-standardized SLH-DSA (the standardized version of SPHINCS+) produces a stateless signature ranging from 7856 bytes (SLH-DSA-SHA2-128s) at the 128-bit classical security level. In the system, where each witness byte affects the transaction fees and consumes scarce block space, these sizes are painful for routine/regular transactions. SHRINCS addresses that through a hybrid stateful+stateless design:
+* Stateful mode: uses an unbalanced XMSS tree (UXMSS) where each signature requires only a WOTS+C signature and a Merkle authentication path. Early leaves have short authentication paths while later leaves have longer ones: the first stateful signature is only 324 bytes (at leaf index <code>q = 1</code>), and each subsequent signature grows by 16 bytes.
+* Stateless mode (fallback): uses a variant of SHPINCS+ structure (hypertree over PORS+FP with WOTS+C), producing a xxxx-byte signature.
+* The single public key: the scheme presumes a single public key - a 32-byte commitment to both (stateful and stateless) components.
+
+===Design Rationale: Unified Scheme vs. Separate Opcodes===
+
+An alternative approach would be to redefine OP_SUCCESS codes specifically for SHRINCS, without changing the tap leaf version. While this was considered for a while, redefining OP_CHECKSIG was preferable for a number of reasons:
+* New signature algorithms may need to be added in the future. With our approach of parameterizing OP_CHECKSIG to accept algorithm flags, new signature verification algorithms can be added by simply defining a new algorithm flag. Whereas if we were to set a precedent by redefining OP_SUCCESS opcodes, new sets of opcodes would need to be redefined for every new algorithm, and they would not interoperate well.
+* New opcodes involving signature verification may be added in the future, such as OP_CHECKSIGFROMSTACK (BIP-0348), and a unified approach makes inter-BIP compatibility easier to engineer. If this BIP is deployed first, then BIP-0348 could be updated to support the new tapscript version by following the algorithm flag system defined in this BIP. Conversely, if BIP-0348 is deployed first, then this BIP could be updated to also redefine OP_CHECKSIGFROMSTACK in the new tap leaf version 0xC2.
+
+An even more segregated approach would be to have UXMSS and SPHINCS+ as independent algorithms, so that they may be placed in separate tapscript leaves. This is a more flexible construction, which allows the user to combine spending paths as they will, but SHRINCS takes a unified approach for the following reasons:
+* Simpler wallet integration: a single opcode with a single public key and a mode flag is easier to integrate into wallets than several independent signature algorithms, which have to be coordinated.
+* Multisignature complexity: With SPHINCS and UXMSS as separate algorithms, a threshold multisignature script must handle the combinatorial explosion of each signer potentially using their stateful or stateless key.
+
+
+===SLH-DSA compatibility===
+
+SHRINCS diverges from the SLH-DSA specification in three ways:
+* it uses WOTS+C instead of the standard WOTS+
+* it uses PORS+FP instead of FORS
+* it reduces the number of supported signatures to 2^x
+
+These modifications, detailed in Kudinov and Nick<ref>Kudinov, Nick, ''Hash-based Signature Schemes for Bitcoin'', [https://eprint.iacr.org/2025/2203].</ref>, yield approximately xx% smaller stateless signatures (xxxx bytes vs. approximately xxxx bytes for an equivalent FORS/WOTS+ configuration). In the system where each byte costs fees, and we are limited by a constant block size, a signature size reduction isn’t marginal; it directly affects the lower transaction costs and higher throughput.
+
+The modifications are well-analyzed. Compression techniques don’t introduce any vulnerabilities compared to SLH-DSA. The reduced amount of available signatures is aligned with the practical need:
+* On-chain usage:
+* Off-chain usage:
+
+==Specification==
+
+===Overview===
+
+This BIP defines a new tapscript leaf version <code>0xC2</code>, in which all signature verification opcodes, such as OP_CHECKSIG, OP_CHECKSIGADD, OP_CHECKSIGVERIFY, etc, are redefined to support multiple signature schemes. The exact verification algorithm to use is dictated at evaluation time, via a 1-byte algorithm flag prefix on the public key arguments.
+
+* <code>OP_CHECKSIG</code>: Pop two elements from the stack: a pubkey, followed by a signature. Fail the script if the pubkey is empty. Pop a 1-byte signature algorithm flag from the pubkey. Verify the signature against the public key using the designated algorithm. Verification is presumed successful for any unrecognized algorithm flag. Push the result: <code>1</code> on success, the empty vector on an empty signature, and fail the script if signature verification fails.
+
+* <code>OP_CHECKSIGVERIFY</code>: Pop two elements from the stack: a pubkey, followed by a signature. Fail the script if the pubkey is empty.  Pop a 1-byte signature algorithm flag from the pubkey. Verify the signature against the public key using the designated algorithm. Verification is presumed successful for any unrecognized algorithm flag. Fail the script if signature validation fails, or if the signature is empty.
+
+* <code>OP_CHECKSIGADD</code>: Pop three elements from the stack: a pubkey, followed by a CScriptNum <code>n</code>, followed by a signature. Fail the script if the pubkey is empty or if the CScriptNum is larger than 4 bytes. Pop a 1-byte signature algorithm flag from the pubkey. Verify the signature against the public key using the designated algorithm. Verification is presumed successful for any unrecognized algorithm flag. Push the result: <code>n</code> if the signature is empty, or <code>n+1</code> if the signature is valid. Fail the script if signature verification fails.
+
+Threshold (m-of-n) and multi (n-of-n) signatures are realized by combining <code>OP_CHECKSIGADD</code> with existing arithmetic <code>OP_ADD</code> and <code>OP_NUMEQUAL</code> opcodes, following the same pattern used in BIP342. Since each pubkey commits to its own algorithm, a multisignature script may consist of multiple keys using disjoint verification algorithms, and each signer need not care which algorithm their peers use.
+
+
+===Parameters===
+
+
+===Public Key Format===
+
+When CHECKSIG opcodes pop a non-empty pubkey from the stack, the verifier assumes the pubkey byte vector has the following structure:
+
+<pre>
+flag || pubkey
+</pre>
+
+… where <code>flag</code> is a byte corresponding to a standardized signature verification algorithm flag.
+
+Two verification algorithm flags are defined in this BIP:
+
+<code>0x01</code>: SHRINCS.
+<code>0x02</code>: BIP340.
+
+Any pubkey which uses an unidentified algorithm flag prefix is essentially an “anyone-can-spend” public key, because verifiers will auto-succeed when they validate signatures against that key. This allows future BIPs to define new verification algorithms.
+
+We now define the signature verification algorithms for these two flags.
+
+
+===SHRINCS===
+
+A SHRINCS public key is a 32-byte value constructed as:
+<pre>
+PK = PK.seed || PK.root
+</pre>
+
+* <code>PK.seed</code> is a domain separator, used in all hash operations while producing the signature
+* <code>PK.root</code> is a root commitment to both stateful and stateless public keys: <code>PK.root = Tw(PK.seed, ADRS, PK.sf || PK.sl)</code>. <code>Tw(.)</code> is a hash function with addressing.
+
+
+====Signature Format====
+
+SHRINCS signatures can exceed the 520-byte limit for stack elements. Therefore, the new tapscript version <code>0xC2</code> introduced in this BIP lifts the 520 byte limit on witness stack element sizes.
+
+SHRINCS signatures may either use the stateful or the stateless path inside the key, and either is equally valid. Stateless SHRINCS signatures are very large, but always a constant size. Stateful SHRINCS signatures are much shorter, but are of variable size.
+
+
+====Stateful  Signature Layout====
+
+TODO: Decide on whether to make stateful signature verifiers generic, to accept arbitrary XMSS tree structure.
+
+Pros:
+* Signers may need to create more than a few hundred signatures per keypair for certain use-cases, e.g. lightning, secure custody
+* Stateful signatures are much smaller than stateless signatures with the same signature query budget.
+* Signers may prefer efficiency on repeated signing over efficiency for first signature (e.g. hardware wallet fallback keys used to rescue large UTXO sets after Q-day)
+* Supports unknown future use-cases for arbitrary XMSS without need for a soft fork.
+* Signature size does not materially change (need a few extra bits, but we can compact them into the WOTS+C grinding counter)
+
+Cons:
+* Verifier becomes more complex to implement.
+* Wallets can be more easily fingerprinted if they use custom XMSS tree structures.
+
+====Stateless Signature Layout====
+
+TODO: Decide on whether to modify SLH-DSA standard algorithms for the stateless path.
+
+Pros:
+* ~15% smaller stateless signatures
+* Can reuse WOTS+C code between stateful and stateless path
+* We’re already using a custom SLH-DSA parameter set, so we already are not exactly compatible with NIST.
+
+Cons:
+* Loses potentially easy interop with SLH-DSA software and hardware ecosystems
+* Lots of work needed to port/bind/rewrite the stateless algorithms to different languages and platforms
+* New security proof needed, cannot lean on SLH-DSA/SPHINCS+
+
+
+
+====Single Signature Pattern====
+====Threshold Signature Pattern====
+==== Execution ====
+
+
+
+
+Outline questions:
+* <s>Which opcodes should be redefined?</s> We should redefine OP_CHECKSIG et al with new tap leaf version
+* <s>Are we adding CHECKSIGVERIFY or just CHECKSIG? How about CHECKSIGADD?</s> Not needed if redefining existing opcodes
+* <s>Should XMSS and SPHINCS be separate opcodes or unified under SHRINCS?</s> Not needed if redefining existing opcodes
+* <s>Can we still prove XMSS secure if we use an unstructured (directionless) tree, a la taproot? (better privacy and XMSS clients are more flexible)</s> No. Unstructured XMSS trees would give an attacker an advantage in multi-target attacks. Say you have an XMSS tree with height two (i.e. four leaves). Let’s say you reveal the two intermediate nodes in the first layer to an attacker, e.g. by signing a transaction. The hash function used to compute both of these nodes must be the same - otherwise it would not be a directionless tree - So the attacker can try preimage search on both hash function outputs at once. This doubles their chances of successfully finding a 2nd preimage. Scaled up, with more target hashes, the attacker increases their advantage even more.
+
+
+==Backward Compatibility==
+
+Existing script semantics in P2WSH and other legacy address formats is unaffected. This BIP only affects P2TR and P2MR tapscript that are using leaf version <code>0xC2</code>.
+
+==Security==
+
+The basic script validation rules of the new tapsript version <code>0xC2</code> are mostly inherited from BIP342. The only novel addition is the algorithm flag parsed by the CHECKSIG family of opcodes, so we will focus on that.
+
+The algorithm flag is adjoined as part of the pubkey in this design. Pubkeys are typically committed as part of locking scripts, and so an attacker will usually not be able to control which algorithm will be used by the verifier. This rules out any “rollback” attacks where an adversary could trick a verifier into using the wrong algorithm - e.g. to interpret a SHRINCS public key as a BIP340 key, or vice versa. This design also makes the security argument easier: To modify the signature algorithm, you must be able to modify the pubkey that a user commits coins to, and if you can modify a pubkey that a user commits coins to, you can already forge signatures and steal coins. Though, in a possible future where OP_CAT or OP_SLICE are re-enabled, poorly-written scripts could be manipulated and future developers will need to bear this risk in mind when designing protocols.
+
+For forwards-compatibility, reserved algorithm flags are left as auto-success paths, which could be a security risk if wallets misuse them. This should not affect any wallet that uses standardized algorithms to generate public keys. Selecting the correct algorithm flag for your keypair is straightforward and easy to validate by inspecting scripts visually.
+
+This BIP specifies two signature algorithm flags: BIP340 and SHRINCS. The BIP340 signature algorithm is already a well-studied secure signature protocol, so we leave discussion of its security to BIP340, and focus instead on the novel hash-based cryptosystem SHRINCS, introduced in this BIP.
+
+The SHRINCS verification algorithm consists mostly of evaluating a hash function to recompute a given hash, which is committed into the SHRINCS public key component called <code>PK.root</code>.
+
+If an adversary can efficiently find second preimages for this hash function, then they can forge signatures which recompute the same <code>PK.root</code>. However, this the security of the scheme relies solely on the security of the underlying hash function, which seems very robust in general.
+
+Given a hash function with output width of <code>b</code> bits (given a big enough internal state), the best-known classical attack is simple trial-and-error, which yields a second preimage after 2<sup>b</sup> tries on average. The best case quantum attack using Grover’s algorithm yields a second preimage in time on the order of O(2<sup>b/2</sup>). In other words, using a <code>b</code>-bit hash gives <code>b</code> bits of classical security, and <code>b/2</code> bits of quantum security.
+
+While the definition of quantum security bits is less clear, the classical analogue is well-studied. The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time O(sqrt(n)), where <code>n</code> is the order of the curve. The secp256k1 curve order is an approximately 2<sup>256</sup> bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
+
+Having no concrete basis on which to select a level of quantum security against Grover’s algorithm, we aim for SHRINCS to match BIP340’s level of classical security, and so follow the NIST-I security level guidelines: 128 bits of classical security, and 64 bits of quantum security. We do so by using a 128-bit truncation of the SHA256 hash function to instantiate SHRINCS, and this mirrors the NIST FIPS-205 specification’s reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.<ref>Readers may wonder why we can use 128-bit hash functions safely here, when the rest of Bitcoin depends on 256-bit hashes. This is because most of the usage of hash functions in Bitcoin depends on collision resistance for security, and collisions in a <code>b</code>-bit hash function can be found in only 2<sup>b/2</sup> attempts classically, due to the birthday “paradox”. In SHRINCS we do not need collision resistance, so we can get away with much smaller hash functions.</ref> We use SHA256 because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if 2nd-preimage resistance of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
+
+===Statefulness===
+
+SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm.
+
+* Discuss novel paradigms of stateful signature schemes.
+** Prescribe best practices for stateful wallet devs
+** Encourage fallback to stateless path if in doubt
+* Explain SPHINCS parameter set choice and compare to NIST-standardized sets with absolute benchmarks: keygen/sign/verify SHA256 compression calls, plus compare key and sig sizes.
+** Privacy footnote: Multiple parameter sets would be a footgun. Devs could misunderstand or misuse them, and would degrade privacy for the entire network as wallet fingerprinting would be even easier.
+* Discuss upper sig limit parameter of SPHINCS security and explain our choice of this parameter.
+** Extrapolate the ‘max repeated signing lifetime’ using a worst-case single-signer scenario.
+** Graph the signature overuse security degradation curve.
+* Mention how quantum security bits are difficult to empirically measure. Unclear if 64 bits of quantum security is acceptable. TODO: find that link to DJB’s critique of NIST….
+
+
+==Performance==
+
+* Note how SPHINCS verification is fast but keygen and signing are slow.
+* XMSS signing and keygen are relatively fast depending on tree depth. Verification is very fast (probably faster than ECDSA, TODO fact check).
+* Mention [https://conduition.io/code/fast-slh-dsa-verification/ verification speed benchmarks] and [https://conduition.io/code/fast-slh-dsa/ CPU/GPU optimizations for signing/keygen]
+* Possible link to fallback HD wallet standardization BIP which amortizes SLH-DSA keygen overhead to a one-time setup cost. [https://hackmd.io/OMxD8JjmSJ-8q6QueWbiDg Link to draft BIP].
+* Mention root tree caching technique for high-frequency signers like LN.
+
+==Reference implementation==
+
+==Test Vectors==
+
+==Related Work==
+
+==Footnotes==
+
+<references/>
+
+==Changelog==
+
+==Acknowledgements==
+
