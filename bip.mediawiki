@@ -2,8 +2,7 @@
   BIP: Tapscript Leaf Version 0xC2
   Layer: Consensus (soft fork)
   Title: Post-Quantum Signature Algorithms
-  Authors: Mike Casey <mcasey0827@gmail.com>
-           conduition <conduition@proton.me>
+  Authors: conduition <conduition@proton.me>
            Ethan Heilman <1ethan.r.heilman@gmail.com>
            Mikhail Kudinov <m.kudinov@tue.nl>
            Oleksandr Kurbatov <olkurbatov@gmail.com>
@@ -231,3 +230,4 @@ SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a statef
 
 ==Acknowledgements==
 
+* Mike Casey
