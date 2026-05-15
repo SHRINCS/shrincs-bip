@@ -59,9 +59,10 @@ An alternative approach would be to redefine OP_SUCCESS codes specifically for S
 * New signature algorithms may need to be added in the future. With our approach of parameterizing OP_CHECKSIG to accept algorithm flags, new signature verification algorithms can be added by simply defining a new algorithm flag. Whereas if we were to set a precedent by redefining OP_SUCCESS opcodes, new sets of opcodes would need to be redefined for every new algorithm, and they would not interoperate well.
 * New opcodes involving signature verification may be added in the future, such as OP_CHECKSIGFROMSTACK (BIP-0348), and a unified approach makes inter-BIP compatibility easier to engineer. If this BIP is deployed first, then BIP-0348 could be updated to support the new tapscript version by following the algorithm flag system defined in this BIP. Conversely, if BIP-0348 is deployed first, then this BIP could be updated to also redefine OP_CHECKSIGFROMSTACK in the new tap leaf version 0xC2.
 
-An even more segregated approach would be to have UXMSS and SPHINCS+ as independent algorithms, so that they may be placed in separate tapscript leaves. This is a more flexible construction, which allows the user to combine spending paths as they will, but SHRINCS takes a unified approach for the following reasons:
-* Simpler wallet integration: a single opcode with a single public key and a mode flag is easier to integrate into wallets than several independent signature algorithms, which have to be coordinated.
-* Multisignature complexity: With SPHINCS and UXMSS as separate algorithms, a threshold multisignature script must handle the combinatorial explosion of each signer potentially using their stateful or stateless key.
+An even more segregated approach would be to have XMSS and SPHINCS+ as independent algorithms, so that they may be placed in separate tapscript leaves. This is a more flexible construction, which allows the user to combine spending paths as they will, but SHRINCS takes a unified approach for the following reasons:
+
+* <b>Simpler wallet integration</b>: a single opcode with a single public key and a mode flag is easier to integrate into wallets than several independent signature algorithms, which have to be coordinated.
+* <b>Multisignature complexity</b>: With SPHINCS and XMSS as separate algorithms, a threshold multisignature script must handle the combinatorial explosion of each signer potentially using their stateful or stateless key.
 
 <!--
 
