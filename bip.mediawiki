@@ -39,10 +39,19 @@ This conservative nature permits a long-term strategy of cryptographic agility f
 
 ===Why SHRINCS===
 
-NIST-standardized SLH-DSA (the standardized version of SPHINCS+) produces a stateless signature ranging from 7856 bytes (SLH-DSA-SHA2-128s) at the 128-bit classical security level. In the system, where each witness byte affects the transaction fees and consumes scarce block space, these sizes are painful for routine/regular transactions. SHRINCS addresses that through a hybrid stateful+stateless design:
-* Stateful mode: uses an unbalanced XMSS tree (UXMSS) where each signature requires only a WOTS+C signature and a Merkle authentication path. Early leaves have short authentication paths while later leaves have longer ones: the first stateful signature is only 324 bytes (at leaf index <code>q = 1</code>), and each subsequent signature grows by 16 bytes.
-* Stateless mode (fallback): uses a variant of SHPINCS+ structure (hypertree over PORS+FP with WOTS+C), producing a xxxx-byte signature.
+NIST-standardized SLH-DSA (the standardized version of SPHINCS+) produces a stateless signature ranging from 7856 bytes (SLH-DSA-SHA2-128s) at the 128-bit classical security level. In the Bitcoin context, where each witness byte affects the transaction fees and consumes scarce block space, these sizes are painful for routine/regular transactions. SHRINCS addresses that through a hybrid stateful+stateless design:
+
+* Stateful mode: uses an XMSS tree where each signature requires only a single WOTS+C signature and a Merkle authentication path. Shallow-depth XMSS leaves have short authentication paths while deeper leaves have longer ones. This permits constructions with very short signatures - as small as 324 bytes (with the XMSS leaf at depth 1) - at the cost of the burden of tracking state.
+* Stateless mode (fallback): uses a variant of SLH-DSA (FIPS-205) with a smaller parameter set, producing a xxxx-byte signature.
 * The single public key: the scheme presumes a single public key - a 32-byte commitment to both (stateful and stateless) components.
+
+<!--
+
+TODO: If SLH-DSA is not used, add this:
+
+While larger than the stateful mode, the stateless mode is still Xx smaller than SLH-DSA-SHA2-128s. Still, it doesn't require a persistent state and is used in the case when the signer's state is lost, corrupted, or intentionally reset (e.g., after seed recovery). Despite the increased transaction cost, the stateless fallback guarantees that funds remain spendable.
+
+-->
 
 ===Design Rationale: Unified Scheme vs. Separate Opcodes===
 
@@ -54,6 +63,9 @@ An even more segregated approach would be to have UXMSS and SPHINCS+ as independ
 * Simpler wallet integration: a single opcode with a single public key and a mode flag is easier to integrate into wallets than several independent signature algorithms, which have to be coordinated.
 * Multisignature complexity: With SPHINCS and UXMSS as separate algorithms, a threshold multisignature script must handle the combinatorial explosion of each signer potentially using their stateful or stateless key.
 
+<!--
+
+TODO: Remove this section if/when SLH-DSA is used without customization.
 
 ===SLH-DSA compatibility===
 
@@ -64,9 +76,13 @@ SHRINCS diverges from the SLH-DSA specification in three ways:
 
 These modifications, detailed in Kudinov and Nick<ref>Kudinov, Nick, ''Hash-based Signature Schemes for Bitcoin'', [https://eprint.iacr.org/2025/2203].</ref>, yield approximately xx% smaller stateless signatures (xxxx bytes vs. approximately xxxx bytes for an equivalent FORS/WOTS+ configuration). In the system where each byte costs fees, and we are limited by a constant block size, a signature size reduction isn’t marginal; it directly affects the lower transaction costs and higher throughput.
 
+TODO: copy the image from the google doc
+
 The modifications are well-analyzed. Compression techniques don’t introduce any vulnerabilities compared to SLH-DSA. The reduced amount of available signatures is aligned with the practical need:
 * On-chain usage:
 * Off-chain usage:
+
+-->
 
 ==Specification==
 
@@ -82,8 +98,11 @@ This BIP defines a new tapscript leaf version <code>0xC2</code>, in which all si
 
 Threshold (m-of-n) and multi (n-of-n) signatures are realized by combining <code>OP_CHECKSIGADD</code> with existing arithmetic <code>OP_ADD</code> and <code>OP_NUMEQUAL</code> opcodes, following the same pattern used in BIP342. Since each pubkey commits to its own algorithm, a multisignature script may consist of multiple keys using disjoint verification algorithms, and each signer need not care which algorithm their peers use.
 
+TODO: the above spec needs careful proofreading.
 
 ===Parameters===
+
+TODO: include references to the spec documents.
 
 
 ===Public Key Format===
@@ -98,8 +117,8 @@ flag || pubkey
 
 Two verification algorithm flags are defined in this BIP:
 
-<code>0x01</code>: SHRINCS.
-<code>0x02</code>: BIP340.
+* <code>0x01</code>: SHRINCS.
+* <code>0x02</code>: BIP340<ref>SHRINCS uses flag <code>0x01</code> while BIP340 uses flag <code>0x02</code> to avoid ambiguity when pubkeys are encoded with their algorithm flags. Because both BIP340 and SHRINCS public keys are 32 bytes long, using <code>0x02</code> for SHRINCS might lead to confusion: A user given a public key <code>0x02 || <32-byte-string></code> might think it is a compressed secp256k1 point, and not a SHRINCS key. By using <code>0x02</code> for a BIP340 pubkey, the key appears the same as it would if we took the full lifted secp256k1 curve point and encoded it with the standard compressed point encoding format.</ref>.
 
 Any pubkey which uses an unidentified algorithm flag prefix is essentially an “anyone-can-spend” public key, because verifiers will auto-succeed when they validate signatures against that key. This allows future BIPs to define new verification algorithms.
 
@@ -115,6 +134,8 @@ PK = PK.seed || PK.root
 
 * <code>PK.seed</code> is a domain separator, used in all hash operations while producing the signature
 * <code>PK.root</code> is a root commitment to both stateful and stateless public keys: <code>PK.root = Tw(PK.seed, ADRS, PK.sf || PK.sl)</code>. <code>Tw(.)</code> is a hash function with addressing.
+
+TODO: elaborate on tweaked hash functions
 
 
 ====Signature Format====
@@ -231,3 +252,9 @@ SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a statef
 ==Acknowledgements==
 
 * Mike Casey
+
+==Discussion Items==
+
+# Settle on flexible XMSS structure or rigid balanced/unbalanced signing paths
+# Whether to use NIST SLH-DSA for stateless, or customize with PORS+FP/WOTS+C
+# Whether to lift/loosen the 520-byte stack element size limit
