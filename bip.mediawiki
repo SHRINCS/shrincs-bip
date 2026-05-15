@@ -135,10 +135,8 @@ A SHRINCS public key is a 32-byte value constructed as:
 PK = PK.seed || PK.root
 </pre>
 
-* <code>PK.seed</code> is a domain separator, used in all hash operations while producing the signature
-* <code>PK.root</code> is a root commitment to both stateful and stateless public keys: <code>PK.root = Tw(PK.seed, ADRS, PK.sf || PK.sl)</code>. <code>Tw(.)</code> is a hash function with addressing.
-
-TODO: elaborate on tweaked hash functions
+* <code>PK.seed</code> is a domain separator, used in all hash operations while producing the signature.
+* <code>PK.root</code> is a root commitment to both stateful and stateless public keys.
 
 
 ====Signature Format====
