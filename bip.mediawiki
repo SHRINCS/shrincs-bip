@@ -99,6 +99,8 @@ This BIP defines a new tapscript leaf version <code>0xC2</code>, in which all si
 
 Threshold (m-of-n) and multi (n-of-n) signatures are realized by combining <code>OP_CHECKSIGADD</code> with existing arithmetic <code>OP_ADD</code> and <code>OP_NUMEQUAL</code> opcodes, following the same pattern used in BIP342. Since each pubkey commits to its own algorithm, a multisignature script may consist of multiple keys using disjoint verification algorithms, and each signer need not care which algorithm their peers use.
 
+In all other aspects, tapscript version <code>0xC2</code> is identical to the original tapscript version <code>0xC0</code> defined in BIP342.
+
 TODO: the above spec needs careful proofreading.
 
 ===Parameters===
