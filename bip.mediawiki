@@ -178,7 +178,7 @@ Cons:
 * New security proof needed, cannot lean on SLH-DSA/SPHINCS+
 
 
-
+====SigOp Budget====
 ====Single Signature Pattern====
 ====Threshold Signature Pattern====
 ==== Execution ====
