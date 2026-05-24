@@ -30,10 +30,13 @@ Here follows a table of parameters.
 
 | Parameter | Value | Description |
 |:-:|:-:|:-:|
-| `XMSS_WOTS_CHAIN_LEN` | 16 | The length of each Winternitz key chain in the stateful XMSS keypair. |
-| `SPHX_WOTS_CHAIN_LEN` | 16 | The length of each Winternitz key chain in the stateless SPHINCS keypair. |
+| `XMSS_WOTS_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
+| `SPHX_WOTS_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SPHINCS keypair. |
 | `XMSS_WOTS_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
-| `SPHX_WOTS_CHAIN_COUNT` | 35 | The number of Winternitz chains in the stateless SPHINCS keypair. |
+| `SPHX_WOTS_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS keypair. |
+| `SPHX_WOTS_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
+| `SPHX_WOTS_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
+| `SPHX_WOTS_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz chain indexes in the stateless SPHINCS keypair. |
 | `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS hypertree. |
 | `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS hypertree. |
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
@@ -72,27 +75,28 @@ We make use of the following utility helper functions in specifying SHRINCS.
 
 - `ceil(x)`: rounds `x` up to the nearest whole number.
 - `floor(x)`: rounds `x` down to the nearest whole number.
+- `sum(x)`: sums a sequence of numbers `x`.
 - `log2(x)`: returns the base-2 logarithm of `x` (a float/decimal).
 - `repeat(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `be_bytes(i, n)`: returns the big-endian encoding of the unsigned integer `i`, serialized as a string of `n` bytes.
 
-#### `message_to_indexes(...)`
+#### `base_2b(...)`
 
-The `message_to_indexes(message, b, outlen)` helper function decomposes a byte string `message` into `outlen` groups of `b` bits which are each parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits of `message` are parsed, and so `message` must have accordingly sufficient length.
+The `base_2b(x, b, outlen)` helper function decomposes a byte string `x` into `outlen` groups of `b` bits which are each parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits of `x` are parsed, and so `x` must have accordingly sufficient length.
 
 ```py
-def message_to_indexes(message, b, outlen):
-  assert len(message) >= ceil(outlen * b / 8)
+def base_2b(x, b, outlen):
+  assert len(x) >= ceil(outlen * b / 8)
 
   baseb = []      # output array
-  j = 0           # counts the bytes read from the input message.
-  acc = 0         # accumulator, collects bits from the message
+  j = 0           # counts the bytes read from the input x.
+  acc = 0         # accumulator, collects bits from x
   bits_filled = 0 # counts the bits accumulated
 
   for i in range(0, outlen):
     while bits_filled < b:
-      acc = (acc << 8) + message[j]
+      acc = (acc << 8) + x[j]
       j += 1
       bits_filled += 8
 
@@ -365,29 +369,6 @@ As written this would be insecure: Adversaries could forge signatures by finding
 
 Both WOTS schemes make use of the following common algorithms.
 
-### `wots_seckey_gen(...)`
-
-The WOTS secret key generation procedure. Takes in the `SK.seed` and `PK.seed` from the SHRINCS secret key, an `ADRS`, and the `chain_count` to determine how many hash chains to generate.
-
-```py
-def wots_seckey_gen(SK.seed, PK.seed, ADRS, chain_count):
-  ADRS[9] = WOTS_PRF
-  ADRS[14:22] = repeat(0x00, 8)
-  wots_sk = []
-  for i in range(0, chain_count):
-    ADRS[14:18] = be_bytes(i, 4)
-    wots_sk[i] = PRF(PK.seed, SK.seed, ADRS)
-  return wots_sk
-```
-
-- Inputs:
-  - `SK.seed`: a 16-byte secret.
-  - `PK.seed`: a 16-byte salt.
-  - `ADRS`: a 22-byte address.
-  - `chain_count`: an integer; Either `XMSS_WOTS_CHAIN_COUNT` or `SPHX_WOTS_CHAIN_COUNT`.
-- Output:
-  - An array of `chain_count` secret 16-byte preimages.
-
 ### `wots_chain_iter(...)`
 
 The WOTS hash chain iteration function. Takes in a 16-byte hash `node` at a given `start` index in a hash chain. This method iterates the hash chain by `steps` iterations, returning the hash chain node at index `start+steps`. The `ADRS` must be prefilled to ensure the hashes are properly tweaked.
@@ -409,34 +390,181 @@ def wots_chain_iter(node, start, steps, PK.seed, ADRS):
 - Output:
   - A 16-byte hash at index `start + steps`.
 
-### `wots_pubkey_gen(...)`
+### `wots_sign(...)`
 
-The WOTS public key generation function. Takes in a WOTS secret key `wots_sk` (an array of preimages), the `PK.seed`, an `ADRS`, a `chain_count` indicating the number of WOTS hash chains, and the length `chain_len` of those hash chains.
+The WOTS signing function. Takes in a set of hash chain `indexes`, the `SK.seed` and `PK.seed`, an `ADRS`, and a `chain_count` indicating the number of WOTS hash chains. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
 
 ```py
-def wots_pubkey_gen(wots_sk, PK.seed, ADRS, chain_count, chain_len):
-  ADRS[9] = WOTS_HASH
-  ADRS[14:22] = repeat(0x00, 8)
-  for i in range(0, len(wots_sk)):
-    ADRS[14:18] = be_bytes(i, 4)
-    pk[i] = wots_chain_iter(wots_sk[i], 0, chain_len - 1, PK.seed, ADRS)
-  return pk
+def wots_sign(indexes, SK.seed, PK.seed, ADRS, chain_count):
+  signature = []
+  for i in range(0, chain_count):
+    ADRS[9] = WOTS_PRF
+    ADRS[14:18] = be_bytes(i, 4)  # chain index
+    ADRS[18:22] = repeat(0x00, 4) # zero hash index
+    sk = PRF(PK.seed, SK.seed, ADRS)
+    ADRS[9] = WOTS_HASH
+    signature[i] = wots_chain_iter(sk, 0, indexes[i], PK.seed, ADRS)
+  return signature
 ```
 
 - Inputs:
-  - `wots_sk`: an array of 16-byte secret preimages.
+  - `indexes`: an array of integers.
+  - `SK.seed`: a 16-byte secret.
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `chain_count`: the number of WOTS hash chains, i.e. the number of elements in `wots_sk`.
+  - `chain_count`: the number of WOTS hash chains, i.e. the number of hashes in the signature.
+- Output:
+  - A WOTS signature composed of `chain_count` hashes, each 16 bytes long.
+
+### `wots_pubkey_gen(...)`
+
+The WOTS public key generation function. Takes in the secret `SK.seed`, the `PK.seed`, an `ADRS`, a `chain_count` indicating the number of WOTS hash chains, and the length `chain_len` of those hash chains. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_pubkey_gen(SK.seed, PK.seed, ADRS, chain_count, chain_len):
+  indexes = repeat(chain_len - 1, chain_count)
+  return wots_sign(indexes, SK.seed, PK.seed, ADRS, chain_count)
+```
+
+- Inputs:
+  - `SK.seed`: a 16-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `chain_count`: the number of WOTS hash chains, i.e. the number of hashes in the pubkey.
   - `chain_len`: the length of each WOTS hash chain.
 - Output:
   - An array of `chain_count` 16-byte hashes.
 
-
 ## WOTS-TW
 
-WOTS-TW is a variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries.
+WOTS-TW is a variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries. In WOTS-TW, a 128-bit message is mapped directly into an array of `SPHX_WOTS_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes. This checksum is then encoded into `SPHX_WOTS_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
 
+This process starts by breaking a 128-bit message into `SPHX_WOTS_CHAIN_COUNT1` integers of `SPHX_WOTS_CHAIN_BITS` bits each in the range `[0, 2**SPHX_WOTS_CHAIN_BITS)`. The maximum possible sum of those indexes would be if every index was equal to `2**SPHX_WOTS_CHAIN_BITS - 1`, so the maximum sum is
+
+```py
+SPHX_WOTS_CHECKSUM_MAX = SPHX_WOTS_CHAIN_COUNT1 * (2**SPHX_WOTS_CHAIN_BITS - 1)
+```
+
+This constant is defined explicitly in the earlier [table of constants](#Parameters).
+
+Given an array of `msg_indexes`, the checksum can be computed by:
+
+```py
+checksum = SPHX_WOTS_CHECKSUM_MAX - sum(msg_indexes)
+```
+
+This checksum is then converted into `SPHX_WOTS_CHAIN_COUNT2` integers of `SPHX_WOTS_CHAIN_BITS` bits each, which are appended to the original `msg_indexes`.
+
+### `wots_tw_message_to_indexes(...)`
+
+The WOTS-TW message map function.
+
+Converts a 16-byte `message` to a checksummed array of `SPHX_WOTS_CHAIN_COUNT` WOTS hash chain indexes in the range `[0, 2**SPHX_WOTS_CHAIN_BITS)`.
+
+```py
+def wots_tw_message_to_indexes(message):
+  msg_indexes = base_2b(message, SPHX_WOTS_CHAIN_BITS, SPHX_WOTS_CHAIN_COUNT1)
+  checksum = SPHX_WOTS_CHECKSUM_MAX - sum(msg_indexes)
+
+  checksum_indexes = []
+  for i in range(0, SPHX_WOTS_CHAIN_COUNT2):
+    checksum_indexes[SPHX_WOTS_CHAIN_COUNT2 - 1 - i] = checksum % (2**SPHX_WOTS_CHAIN_BITS)
+    checksum >>= SPHX_WOTS_CHAIN_BITS
+
+  return msg_indexes || checksum_indexes
+```
+
+```py
+# Alternate definition from FIPS-205 (algorithm 7); The above algorithm is equivalent to this.
+SPHX_WOTS_CHECKSUM_SHIFT = (8 - (ceil(SPHX_WOTS_CHAIN_BITS * SPHX_WOTS_CHAIN_COUNT2) % 8)) % 8
+SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(SPHX_WOTS_CHAIN_COUNT2 * SPHX_WOTS_CHAIN_BITS / 8)
+def wots_tw_message_to_indexes_alt(message):
+  msg_indexes = base_2b(message, SPHX_WOTS_CHAIN_BITS, SPHX_WOTS_CHAIN_COUNT1)
+  checksum = (SPHX_WOTS_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
+  checksum_bytes = be_bytes(checksum, SPHX_WOTS_CHECKSUM_BYTE_LEN)
+  checksum_indexes = base_2b(checksum_bytes, SPHX_WOTS_CHAIN_BITS, SPHX_WOTS_CHAIN_COUNT2)
+  return msg_indexes || checksum_indexes
+```
+
+- Inputs:
+  - `message`: a 16-byte hash
+- Output:
+  - An checksummed array of `SPHX_WOTS_CHAIN_BITS`-bit integers of length `SPHX_WOTS_CHAIN_COUNT`.
+
+This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.** Note especially how the bits of the checksum are sliced off and appended to the very end of the final encoding; The checksum bits are NOT appended directly to the message indexes.
+
+#### Example
+
+Consider the following message indexes:
+
+```py
+msg = [10, 11, 2, 2, 3, 12, 15, 8, 1, 2, 8, 2, 2, 10, 9, 13, 10, 11, 2, 2, 3, 12, 15, 8, 1, 2, 8, 2, 2, 10, 9, 13]
+```
+
+The checksum of these message indexes is:
+
+```py
+checksum = SPHX_WOTS_CHECKSUM_MAX - sum(msg)
+         = 260
+         = 0b100000100
+```
+
+The original message has a binary representation:
+
+```
+1010 1011 0010 ... 1010 1001 1101
+```
+
+
+After appending the checksum, the final checksummed index sequence should look like this:
+
+```
+1010 1011 0010 ... 1010 1001 1101 0001 0000 0100
+                                  ^^^^^^^^^^^^^^
+                                     checksum
+```
+
+
+### `wots_tw_sign(...)`
+
+The WOTS-TW signing function. Takes in a `message`, the `SK.seed` and `PK.seed`, and an `ADRS`. The `ADRS` should be prefill with the location of the WOTS-TW keypair being used. Returns a WOTS-TW signature.
+
+```py
+def wots_tw_sign(message, SK.seed, PK.seed, ADRS):
+  indexes = wots_tw_message_to_indexes(message)
+  return wots_sign(indexes, SK.seed, PK.seed, ADRS, SPHX_WOTS_CHAIN_COUNT)
+```
+
+- Inputs:
+  - `message`: a 16-byte hash.
+  - `SK.seed`: a 16-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A WOTS-TW signature composed of `SPHX_WOTS_CHAIN_COUNT` hashes, each 16 bytes long.
+
+This algorithm is used only by signers.
+
+
+### `wots_tw_pubkey_gen(...)`
+
+The WOTS-TW key generation function.
+
+```py
+def wots_tw_pubkey_gen(SK.seed, PK.seed, ADRS):
+  ...
+```
+
+### `wots_tw_pubkey_from_sig(...)`
+
+The WOTS-TW verification procedure. Recovers a WOTS-TW public key from a message and signature.
+
+```py
+def wots_tw_pubkey_from_sig(signature, message, PK.seed, ADRS):
+  ...
+```
+
+This algorithm is used by both signers and verifiers.
 
 ## WOTS+C
 
