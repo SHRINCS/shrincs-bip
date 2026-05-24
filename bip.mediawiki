@@ -19,7 +19,7 @@
 
 ===Abstract===
 
-This BIP introduces a softfork via Tapscript leaf version 0xC2, which redefines OP_CHECKSIG to support cryptographic agility through algorithm flags attached to public keys. This BIP specifies two such flags: <code>0x02</code>to verify BIP340 Schnorr signatures and the <code>0x01</code> to verify SHRINCS signatures. Reserved flags are defined as always-succeed paths, so that new signature verification algorithms may be added in the future. It also lifts the 520-byte witness stack element size limit within this leaf version to 5000 bytes.
+This BIP introduces a softfork via Tapscript leaf version 0xC2, which redefines OP_CHECKSIG to support cryptographic agility through algorithm flags attached to public keys. This BIP specifies two such flags: <code>0x02</code>to verify BIP340 Schnorr signatures and the <code>0x01</code> to verify SHRINCS signatures. Reserved flags are defined as always-succeed paths, so that new signature verification algorithms may be added in the future. It also lifts the 520-byte witness stack element size limit within this leaf version to 6000 bytes.
 
 ===Copyright===
 
