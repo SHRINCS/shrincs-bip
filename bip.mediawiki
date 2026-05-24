@@ -116,7 +116,7 @@ flag || pubkey
 Two verification algorithm flags are defined in this BIP:
 
 * <code>0x01</code>: SHRINCS.
-* <code>0x02</code>: BIP340<ref>SHRINCS uses flag <code>0x01</code> while BIP340 uses flag <code>0x02</code> to avoid ambiguity when pubkeys are encoded with their algorithm flags. Because both BIP340 and SHRINCS public keys are 32 bytes long, using <code>0x02</code> for SHRINCS might lead to confusion: A user given a public key <code>0x02 || <32-byte-string></code> might think it is a compressed secp256k1 point, and not a SHRINCS key. By using <code>0x02</code> for a BIP340 pubkey, the key appears the same as it would if we took the full lifted secp256k1 curve point and encoded it with the standard compressed point encoding format.</ref>.
+* <code>0x02</code>: BIP340<ref>By using <code>0x02</code> as the algorithm flag for a BIP340 pubkey, the key appears the same as it would if we took the full lifted secp256k1 curve point and encoded it with the standard compressed point encoding format.</ref>.
 
 Any pubkey which uses an unidentified algorithm flag prefix is essentially an “anyone-can-spend” public key, because verifiers will auto-succeed when they validate signatures against that key. This allows future BIPs to define new verification algorithms using a soft-fork.
 
