@@ -30,7 +30,6 @@ Here follows a table of parameters.
 
 | Parameter | Value | Description |
 |:-:|:-:|:-:|
-| `N` | 16 | The width of the hash function output. Dictates the security level. |
 | `XMSS_WOTS_CHAIN_LEN` | 16 | The length of each Winternitz key chain in the stateful XMSS keypair. |
 | `SPHX_WOTS_CHAIN_LEN` | 16 | The length of each Winternitz key chain in the stateless SPHINCS keypair. |
 | `XMSS_WOTS_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
@@ -66,6 +65,44 @@ The padding bytes used depend on whether the `PK.seed` is being used to salt the
 - In the stateless path, `pad(PK.seed) = PK.seed || repeat(0x00, 48)`
 - In the stateful path, `pad(PK.seed) = PK.seed || repeat(0xFF, 48)`
 
+
+### Utilities
+
+We make use of the following utility helper functions in specifying SHRINCS.
+
+- `ceil(x)`: rounds `x` up to the nearest whole number.
+- `floor(x)`: rounds `x` down to the nearest whole number.
+- `log2(x)`: returns the base-2 logarithm of `x` (a float/decimal).
+- `repeat(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
+- `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
+- `be_bytes(i, n)`: returns the big-endian encoding of the unsigned integer `i`, serialized as a string of `n` bytes.
+
+#### `message_to_indexes(...)`
+
+The `message_to_indexes(message, b, outlen)` helper function decomposes a byte string `message` into `outlen` groups of `b` bits which are each parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits of `message` are parsed, and so `message` must have accordingly sufficient length.
+
+```py
+def message_to_indexes(message, b, outlen):
+  assert len(message) >= ceil(outlen * b / 8)
+
+  baseb = []      # output array
+  j = 0           # counts the bytes read from the input message.
+  acc = 0         # accumulator, collects bits from the message
+  bits_filled = 0 # counts the bits accumulated
+
+  for i in range(0, outlen):
+    while bits_filled < b:
+      acc = (acc << 8) + message[j]
+      j += 1
+      bits_filled += 8
+
+    bits_filled -= b
+    baseb[i] = acc >> bits_filled
+    acc %= 2**bits_filled # prevent accumulator from overflowing
+
+  return baseb
+```
+
 # Building Blocks
 
 SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and _tweakable hash functions_ - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SPHINCS, which together form SHRINCS.
@@ -100,8 +137,34 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 | `layer` | 1 byte | In the stateful path, this specifies depth in the XMSS tree. <br> In the stateless path, this specifies the layer in the SPHINCS hypertree. |
 | `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. <br> In the stateful path, this specifies the node index within a layer of the XMSS tree. <br> In the stateless path, this specifies the node index within a layer of the SPHINCS hypertree. |
 | `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
-| (context dependent) | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
+| `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
+### ADRS Types
+| `ADRS` Type | Value | Purpose |
+|:-:|:-:|:-:|
+| `WOTS_HASH` | 0 | Used when iterating WOTS hash chains. |
+| `WOTS_PK`  | 1 | Used when compressing WOTS public keys. |
+| `TREE` | 2 | Used when combining merkle nodes in the SPHINCS hypertree. |
+| `FORS_TREE` | 3 | Used when combining merkle nodes in FORS trees. |
+| `FORS_ROOTS` | 4 | Used when compressing FORS merkle roots together. |
+| `WOTS_PRF` | 5 | Used when generating WOTS secret preimages. |
+| `FORS_PRF` | 6 | Used when generating FORS secret preimages. |
+
+### ADRS Payloads
+
+Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field. The following table describes how they are used under each ADRS type flag.
+
+| `ADRS` Type | Payload Format |
+|:-:|-|
+| `WOTS_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index |
+| `WOTS_PK` | 4 bytes: key pair index <br> 8 bytes: zero padding |
+| `TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index |
+| `FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index |
+| `FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding |
+| `WOTS_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding |
+| `FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index |
+
+TODO: make this more visual and explain each field better in context.
 
 ## Tweakable Hash Functions
 
@@ -113,84 +176,85 @@ In one case, we use HMAC-SHA256[^hmac], which we invoke as the function `hmac_sh
 
 ```py
 def hmac_sha256(key, msg):
-  key = [key[i] for i in range(64) else 0] # pad to 64 bytes
-  inner = sha256(xor(key, 0x36) || msg)
-  return sha256(xor(key, 0x5C) || inner)
+  padded_key = repeat(0x00, 64)
+  padded_key[0:len(key)] = key
+  inner = sha256(xor(padded_key, 0x36) || msg)
+  return sha256(xor(padded_key, 0x5C) || inner)
 ```
 
-SHA256 and HMAC outputs are truncated, often to `N = 16` bytes, which we denote using Pythonic list-slicing notation: `sha256(x)[:N]`
+SHA256 and HMAC outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`
 
 The following sections describe tweaked hash functions to fill different roles.
 
 
 ### `T_sphx(...)`
 
-The tweaked hash function `T_sphx` hashes an input `M_l`, which is a sequence of `SPHX_WOTS_CHAIN_COUNT` hashes, each `N` bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in SPHINCS.
+The tweaked hash function `T_sphx` hashes an input `M_l`, which is a sequence of `SPHX_WOTS_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in SPHINCS.
 
 ```py
-T_sphx(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:N]
+T_sphx(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 ```
 
 - Inputs:
-  - `PK.seed`: an `N`-byte salt.
+  - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: an array of `SPHX_WOTS_CHAIN_COUNT * N` bytes.
+  - `M_l`: an array of `SPHX_WOTS_CHAIN_COUNT * 16` bytes.
 - Output:
-  - An `N`-byte hash.
+  - A 16-byte hash.
 
 This function is only used in the stateless path.
 
 
 ### `T_xmss(...)`
 
-The tweaked hash function `T_xmss` hashes an input `M_l`, which is a sequence of `XMSS_WOTS_CHAIN_COUNT` hashes, each `N` bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in XMSS.
+The tweaked hash function `T_xmss` hashes an input `M_l`, which is a sequence of `XMSS_WOTS_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in XMSS.
 
 ```py
-T_xmss(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:N]
+T_xmss(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 ```
 
 - Inputs:
-  - `PK.seed`: an `N`-byte salt.
+  - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: an array of `XMSS_WOTS_CHAIN_COUNT * N` bytes.
+  - `M_l`: an array of `XMSS_WOTS_CHAIN_COUNT * 16` bytes.
 - Output:
-  - An `N`-byte hash.
+  - A 16-byte hash.
 
 This function is only used in the stateful path.
 
 
 ### `F(...)`
 
-The tweaked hash function `F` hashes an input `M_1`, which is a single `N`-byte hash. This function will be used to generate and iterate Winternitz hash chains and to hash FORS leaves.
+The tweaked hash function `F` hashes an input `M_1`, which is a single 16-byte hash. This function will be used to generate and iterate Winternitz hash chains and to hash FORS leaves.
 
 ```py
-F(PK.seed, ADRS, M_1) = sha256(pad(PK.seed) || ADRS || M_1)[:N]
+F(PK.seed, ADRS, M_1) = sha256(pad(PK.seed) || ADRS || M_1)[:16]
 ```
 
 - Inputs:
-  - `PK.seed`: an `N`-byte salt.
+  - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_1`: an `N`-byte hash.
+  - `M_1`: a 16-byte hash.
 - Output:
-  - An `N`-byte hash.
+  - A 16-byte hash.
 
 This function is used in both stateful and stateless paths.
 
 
 ### `H(...)`
 
-The tweaked hash function `H` hashes an input `M_2`, which is a pair of `N`-byte hashes, concatenated together. This function will be used to combine pairs of merkle nodes, to construct merkle trees in XMSS and FORS.
+The tweaked hash function `H` hashes an input `M_2`, which is a pair of 16-byte hashes, concatenated together. This function will be used to combine pairs of merkle nodes, to construct merkle trees in XMSS and FORS.
 
 ```py
-H(PK.seed, ADRS, M_2) = sha256(pad(PK.seed) || ADRS || M_2)[:N]
+H(PK.seed, ADRS, M_2) = sha256(pad(PK.seed) || ADRS || M_2)[:16]
 ```
 
 - Inputs:
-  - `PK.seed`: an `N`-byte salt.
+  - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_2`: an array of `2 * N` bytes.
+  - `M_2`: an array of 32 bytes.
 - Output:
-  - An `N`-byte hash.
+  - A 16-byte hash.
 
 This function is used in both stateful and stateless paths.
 
@@ -199,15 +263,15 @@ This function is used in both stateful and stateless paths.
 The tweaked hash function `PRF` hashes `SK.seed` with an `ADRS` to derive secret preimage values needed for signing and key generation.
 
 ```py
-PRF(PK.seed, SK.seed, ADRS) = sha256(pad(PK.seed) || ADRS || SK.seed)[:N]
+PRF(PK.seed, SK.seed, ADRS) = sha256(pad(PK.seed) || ADRS || SK.seed)[:16]
 ```
 
 - Inputs:
-  - `PK.seed`: an `N`-byte salt.
-  - `SK.seed`: an `N`-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `SK.seed`: a 16-byte secret.
   - `ADRS`: a 22-byte address.
 - Output:
-  - An `N`-byte hash.
+  - A 16-byte hash.
 
 
 This function is used in both stateful and stateless paths, but only by the signing algorithm.
@@ -223,9 +287,9 @@ H_msg(R, PK.seed, root, M) = sha256(R || PK.seed || sha256(R || PK.seed || root 
 ```
 
 - Inputs:
-  - `R`: an `N`-byte randomizer.
-  - `PK.seed`: an `N`-byte salt.
-  - `root`: an `N`-byte hash.
+  - `R`: a 16-byte randomizer.
+  - `PK.seed`: a 16-byte salt.
+  - `root`: a 16-byte hash.
   - `M`: an arbitrary-length bytestring (TODO).
 - Output:
   - A 32-byte hash (TODO).
@@ -243,30 +307,140 @@ Note that `PK.seed` is not padded in this tweaked hash function. (TODO: make sur
 The tweaked hash function `PRF_msg` uses HMAC-SHA256 to hash `SK.prf`, randomness `opt_rand`, and an arbitrary-length message `M` (TODO: fixed length?). This function will be used to derive a _randomizer_ (salt) for the given message.
 
 ```py
-PRF_msg(SK.prf, opt_rand, M) = hmac_sha256(SK.prf, opt_rand || M)[:N]
+PRF_msg(SK.prf, opt_rand, M) = hmac_sha256(SK.prf, opt_rand || M)[:16]
 ```
 
 - Inputs:
-  - `SK.prf`: an `N`-byte secret.
-  - `opt_rand`: an `N`-byte salt.
+  - `SK.prf`: a 16-byte secret.
+  - `opt_rand`: a 16-byte salt.
   - `M`: an arbitrary-length bytestring (TODO).
 - Output:
-  - An `N`-byte hash.
+  - A 16-byte hash.
 
 This function is used in both stateful and stateless paths, but only by the signing algorithm.
 
 If deterministic signing is required and an RNG is not available, `opt_rand` will be set to `PK.seed`.
 
-TODO: option for faster hypertree pruning grinding.
+TODO: domain separate between stateful/stateless.
 
 ### Implementation Notes
 
 - The only difference between `T_xmss`, `T_sphx`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
+- `PRF_msg` may be replaced with an XOF, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF should absorb the same inputs as `PRF_msg`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
 - These tweaked hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data. Inputs should not be copied in memory unless securely erased afterwards.
 - Many of these hash functions are invoked on independent data, and so can be run in parallel. Platforms with access to vectorized (SIMD) instruction sets on x86[^simd_x86] or ARM[^simd_arm] CPUs may utilize them to parallelize SHA256[^sha256x8] to improve performance significantly: a factor of 4 or more in some cases.
 - Implementors can use SHA2 hardware acceleration[^sha_ni], though this is best used to accelerate verification, not signing or keygen[^sha_ni_bench].
+
+
+## WOTS Schemes
+
+A _one-time signature_ (OTS) scheme restricts signers to creating at most one signature per keypair. If this assumption is broken by publishing distinct signatures, then adversaries will be capable of forging new ones. While limited in their practical utility, hash-based OTS schemes are a crucial building block to construct more advanced hash-based signature schemes.
+
+The following two sections describe a pair of related one-time signature schemes: WOTS-TW and WOTS+C.
+
+- WOTS+C is used for the stateful signing path.
+- WOTS-TW is used for the stateless signing path.
+
+Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signature scheme_ (WOTS).[^merkle]
+
+### Informal Description
+
+Here follows an intuitive description of Winternitz OTS (WOTS) schemes in general.
+
+A WOTS private key is an array of secret preimages. Each preimage is hashed, and the output is then hashed again, and so on, forming a _chain_ of hashes. After some prescribed number of steps in the chain (iterating the hash function) we reach the _tip_ of the hash chain. The _tips_ of those hash chains form the Winternitz public key.
+
+To sign, the key holder maps an approved message to a set of integers which each index a node in a hash chain, and reveals the hashes at those indexes as the Winternitz signature.
+
+The verifier maps the message to those same integers as the signer did, and finishes computing the hash chains. If the signer revealed the correct nodes, then the verifier will have recomputed the same hash chain tips that compose the signer's public key.
+
+<img src="img/wots-diagram-generic.svg">
+
+<sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
+
+As written this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes. WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a small salt which the signer must grind to find a set of indexes which sum to a specific constant.
+
+## WOTS Algorithms
+
+Both WOTS schemes make use of the following common algorithms.
+
+### `wots_seckey_gen(...)`
+
+The WOTS secret key generation procedure. Takes in the `SK.seed` and `PK.seed` from the SHRINCS secret key, an `ADRS`, and the `chain_count` to determine how many hash chains to generate.
+
+```py
+def wots_seckey_gen(SK.seed, PK.seed, ADRS, chain_count):
+  ADRS[9] = WOTS_PRF
+  ADRS[14:22] = repeat(0x00, 8)
+  wots_sk = []
+  for i in range(0, chain_count):
+    ADRS[14:18] = be_bytes(i, 4)
+    wots_sk[i] = PRF(PK.seed, SK.seed, ADRS)
+  return wots_sk
+```
+
+- Inputs:
+  - `SK.seed`: a 16-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `chain_count`: an integer; Either `XMSS_WOTS_CHAIN_COUNT` or `SPHX_WOTS_CHAIN_COUNT`.
+- Output:
+  - An array of `chain_count` secret 16-byte preimages.
+
+### `wots_chain_iter(...)`
+
+The WOTS hash chain iteration function. Takes in a 16-byte hash `node` at a given `start` index in a hash chain. This method iterates the hash chain by `steps` iterations, returning the hash chain node at index `start+steps`. The `ADRS` must be prefilled to ensure the hashes are properly tweaked.
+
+```py
+def wots_chain_iter(node, start, steps, PK.seed, ADRS):
+  for j in range(start, start+steps):
+    ADRS[18:22] = be_bytes(j, 4)
+    node = F(PK.seed, ADRS, node)
+  return node
+```
+
+- Inputs:
+  - `node`: a 16-byte hash.
+  - `start`: an unsigned integer indicating the index of `node` in the hash chain.
+  - `steps`: an unsigned integer indicating how many steps to take up the hash chain.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A 16-byte hash at index `start + steps`.
+
+### `wots_pubkey_gen(...)`
+
+The WOTS public key generation function. Takes in a WOTS secret key `wots_sk` (an array of preimages), the `PK.seed`, an `ADRS`, a `chain_count` indicating the number of WOTS hash chains, and the length `chain_len` of those hash chains.
+
+```py
+def wots_pubkey_gen(wots_sk, PK.seed, ADRS, chain_count, chain_len):
+  ADRS[9] = WOTS_HASH
+  ADRS[14:22] = repeat(0x00, 8)
+  for i in range(0, len(wots_sk)):
+    ADRS[14:18] = be_bytes(i, 4)
+    pk[i] = wots_chain_iter(wots_sk[i], 0, chain_len - 1, PK.seed, ADRS)
+  return pk
+```
+
+- Inputs:
+  - `wots_sk`: an array of 16-byte secret preimages.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `chain_count`: the number of WOTS hash chains, i.e. the number of elements in `wots_sk`.
+  - `chain_len`: the length of each WOTS hash chain.
+- Output:
+  - An array of `chain_count` 16-byte hashes.
+
+
+## WOTS-TW
+
+WOTS-TW is a variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries.
+
+
+## WOTS+C
+
+WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in compactness & performance, but we nonetheless use WOTS-TW for the stateless path to retain compatibility with SLH-DSA[^slhdsa].
 
 
 ## TODO
@@ -286,3 +460,6 @@ TODO: option for faster hypertree pruning grinding.
 [^sha_ni_bench]: https://conduition.io/code/fast-slh-dsa/#Hardware-Acceleration
 [^sha256x8]: https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c
 [^vulkan]: https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA
+[^pruning]: https://conduition.io/cryptography/hypertree-pruning/
+[^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
+[^sphincs+c]: https://eprint.iacr.org/2022/778
