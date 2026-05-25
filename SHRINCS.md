@@ -36,7 +36,8 @@ Here follows a table of parameters.
 | `SPHX_WOTS_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS keypair. |
 | `SPHX_WOTS_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
 | `SPHX_WOTS_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
-| `SPHX_WOTS_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz chain indexes in the stateless SPHINCS keypair. |
+| `SPHX_WOTS_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SPHINCS keypair. |
+| `XMSS_WOTS_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
 | `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS hypertree. |
 | `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS hypertree. |
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
@@ -68,6 +69,7 @@ The padding bytes used depend on whether the `PK.seed` is being used to salt the
 - In the stateless path, `pad(PK.seed) = PK.seed || repeat(0x00, 48)`
 - In the stateful path, `pad(PK.seed) = PK.seed || repeat(0xFF, 48)`
 
+TODO: stateful XMSS trees may reuse hash functions if secret keys are reused with different tree shapes, TODO use padding space for better domain separation.
 
 ### Utilities
 
@@ -153,6 +155,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 | `FORS_ROOTS` | 4 | Used when compressing FORS merkle roots together. |
 | `WOTS_PRF` | 5 | Used when generating WOTS secret preimages. |
 | `FORS_PRF` | 6 | Used when generating FORS secret preimages. |
+| `WOTS_GRIND` | 16 | Used when grinding WOTS+C message digests. |
 
 ### ADRS Payloads
 
@@ -167,6 +170,7 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding |
 | `WOTS_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding |
 | `FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index |
+| `WOTS_GRIND` | 4 bytes: grinding counter <br> 8 bytes: zero padding |
 
 TODO: make this more visual and explain each field better in context.
 
@@ -435,6 +439,34 @@ def wots_pubkey_gen(SK.seed, PK.seed, ADRS, chain_count, chain_len):
 - Output:
   - An array of `chain_count` 16-byte hashes.
 
+### `wots_pubkey_from_sig(...)`
+
+The WOTS verification procedure. Recovers a WOTS public key from a `signature` on a set of `indexes`. Takes in the `PK.seed`, an `ADRS`, a `chain_count` indicating the number of WOTS hash chains, and the length `chain_len` of those hash chains. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_pubkey_from_sig(signature, indexes, PK.seed, ADRS, chain_count, chain_len):
+  wots_pk = []
+  ADRS[9] = WOTS_HASH
+  for i in range(0, chain_count):
+    ADRS[14:18] = be_bytes(i, 4)
+    steps = chain_len - 1 - indexes[i]
+    wots_pk[i] = wots_chain_iter(signature[i], indexes[i], steps, PK.seed, ADRS)
+  return wots_pk
+```
+
+- Inputs:
+  - `signature`: an array of `chain_count` 16-byte hashes.
+  - `indexes`: an array of `chain_count` integers less than `chain_len`.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `chain_count`: the number of WOTS hash chains, i.e. the number of hashes in the pubkey.
+  - `chain_len`: the length of each WOTS hash chain.
+- Output:
+  - An array of `chain_count` 16-byte hashes.
+
+This algorithm is used by both signers and verifiers.
+
+
 ## WOTS-TW
 
 WOTS-TW is a variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries. In WOTS-TW, a 128-bit message is mapped directly into an array of `SPHX_WOTS_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes. This checksum is then encoded into `SPHX_WOTS_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
@@ -524,58 +556,86 @@ After appending the checksum, the final checksummed index sequence should look l
                                      checksum
 ```
 
+## WOTS+C
 
-### `wots_tw_sign(...)`
+WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in compactness & performance, but we nonetheless use WOTS-TW for the stateless path to retain compatibility with SLH-DSA[^slhdsa], while WOTS+C is used in the custom stateful component of SHRINCS to reduce signature size.
 
-The WOTS-TW signing function. Takes in a `message`, the `SK.seed` and `PK.seed`, and an `ADRS`. The `ADRS` should be prefill with the location of the WOTS-TW keypair being used. Returns a WOTS-TW signature.
+WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any message must be mapped to a set of indexes that sum to a fixed constant. This prevents WOTS forgeries because an incremental increase in any index of a hash chain must be balanced out by decrementing a different index. It also ensures a constant-time verifier because the number of hash operations needed to complete every WOTS hash chain is fixed.
+
+The constant-sum parameter `XMSS_WOTS_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
 
 ```py
-def wots_tw_sign(message, SK.seed, PK.seed, ADRS):
-  indexes = wots_tw_message_to_indexes(message)
-  return wots_sign(indexes, SK.seed, PK.seed, ADRS, SPHX_WOTS_CHAIN_COUNT)
+XMSS_WOTS_CONSTANT_SUM = floor(XMSS_WOTS_CHAIN_COUNT * (2**XMSS_WOTS_CHAIN_BITS - 1) / 2)
+```
+
+Only a small subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
+
+Eventually the signer finds a counter which maps the message to a set of indexes that sum to `XMSS_WOTS_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
+
+### `wots_c_grind(...)`
+
+The WOTS+C grinding function. Takes in a `message_digest`, the `PK.seed`, and an `ADRS`, and grinds - up to a maximum number of attempts - until we find a counter that maps to a constant sum index-set. Returns the lowest valid integer counter and the corresponding array of constant-sum hash chain indexes. The `ADRS` should be prefilled with the location of the WOTS+C key which will be used to sign the resulting indexes.
+
+```py
+def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
+  ADRS[9] = WOTS_GRIND
+  ADRS[14:22] = repeat(0x00, 8)
+
+  for i in range(0, 256 ** XMSS_WOTS_COUNTER_SIZE):
+    ADRS[10:14] = be_bytes(i, 4)
+    hashed = H(PK.seed, ADRS, message_digest)
+    indexes = base_2b(hashed, XMSS_WOTS_CHAIN_BITS, XMSS_WOTS_CHAIN_COUNT):
+    if sum(indexes) == XMSS_WOTS_CONSTANT_SUM:
+      return (i, indexes)
+
+  raise "UNREACHABLE" # practically impossible
 ```
 
 - Inputs:
-  - `message`: a 16-byte hash.
-  - `SK.seed`: a 16-byte secret.
   - `PK.seed`: a 16-byte salt.
+  - `message_digest`: a 32-byte intermediate message digest (from `H_msg`).
   - `ADRS`: a 22-byte address.
+- Outputs:
+  - The smallest possible valid counter.
+  - The corresponding constant-sum set of hash chain indexes.
+
+This algorithm is used only by the signer.
+
+We max out at `256 ** XMSS_WOTS_COUNTER_SIZE` grinding attempts because the counter is serialized as `XMSS_WOTS_COUNTER_SIZE` bytes in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
+
+### `wots_c_map_digest(...)`
+
+The WOTS+C digest validation function. Takes in a `message_digest`, the `PK.seed`, an `ADRS`, and a `counter`. This evaluates the grinding counter and attempts to map the digest to a constant sum set of hash chain indexes. If the `counter` is valid, this function returns the constant sum index-set. Otherwise, it returns null.
+
+```py
+def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
+  ADRS[9] = WOTS_GRIND
+  ADRS[10:14] = be_bytes(counter, 4)
+  ADRS[14:22] = repeat(0x00, 8)
+  hashed = H(PK.seed, ADRS, message_digest)
+  indexes = base_2b(hashed, XMSS_WOTS_CHAIN_BITS, XMSS_WOTS_CHAIN_COUNT):
+  if sum(indexes) == XMSS_WOTS_CONSTANT_SUM:
+    return indexes
+  else:
+    return None
+```
+
+- Inputs:
+  - `PK.seed`: a 16-byte salt.
+  - `message_digest`: a 32-byte intermediate message digest (from `H_msg`).
+  - `ADRS`: a 22-byte address.
+  - `counter`: an unsigned integer.
 - Output:
-  - A WOTS-TW signature composed of `SPHX_WOTS_CHAIN_COUNT` hashes, each 16 bytes long.
+  - A constant-sum set of hash chain indexes, or null.
 
-This algorithm is used only by signers.
-
-
-### `wots_tw_pubkey_gen(...)`
-
-The WOTS-TW key generation function.
-
-```py
-def wots_tw_pubkey_gen(SK.seed, PK.seed, ADRS):
-  ...
-```
-
-### `wots_tw_pubkey_from_sig(...)`
-
-The WOTS-TW verification procedure. Recovers a WOTS-TW public key from a message and signature.
-
-```py
-def wots_tw_pubkey_from_sig(signature, message, PK.seed, ADRS):
-  ...
-```
-
-This algorithm is used by both signers and verifiers.
-
-## WOTS+C
-
-WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in compactness & performance, but we nonetheless use WOTS-TW for the stateless path to retain compatibility with SLH-DSA[^slhdsa].
-
+This algorithm is used only by the verifier.
 
 ## TODO
 
 - Because SLH-DSA and XMSS have different signature sizes, this means the SHRINCS signature size is variable.
 - Mention Vulkan[^vulkan] for signing/keygen.
 - Discuss XMSS tree caching
+- Specify which `ADRS` fields should be prefilled and when.
 
 [^slhdsa]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
@@ -591,3 +651,4 @@ WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in 
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
 [^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
 [^sphincs+c]: https://eprint.iacr.org/2022/778
+[^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
