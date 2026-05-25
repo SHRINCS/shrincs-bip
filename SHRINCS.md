@@ -60,9 +60,7 @@ Note this is the bare minimum needed to generate a full SHRINCS public key. More
 
 ### Padding
 
-Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key.
-<!--Mike: This slats every hash function invocation to introduce domain separation between different instances of a signature scheme and to counter offline/precomputation phase attacks.-->
-This salts every hash function invocation when signing or verifying a SHRINCS signature, to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
+Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key. This salts every hash function invocation to introduce domain separation between different instances of a signature scheme, to counter offline/precomputation attacks, and to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
 
 To save computational effort, `PK.seed` is padded to a length of 64 bytes in most cases. This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
 
@@ -578,8 +576,8 @@ The constant-sum parameter `XMSS_WOTS_CONSTANT_SUM` is chosen to maximize the pr
 ```py
 XMSS_WOTS_CONSTANT_SUM = floor(XMSS_WOTS_CHAIN_COUNT * (2**XMSS_WOTS_CHAIN_BITS - 1) / 2)
 ```
-<!-- Mike: I would say this is a big subset :) -->
-Only a small subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
+
+Only a subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
 Eventually the signer finds a counter which maps the message to a set of indexes that sum to `XMSS_WOTS_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
 
