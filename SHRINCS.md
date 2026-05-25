@@ -26,8 +26,9 @@ A signature from either one of these two keypairs is sufficient to pass verifica
 
 ## Parameters
 
-Here follows a table of parameters.
-
+Here follows a table of parameters.  
+<!--Mike: Should we use WOTSC type name to highlight different types of signatures? -->
+<!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
 | Parameter | Value | Description |
 |:-:|:-:|:-:|
 | `XMSS_WOTS_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
@@ -60,7 +61,9 @@ Note this is the bare minimum needed to generate a full SHRINCS public key. More
 
 ### Padding
 
-Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key. This salts every hash function invocation when signing or verifying a SHRINCS signature, to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
+Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key. 
+<!--Mike: This slats every hash function invocation to introduce domain separation between different instances of a signature scheme and to counter offline/precomputation phase attacks.-->
+This salts every hash function invocation when signing or verifying a SHRINCS signature, to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
 
 To save computational effort, `PK.seed` is padded to a length of 64 bytes in most cases. This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
 
@@ -70,6 +73,7 @@ The padding bytes used depend on whether the `PK.seed` is being used to salt the
 - In the stateful path, `pad(PK.seed) = PK.seed || repeat(0xFF, 48)`
 
 TODO: stateful XMSS trees may reuse hash functions if secret keys are reused with different tree shapes, TODO use padding space for better domain separation.
+<!--Mike: Should we really protect against the cases where the same key is used for different schemes? -->
 
 ### Utilities
 
@@ -138,6 +142,7 @@ A critical security property of SHRINCS and its components is that every hash fu
 To accomplish this goal, we will use _tweakable hash functions_ (explained below) which modify a hash function with some context-dependent location information. This unambiguously specifies the exact instance of the hash function in the signing/verification algorithms where the hash function is being used. This location is called an _address_ and we encode it into a 22-byte array, often called an `ADRS`.[^adrs]
 
 ### ADRS Format
+<!--Mike: I think the presentation of ADRS format should be done a bit differently. We can have to tables. One for the stateless and for the stateful. Then we write the purpose of bytes for stateless and stateful there. This way we can also have different names for the fields. -->
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
 | `layer` | 1 byte | In the stateful path, this specifies depth in the XMSS tree. <br> In the stateless path, this specifies the layer in the SPHINCS hypertree. |
@@ -146,6 +151,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
 ### ADRS Types
+<!--Mike: Do we still want to maybe keep the stateful and stateless versions for each necessary type? -->
 | `ADRS` Type | Value | Purpose |
 |:-:|:-:|:-:|
 | `WOTS_HASH` | 0 | Used when iterating WOTS hash chains. |
@@ -160,7 +166,6 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 ### ADRS Payloads
 
 Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field. The following table describes how they are used under each ADRS type flag.
-
 | `ADRS` Type | Payload Format |
 |:-:|-|
 | `WOTS_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index |
@@ -172,6 +177,8 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index |
 | `WOTS_GRIND` | 4 bytes: grinding counter <br> 8 bytes: zero padding |
 
+<!--Mike: WOTS_GRIND type should be as WOTS_PK: key pair index and zero padding. The counter goes not as a tweak but as an argument  -->
+<!--Mike: How does the TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
 TODO: make this more visual and explain each field better in context.
 
 ## Tweakable Hash Functions
@@ -220,7 +227,7 @@ The tweaked hash function `T_xmss` hashes an input `M_l`, which is a sequence of
 ```py
 T_xmss(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 ```
-
+<!--Mike: Here I think again the WOTSC_CHAIN_COUNT would be a better name.-->
 - Inputs:
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
@@ -293,7 +300,8 @@ The tweaked hash function `H_msg` hashes a _randomizer_ `R`, a merkle root `root
 ```py
 H_msg(R, PK.seed, root, M) = sha256(R || PK.seed || sha256(R || PK.seed || root || M) || 0x00000000)
 ```
-
+<!-- Mike: M - is the parameter of the scheme. For stateful path it is fixed to lets say 32 or 16 bytes. For the stateless path we need enough bytes to index the FORS instance and leaves in the FORS instance -->
+<!-- Mike: The stateful path Hmsg needs to absorb the key pair identifier -->
 - Inputs:
   - `R`: a 16-byte randomizer.
   - `PK.seed`: a 16-byte salt.
@@ -331,10 +339,13 @@ If deterministic signing is required and an RNG is not available, `opt_rand` wil
 
 TODO: domain separate between stateful/stateless.
 
+<!-- Mike: I think we also could have a separate specification for H_grind -->
+
 ### Implementation Notes
 
 - The only difference between `T_xmss`, `T_sphx`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
 - `PRF_msg` may be replaced with an XOF, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF should absorb the same inputs as `PRF_msg`.
+<!-- Mike:  For security the XOF itself needs to provide the required security guarantees for PRF property.-->
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
 - These tweaked hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data. Inputs should not be copied in memory unless securely erased afterwards.
@@ -410,6 +421,7 @@ def wots_sign(indexes, SK.seed, PK.seed, ADRS, chain_count):
     signature[i] = wots_chain_iter(sk, 0, indexes[i], PK.seed, ADRS)
   return signature
 ```
+<!-- Mike: In all our use-cases we want to produce a WOTS signature and the public key simultaneously. This makes tha algorithm more efficient, so we dont need to recompute the chains twice. -->
 
 - Inputs:
   - `indexes`: an array of integers.
@@ -567,7 +579,7 @@ The constant-sum parameter `XMSS_WOTS_CONSTANT_SUM` is chosen to maximize the pr
 ```py
 XMSS_WOTS_CONSTANT_SUM = floor(XMSS_WOTS_CHAIN_COUNT * (2**XMSS_WOTS_CHAIN_BITS - 1) / 2)
 ```
-
+<!-- Mike: I would say this is a big subset :) -->
 Only a small subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
 Eventually the signer finds a counter which maps the message to a set of indexes that sum to `XMSS_WOTS_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
@@ -575,6 +587,7 @@ Eventually the signer finds a counter which maps the message to a set of indexes
 ### `wots_c_grind(...)`
 
 The WOTS+C grinding function. Takes in a `message_digest`, the `PK.seed`, and an `ADRS`, and grinds - up to a maximum number of attempts - until we find a counter that maps to a constant sum index-set. Returns the lowest valid integer counter and the corresponding array of constant-sum hash chain indexes. The `ADRS` should be prefilled with the location of the WOTS+C key which will be used to sign the resulting indexes.
+<!-- Mike: I suggest a separate hash function for this use case. And We should not use a counter as an address.-->
 
 ```py
 def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
@@ -602,6 +615,7 @@ def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
 This algorithm is used only by the signer.
 
 We max out at `256 ** XMSS_WOTS_COUNTER_SIZE` grinding attempts because the counter is serialized as `XMSS_WOTS_COUNTER_SIZE` bytes in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
+<!-- Mike: This estimation is only for this parameter sets. For different parameter sets this can be a worse bound.-->
 
 ### `wots_c_map_digest(...)`
 
