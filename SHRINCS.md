@@ -38,7 +38,7 @@ Here follows a table of parameters.
 | `WOTS_TW_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
 | `WOTS_TW_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
 | `WOTS_TW_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SPHINCS keypair. |
-| `XMSS_WOTS_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
+| `WOTS_C_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
 | `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS hypertree. |
 | `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS hypertree. |
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
@@ -570,15 +570,15 @@ WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in 
 
 WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any message must be mapped to a set of indexes that sum to a fixed constant. This prevents WOTS forgeries because an incremental increase in any index of a hash chain must be balanced out by decrementing a different index. It also ensures a constant-time verifier because the number of hash operations needed to complete every WOTS hash chain is fixed.
 
-The constant-sum parameter `XMSS_WOTS_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
+The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
 
 ```py
-XMSS_WOTS_CONSTANT_SUM = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
+WOTS_C_CONSTANT_SUM = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
 ```
 
 Only a subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
-Eventually the signer finds a counter which maps the message to a set of indexes that sum to `XMSS_WOTS_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
+Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
 
 ### `wots_c_grind(...)`
 
@@ -595,7 +595,7 @@ def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
     ADRS[20:22] = be_bytes(i, 2)
     hashed = H(PK.seed, ADRS, message_digest)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
-    if sum(indexes) == XMSS_WOTS_CONSTANT_SUM:
+    if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
 
   raise "UNREACHABLE" # practically impossible
@@ -625,7 +625,7 @@ def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
   ADRS[20:22] = be_bytes(counter, 2)
   hashed = H(PK.seed, ADRS, message_digest)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
-  if sum(indexes) == XMSS_WOTS_CONSTANT_SUM:
+  if sum(indexes) == WOTS_C_CONSTANT_SUM:
     return indexes
   else:
     return None
