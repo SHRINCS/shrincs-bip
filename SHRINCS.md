@@ -216,7 +216,7 @@ The tweaked hash function `T_xmss` hashes an input `M_l`, which is a sequence of
 ```py
 T_xmss(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 ```
-<!--Mike: Here I think again the WOTSC_CHAIN_COUNT would be a better name.-->
+
 - Inputs:
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
