@@ -282,30 +282,51 @@ This function is used in both stateful and stateless paths, but only by the sign
 
 Note the order of the arguments passed to `PRF` is _not_ the same order in which those arguments are processed by `sha256`. This aligns with definitions in FIPS-205[^slhdsa].
 
-### `H_msg(...)`
+### `H_msg_sphx(...)`
 
-The tweaked hash function `H_msg` hashes a _randomizer_ `R`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing.
+The tweaked hash function `H_msg_sphx` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateless path.
 
 ```py
-H_msg(R, PK.seed, root, M) = sha256(R || PK.seed || sha256(R || PK.seed || root || M) || 0x00000000)
+H_msg_sphx(R, PK.seed, root, M) = sha256(R || PK.seed || sha256(R || PK.seed || root || M) || 0x00000000)
 ```
-<!-- Mike: M - is the parameter of the scheme. For stateful path it is fixed to lets say 32 or 16 bytes. For the stateless path we need enough bytes to index the FORS instance and leaves in the FORS instance -->
-<!-- Mike: The stateful path Hmsg needs to absorb the key pair identifier -->
 - Inputs:
   - `R`: a 16-byte randomizer.
   - `PK.seed`: a 16-byte salt.
   - `root`: a 16-byte hash.
   - `M`: an arbitrary-length bytestring (TODO).
 - Output:
-  - A 32-byte hash (TODO).
+  - A 32-byte hash.
 
-TODO: truncate correctly
+This function is only used in the stateless path.
 
-This function is used in both stateful and stateless paths.
+The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sphx` satisfies FIPS-205[^slhdsa], wherein `H_msg_sphx` is defined using MGF1-SHA-256[^mgf1].
 
-The 4-byte zero-padding at the end of the outer hash input ensures `H_msg` satisfies FIPS-205[^slhdsa], wherein `H_msg` is defined using `MGF1-SHA-256`[^mgf1].
+Note that `PK.seed` is not padded in this tweaked hash function.
 
-Note that `PK.seed` is not padded in this tweaked hash function. (TODO: make sure to domain separate this between stateful/stateless)
+### `H_msg_xmss(...)`
+
+The tweaked hash function `H_msg_xmss` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateful path.
+
+```py
+H_msg_xmss(R, PK.seed, root, position, M) = sha256(R || PK.seed || position || sha256(R || PK.seed || root || position || M) || 0x00000000)
+```
+
+TODO: can `position` be used only once?
+
+- Inputs:
+  - `R`: a 16-byte randomizer.
+  - `PK.seed`: a 16-byte salt.
+  - `root`: a 16-byte hash.
+  - `position`: a 9-byte specifier of the location of the WOTS+C leaf keypair.
+  - `M`: an arbitrary-length bytestring (TODO).
+- Output:
+  - A 32-byte hash.
+
+This function is only used in the stateless path.
+
+The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_xmss` satisfies FIPS-205[^slhdsa], wherein `H_msg_xmss` is defined using MGF1-SHA-256[^mgf1]. (TODO: no reason to use MGF1 here if we only need 32 bytes?)
+
+Note that `PK.seed` is not padded in this tweaked hash function.
 
 ### `PRF_msg(...)`
 
@@ -595,7 +616,7 @@ def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
 
 - Inputs:
   - `PK.seed`: a 16-byte salt.
-  - `message_digest`: a 32-byte intermediate message digest (from `H_msg`).
+  - `message_digest`: a 32-byte intermediate message digest (from `H_msg_xmss`).
   - `ADRS`: a 22-byte address.
 - Outputs:
   - The smallest possible valid counter.
@@ -625,7 +646,7 @@ def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
 
 - Inputs:
   - `PK.seed`: a 16-byte salt.
-  - `message_digest`: a 32-byte intermediate message digest (from `H_msg`).
+  - `message_digest`: a 32-byte intermediate message digest (from `H_msg_xmss`).
   - `ADRS`: a 22-byte address.
   - `counter`: an unsigned integer.
 - Output:
