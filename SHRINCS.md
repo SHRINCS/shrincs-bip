@@ -69,9 +69,6 @@ The padding bytes used depend on whether the `PK.seed` is being used to salt the
 - In the stateless path, `pad(PK.seed) = PK.seed || repeat(0x00, 48)`
 - In the stateful path, `pad(PK.seed) = PK.seed || repeat(0xFF, 48)`
 
-TODO: stateful XMSS trees may reuse hash functions if secret keys are reused with different tree shapes, TODO use padding space for better domain separation.
-<!--Mike: Should we really protect against the cases where the same key is used for different schemes? -->
-
 ### Utilities
 
 We make use of the following utility helper functions in specifying SHRINCS.
