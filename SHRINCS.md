@@ -44,13 +44,9 @@ Here follows a table of parameters.
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
 | `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS signature. |
 
-## Secret Key
+## Keygen Inputs
 
-Generating a SHRINCS secret key is straightforward and consists only of generating 48 random bytes. This is then split into 3 x 16-byte seeds.
-
-```py
-SK = SK.seed || SK.prf || PK.seed
-```
+Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes. This is then split into 3 x 16-byte seeds.
 
 - `SK.seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
 - `SK.prf` is bonus randomness used for deriving per-message salt values. This is a hedge against faulty signing-time RNG.
