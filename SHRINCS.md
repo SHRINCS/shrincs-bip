@@ -33,7 +33,7 @@ Here follows a table of parameters.
 |:-:|:-:|:-:|
 | `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
 | `WOTS_TW_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SPHINCS keypair. |
-| `XMSS_WOTS_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
+| `WOTS_C_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
 | `SPHX_WOTS_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS keypair. |
 | `SPHX_WOTS_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
 | `SPHX_WOTS_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
@@ -219,7 +219,7 @@ This function is only used in the stateless path.
 
 ### `T_xmss(...)`
 
-The tweaked hash function `T_xmss` hashes an input `M_l`, which is a sequence of `XMSS_WOTS_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in XMSS.
+The tweaked hash function `T_xmss` hashes an input `M_l`, which is a sequence of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in XMSS.
 
 ```py
 T_xmss(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
@@ -228,7 +228,7 @@ T_xmss(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 - Inputs:
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: an array of `XMSS_WOTS_CHAIN_COUNT * 16` bytes.
+  - `M_l`: an array of `WOTS_C_CHAIN_COUNT * 16` bytes.
 - Output:
   - A 16-byte hash.
 
@@ -573,7 +573,7 @@ WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any mes
 The constant-sum parameter `XMSS_WOTS_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
 
 ```py
-XMSS_WOTS_CONSTANT_SUM = floor(XMSS_WOTS_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
+XMSS_WOTS_CONSTANT_SUM = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
 ```
 
 Only a subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
@@ -594,7 +594,7 @@ def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
   for i in range(0, 2**16):
     ADRS[20:22] = be_bytes(i, 2)
     hashed = H(PK.seed, ADRS, message_digest)
-    indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, XMSS_WOTS_CHAIN_COUNT):
+    indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
     if sum(indexes) == XMSS_WOTS_CONSTANT_SUM:
       return (i, indexes)
 
@@ -624,7 +624,7 @@ def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
   ADRS[10:20] = repeat(0x00, 10)
   ADRS[20:22] = be_bytes(counter, 2)
   hashed = H(PK.seed, ADRS, message_digest)
-  indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, XMSS_WOTS_CHAIN_COUNT):
+  indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
   if sum(indexes) == XMSS_WOTS_CONSTANT_SUM:
     return indexes
   else:
