@@ -27,7 +27,6 @@ A signature from either one of these two keypairs is sufficient to pass verifica
 ## Parameters
 
 Here follows a table of parameters.
-<!--Mike: Should we use WOTSC type name to highlight different types of signatures? -->
 <!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
 | Parameter | Value | Description |
 |:-:|:-:|:-:|
