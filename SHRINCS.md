@@ -34,9 +34,9 @@ Here follows a table of parameters.
 | `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
 | `WOTS_TW_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SPHINCS keypair. |
 | `WOTS_C_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
-| `SPHX_WOTS_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS keypair. |
-| `SPHX_WOTS_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
-| `SPHX_WOTS_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
+| `WOTS_TW_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS keypair. |
+| `WOTS_TW_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
+| `WOTS_TW_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
 | `SPHX_WOTS_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SPHINCS keypair. |
 | `XMSS_WOTS_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
 | `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS hypertree. |
@@ -201,7 +201,7 @@ The following sections describe tweaked hash functions to fill different roles.
 
 ### `T_sphx(...)`
 
-The tweaked hash function `T_sphx` hashes an input `M_l`, which is a sequence of `SPHX_WOTS_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in SPHINCS.
+The tweaked hash function `T_sphx` hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in SPHINCS.
 
 ```py
 T_sphx(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
@@ -210,7 +210,7 @@ T_sphx(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 - Inputs:
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: an array of `SPHX_WOTS_CHAIN_COUNT * 16` bytes.
+  - `M_l`: an array of `WOTS_TW_CHAIN_COUNT * 16` bytes.
 - Output:
   - A 16-byte hash.
 
@@ -477,12 +477,12 @@ This algorithm is used by both signers and verifiers.
 
 ## WOTS-TW
 
-WOTS-TW is a variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries. In WOTS-TW, a 128-bit message is mapped directly into an array of `SPHX_WOTS_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes. This checksum is then encoded into `SPHX_WOTS_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
+WOTS-TW is a variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries. In WOTS-TW, a 128-bit message is mapped directly into an array of `WOTS_TW_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes. This checksum is then encoded into `WOTS_TW_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
 
-This process starts by breaking a 128-bit message into `SPHX_WOTS_CHAIN_COUNT1` integers of `WOTS_TW_CHAIN_BITS` bits each in the range `[0, 2**WOTS_TW_CHAIN_BITS)`. The maximum possible sum of those indexes would be if every index was equal to `2**WOTS_TW_CHAIN_BITS - 1`, so the maximum sum is
+This process starts by breaking a 128-bit message into `WOTS_TW_CHAIN_COUNT1` integers of `WOTS_TW_CHAIN_BITS` bits each in the range `[0, 2**WOTS_TW_CHAIN_BITS)`. The maximum possible sum of those indexes would be if every index was equal to `2**WOTS_TW_CHAIN_BITS - 1`, so the maximum sum is
 
 ```py
-SPHX_WOTS_CHECKSUM_MAX = SPHX_WOTS_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
+SPHX_WOTS_CHECKSUM_MAX = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
 ```
 
 This constant is defined explicitly in the earlier [table of constants](#Parameters).
@@ -493,22 +493,22 @@ Given an array of `msg_indexes`, the checksum can be computed by:
 checksum = SPHX_WOTS_CHECKSUM_MAX - sum(msg_indexes)
 ```
 
-This checksum is then converted into `SPHX_WOTS_CHAIN_COUNT2` integers of `WOTS_TW_CHAIN_BITS` bits each, which are appended to the original `msg_indexes`.
+This checksum is then converted into `WOTS_TW_CHAIN_COUNT2` integers of `WOTS_TW_CHAIN_BITS` bits each, which are appended to the original `msg_indexes`.
 
 ### `wots_tw_message_to_indexes(...)`
 
 The WOTS-TW message map function.
 
-Converts a 16-byte `message` to a checksummed array of `SPHX_WOTS_CHAIN_COUNT` WOTS hash chain indexes in the range `[0, 2**WOTS_TW_CHAIN_BITS)`.
+Converts a 16-byte `message` to a checksummed array of `WOTS_TW_CHAIN_COUNT` WOTS hash chain indexes in the range `[0, 2**WOTS_TW_CHAIN_BITS)`.
 
 ```py
 def wots_tw_message_to_indexes(message):
-  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, SPHX_WOTS_CHAIN_COUNT1)
+  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = SPHX_WOTS_CHECKSUM_MAX - sum(msg_indexes)
 
   checksum_indexes = []
-  for i in range(0, SPHX_WOTS_CHAIN_COUNT2):
-    checksum_indexes[SPHX_WOTS_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
+  for i in range(0, WOTS_TW_CHAIN_COUNT2):
+    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
     checksum >>= WOTS_TW_CHAIN_BITS
 
   return msg_indexes || checksum_indexes
@@ -516,20 +516,20 @@ def wots_tw_message_to_indexes(message):
 
 ```py
 # Alternate definition from FIPS-205 (algorithm 7); The above algorithm is equivalent to this.
-SPHX_WOTS_CHECKSUM_SHIFT = (8 - (ceil(WOTS_TW_CHAIN_BITS * SPHX_WOTS_CHAIN_COUNT2) % 8)) % 8
-SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(SPHX_WOTS_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS / 8)
+SPHX_WOTS_CHECKSUM_SHIFT = (8 - (ceil(WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8)) % 8
+SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS / 8)
 def wots_tw_message_to_indexes_alt(message):
-  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, SPHX_WOTS_CHAIN_COUNT1)
+  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = (SPHX_WOTS_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = be_bytes(checksum, SPHX_WOTS_CHECKSUM_BYTE_LEN)
-  checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, SPHX_WOTS_CHAIN_COUNT2)
+  checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
   return msg_indexes || checksum_indexes
 ```
 
 - Inputs:
   - `message`: a 16-byte hash
 - Output:
-  - An checksummed array of `WOTS_TW_CHAIN_BITS`-bit integers of length `SPHX_WOTS_CHAIN_COUNT`.
+  - An checksummed array of `WOTS_TW_CHAIN_BITS`-bit integers of length `WOTS_TW_CHAIN_COUNT`.
 
 This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.** Note especially how the bits of the checksum are sliced off and appended to the very end of the final encoding; The checksum bits are NOT appended directly to the message indexes.
 
