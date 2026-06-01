@@ -140,34 +140,40 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
 ### ADRS Types
-<!--Mike: Do we still want to maybe keep the stateful and stateless versions for each necessary type? -->
-| `ADRS` Type | Value | Purpose |
-|:-:|:-:|:-:|
-| `WOTS_HASH` | 0 | Used when iterating WOTS hash chains. |
-| `WOTS_PK`  | 1 | Used when compressing WOTS public keys. |
-| `TREE` | 2 | Used when combining merkle nodes in the SPHINCS hypertree. |
-| `FORS_TREE` | 3 | Used when combining merkle nodes in FORS trees. |
-| `FORS_ROOTS` | 4 | Used when compressing FORS merkle roots together. |
-| `WOTS_PRF` | 5 | Used when generating WOTS secret preimages. |
-| `FORS_PRF` | 6 | Used when generating FORS secret preimages. |
-| `WOTS_GRIND` | 16 | Used when grinding WOTS+C message digests. |
+
+| `ADRS` Type | Value | Purpose | Signing Path |
+|:-:|:-:|:-:|:-:|
+| `SL_WOTS_TW_HASH` | 0 | Used when iterating WOTS-TW hash chains. | Stateless |
+| `SL_WOTS_TW_PK`  | 1 | Used when compressing WOTS-TW public keys. | Stateless |
+| `SL_TREE` | 2 | Used when combining merkle nodes in the SPHINCS hypertree. | Stateless |
+| `SL_FORS_TREE` | 3 | Used when combining merkle nodes in FORS trees. | Stateless |
+| `SL_FORS_ROOTS` | 4 | Used when compressing FORS merkle roots together. | Stateless |
+| `SL_WOTS_TW_PRF` | 5 | Used when generating WOTS-TW secret preimages. | Stateless |
+| `SL_FORS_PRF` | 6 | Used when generating FORS secret preimages. | Stateless |
+| `SF_WOTS_C_HASH` | 16 | Used when iterating WOTS+C hash chains. | Stateful |
+| `SF_WOTS_C_PK`  | 17 | Used when compressing WOTS+C public keys. | Stateful |
+| `SF_WOTS_C_GRIND` | 18 | Used when grinding WOTS+C message digests. | Stateful |
+| `SF_WOTS_C_PRF` | 19 | Used when generating WOTS+C secret preimages. | Stateless |
 
 ### ADRS Payloads
 
 Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field. The following table describes how they are used under each ADRS type flag.
 | `ADRS` Type | Payload Format |
 |:-:|-|
-| `WOTS_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index |
-| `WOTS_PK` | 4 bytes: key pair index <br> 8 bytes: zero padding |
-| `TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index |
-| `FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index |
-| `FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding |
-| `WOTS_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding |
-| `FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index |
-| `WOTS_GRIND` | 10 bytes: zero padding <br> 2 bytes: grinding counter |
+| `SL_WOTS_TW_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index |
+| `SL_WOTS_TW_PK` | 4 bytes: key pair index <br> 8 bytes: zero padding |
+| `SL_TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index |
+| `SL_FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index |
+| `SL_FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding |
+| `SL_WOTS_TW_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding |
+| `SL_FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index |
+| `SF_WOTS_C_HASH` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: hash index |
+| `SF_WOTS_C_PK` | 12 bytes: zero padding |
+| `SF_WOTS_C_GRIND` | 10 bytes: zero padding <br> 2 bytes: grinding counter |
+| `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
 
-<!--Mike: WOTS_GRIND type should be as WOTS_PK: key pair index and zero padding. The counter goes not as a tweak but as an argument  -->
-<!--Mike: How does the TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
+<!--Mike: SF_WOTS_C_GRIND type should be as SL_WOTS_TW_PK: key pair index and zero padding. The counter goes not as a tweak but as an argument  -->
+<!--Mike: How does the SL_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
 TODO: make this more visual and explain each field better in context.
 
 ## Tweakable Hash Functions
@@ -389,9 +395,9 @@ The verifier maps the message to those same integers as the signer did, and fini
 
 As written this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes. WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a small salt which the signer must grind to find a set of indexes which sum to a specific constant.
 
-## WOTS Algorithms
+## WOTS Algorithm
 
-Both WOTS schemes make use of the following common algorithms.
+Both WOTS schemes make use of the following common hash-chaining algorithm.
 
 ### `wots_chain_iter(...)`
 
@@ -414,83 +420,11 @@ def wots_chain_iter(node, start, steps, PK.seed, ADRS):
 - Output:
   - A 16-byte hash at index `start + steps`.
 
-### `wots_sign(...)`
-
-The WOTS signing function. Takes in a set of hash chain `indexes`, the `SK.seed` and `PK.seed`, an `ADRS`, and a `chain_count` indicating the number of WOTS hash chains. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
-
-```py
-def wots_sign(indexes, SK.seed, PK.seed, ADRS, chain_count):
-  signature = []
-  for i in range(0, chain_count):
-    ADRS[9] = WOTS_PRF
-    ADRS[14:18] = be_bytes(i, 4)  # chain index
-    ADRS[18:22] = repeat(0x00, 4) # zero hash index
-    sk = PRF(PK.seed, SK.seed, ADRS)
-    ADRS[9] = WOTS_HASH
-    signature[i] = wots_chain_iter(sk, 0, indexes[i], PK.seed, ADRS)
-  return signature
-```
-<!-- Mike: In all our use-cases we want to produce a WOTS signature and the public key simultaneously. This makes tha algorithm more efficient, so we dont need to recompute the chains twice. -->
-
-- Inputs:
-  - `indexes`: an array of integers.
-  - `SK.seed`: a 16-byte secret.
-  - `PK.seed`: a 16-byte salt.
-  - `ADRS`: a 22-byte address.
-  - `chain_count`: the number of WOTS hash chains, i.e. the number of hashes in the signature.
-- Output:
-  - A WOTS signature composed of `chain_count` hashes, each 16 bytes long.
-
-### `wots_pubkey_gen(...)`
-
-The WOTS public key generation function. Takes in the secret `SK.seed`, the `PK.seed`, an `ADRS`, a `chain_count` indicating the number of WOTS hash chains, and the length `chain_len` of those hash chains. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
-
-```py
-def wots_pubkey_gen(SK.seed, PK.seed, ADRS, chain_count, chain_len):
-  indexes = repeat(chain_len - 1, chain_count)
-  return wots_sign(indexes, SK.seed, PK.seed, ADRS, chain_count)
-```
-
-- Inputs:
-  - `SK.seed`: a 16-byte secret.
-  - `PK.seed`: a 16-byte salt.
-  - `ADRS`: a 22-byte address.
-  - `chain_count`: the number of WOTS hash chains, i.e. the number of hashes in the pubkey.
-  - `chain_len`: the length of each WOTS hash chain.
-- Output:
-  - An array of `chain_count` 16-byte hashes.
-
-### `wots_pubkey_from_sig(...)`
-
-The WOTS verification procedure. Recovers a WOTS public key from a `signature` on a set of `indexes`. Takes in the `PK.seed`, an `ADRS`, a `chain_count` indicating the number of WOTS hash chains, and the length `chain_len` of those hash chains. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
-
-```py
-def wots_pubkey_from_sig(signature, indexes, PK.seed, ADRS, chain_count, chain_len):
-  wots_pk = []
-  ADRS[9] = WOTS_HASH
-  for i in range(0, chain_count):
-    ADRS[14:18] = be_bytes(i, 4)
-    steps = chain_len - 1 - indexes[i]
-    wots_pk[i] = wots_chain_iter(signature[i], indexes[i], steps, PK.seed, ADRS)
-  return wots_pk
-```
-
-- Inputs:
-  - `signature`: an array of `chain_count` 16-byte hashes.
-  - `indexes`: an array of `chain_count` integers less than `chain_len`.
-  - `PK.seed`: a 16-byte salt.
-  - `ADRS`: a 22-byte address.
-  - `chain_count`: the number of WOTS hash chains, i.e. the number of hashes in the pubkey.
-  - `chain_len`: the length of each WOTS hash chain.
-- Output:
-  - An array of `chain_count` 16-byte hashes.
-
-This algorithm is used by both signers and verifiers.
-
+This function is used very heavily by both stateful and stateless paths and is the core target for optimization and parallelization.
 
 ## WOTS-TW
 
-WOTS-TW is a variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries. In WOTS-TW, a 128-bit message is mapped directly into an array of `WOTS_TW_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes. This checksum is then encoded into `WOTS_TW_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
+WOTS-TW is the classic variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries. In WOTS-TW, a 128-bit message is mapped directly into an array of `WOTS_TW_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes. This checksum is then encoded into `WOTS_TW_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
 
 This process starts by breaking a 128-bit message into `WOTS_TW_CHAIN_COUNT1` integers of `WOTS_TW_CHAIN_BITS` bits each in the range `[0, 2**WOTS_TW_CHAIN_BITS)`. The maximum possible sum of those indexes would be if every index was equal to `2**WOTS_TW_CHAIN_BITS - 1`, so the maximum sum is
 
@@ -577,6 +511,97 @@ After appending the checksum, the final checksummed index sequence should look l
                                      checksum
 ```
 
+
+### `wots_tw_pubkey_gen(...)`
+
+The WOTS-TW public key generation function. Takes in the secret `SK.seed`, the `PK.seed`, and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_tw_pubkey_gen(SK.seed, PK.seed, ADRS):
+  wots_pk = []
+  for i in range(0, WOTS_TW_CHAIN_COUNT):
+    ADRS[9] = SL_WOTS_TW_PRF
+    ADRS[14:18] = be_bytes(i, 4)  # chain index
+    ADRS[18:22] = repeat(0x00, 4) # zero hash index
+    sk = PRF(PK.seed, SK.seed, ADRS)
+    ADRS[9] = SL_WOTS_TW_HASH
+    wots_pk[i] = wots_chain_iter(sk, 0, 2**WOTS_TW_CHAIN_BITS - 1, PK.seed, ADRS)
+
+  ADRS[9] = SL_WOTS_TW_PK
+  ADRS[14:22] = repeat(0x00, 8)
+  wots_pk_hash = T_sphx(PK.seed, ADRS, wots_pk)
+  return wots_pk_hash
+```
+
+- Inputs:
+  - `SK.seed`: a 16-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A 16-byte hash representing the WOTS-TW public key.
+
+This algorithm is used only by the signer.
+
+
+### `wots_tw_sign(...)`
+
+The WOTS-TW signing function. Takes in a 16-byte `message`, the `SK.seed` and `PK.seed`, and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_tw_sign(message, SK.seed, PK.seed, ADRS):
+  indexes = wots_tw_message_to_indexes(message)
+  signature = []
+  for i in range(0, WOTS_TW_CHAIN_COUNT):
+    ADRS[9] = SL_WOTS_TW_PRF
+    ADRS[14:18] = be_bytes(i, 4)  # chain index
+    ADRS[18:22] = repeat(0x00, 4) # zero hash index
+    sk = PRF(PK.seed, SK.seed, ADRS)
+    ADRS[9] = SL_WOTS_TW_HASH
+    signature[i] = wots_chain_iter(sk, 0, indexes[i], PK.seed, ADRS)
+  return signature
+```
+
+- Inputs:
+  - `message`: a 16-byte message to sign.
+  - `SK.seed`: a 16-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A WOTS signature composed of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long.
+
+This algorithm is used only by the signer.
+
+
+### `wots_tw_pubkey_from_sig(...)`
+
+The WOTS-TW verification procedure. Recovers a WOTS-TW public key from a `signature` on a given 16-byte `message`. Takes in the `PK.seed`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_tw_pubkey_from_sig(signature, message, PK.seed, ADRS):
+  indexes = wots_tw_message_to_indexes(message)
+  wots_pk = []
+  ADRS[9] = SL_WOTS_TW_HASH
+  for i in range(0, WOTS_TW_CHAIN_COUNT):
+    ADRS[14:18] = be_bytes(i, 4)
+    steps = 2**WOTS_TW_CHAIN_BITS - 1 - indexes[i]
+    wots_pk[i] = wots_chain_iter(signature[i], indexes[i], steps, PK.seed, ADRS)
+
+  ADRS[9] = SL_WOTS_TW_PK
+  ADRS[14:22] = repeat(0x00, 8)
+  wots_pk_hash = T_sphx(PK.seed, ADRS, wots_pk)
+  return wots_pk_hash
+```
+
+- Inputs:
+  - `signature`: an array of `chain_count` 16-byte hashes.
+  - `message`: a 16-byte message.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A 16-byte hash representing the WOTS-TW public key.
+
+This algorithm is used by both signers and verifiers.
+
 ## WOTS+C
 
 WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in compactness & performance, but we nonetheless use WOTS-TW for the stateless path to retain compatibility with SLH-DSA[^slhdsa], while WOTS+C is used in the custom stateful component of SHRINCS to reduce signature size.
@@ -601,7 +626,7 @@ The WOTS+C grinding function. Takes in a `message_digest`, the `PK.seed`, and an
 
 ```py
 def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
-  ADRS[9] = WOTS_GRIND
+  ADRS[9] = SF_WOTS_C_GRIND
   ADRS[10:20] = repeat(0x00, 10)
 
   for i in range(0, 2**16):
@@ -633,7 +658,7 @@ The WOTS+C digest validation function. Takes in a `message_digest`, the `PK.seed
 
 ```py
 def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
-  ADRS[9] = WOTS_GRIND
+  ADRS[9] = SF_WOTS_C_GRIND
   ADRS[10:20] = repeat(0x00, 10)
   ADRS[20:22] = be_bytes(counter, 2)
   hashed = H(PK.seed, ADRS, message_digest)
@@ -654,6 +679,107 @@ def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
 
 This algorithm is used only by the verifier.
 
+
+### `wots_c_pubkey_gen(...)`
+
+The WOTS+C public key generation function. Takes in the secret `SK.seed`, the `PK.seed`, and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_c_pubkey_gen(SK.seed, PK.seed, ADRS):
+  wots_pk = []
+  ADRS[10:14] = repeat(0x00, 4) # zeros reserved
+  for i in range(0, WOTS_C_CHAIN_COUNT):
+    ADRS[9] = SF_WOTS_C_PRF
+    ADRS[14:18] = be_bytes(i, 4)  # chain index
+    ADRS[18:22] = repeat(0x00, 4) # zero hash index
+    sk = PRF(PK.seed, SK.seed, ADRS)
+    ADRS[9] = SF_WOTS_C_HASH
+    wots_pk[i] = wots_chain_iter(sk, 0, 2**WOTS_C_CHAIN_BITS - 1, PK.seed, ADRS)
+
+  ADRS[9] = SF_WOTS_C_PK
+  ADRS[14:22] = repeat(0x00, 8)
+  wots_pk_hash = T_xmss(PK.seed, ADRS, wots_pk)
+  return wots_pk_hash
+```
+
+- Inputs:
+  - `SK.seed`: a 16-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A 16-byte hash representing the WOTS+C public key.
+
+This algorithm is used only by the signer.
+
+
+### `wots_c_sign(...)`
+
+The WOTS+C signing function. Takes in a 32-byte `message_digest`, the `SK.seed` and `PK.seed`, and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_c_sign(message_digest, SK.seed, PK.seed, ADRS):
+  counter, indexes = wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
+  signature = []
+
+  ADRS[10:14] = repeat(0x00, 4) # zeros reserved
+  for i in range(0, WOTS_C_CHAIN_COUNT):
+    ADRS[9] = SF_WOTS_C_PRF
+    ADRS[14:18] = be_bytes(i, 4)  # chain index
+    ADRS[18:22] = repeat(0x00, 4) # zero hash index
+    sk = PRF(PK.seed, SK.seed, ADRS)
+    ADRS[9] = SF_WOTS_C_HASH
+    signature[i] = wots_chain_iter(sk, 0, indexes[i], PK.seed, ADRS)
+  return (signature, counter)
+```
+
+- Inputs:
+  - `message_digest`: a 32-byte message digest to sign.
+  - `SK.seed`: a 16-byte secret.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Outputs:
+  - A WOTS signature composed of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long.
+  - A 16-bit integer grinding counter.
+
+This algorithm is used only by the signer.
+
+
+### `wots_c_pubkey_from_sig(...)`
+
+The WOTS+C verification procedure. Recovers a WOTS+C public key from a `signature` on a given 32-byte `message_digest`. Takes in a grinding `counter`, the `PK.seed`, and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+```py
+def wots_c_pubkey_from_sig(signature, counter, message_digest, PK.seed, ADRS):
+  indexes = wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
+
+  # Reject if counter doesn't satisfy the constant-sum requirement.
+  if indexes is None:
+    return None
+
+  wots_pk = []
+  ADRS[9] = SF_WOTS_C_HASH
+  ADRS[10:14] = repeat(0x00, 4) # zeros reserved
+  for i in range(0, WOTS_C_CHAIN_COUNT):
+    ADRS[14:18] = be_bytes(i, 4)
+    steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
+    wots_pk[i] = wots_chain_iter(signature[i], indexes[i], steps, PK.seed, ADRS)
+
+  ADRS[9] = SF_WOTS_C_PK
+  ADRS[14:22] = repeat(0x00, 8)
+  wots_pk_hash = T_xmss(PK.seed, ADRS, wots_pk)
+  return wots_pk_hash
+```
+
+- Inputs:
+  - `signature`: an array of `chain_count` 16-byte hashes.
+  - `counter`: a 16-bit unsigned integer.
+  - `message_digest`: a 32-byte message digest.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A 16-byte hash representing the WOTS+C public key, or null.
+
+This algorithm is used by both signers and verifiers.
 
 ## XMSS
 
