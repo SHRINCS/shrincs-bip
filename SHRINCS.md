@@ -801,6 +801,7 @@ XMSS is used in both stateful and stateless components of a SHRINCS keypair.
 - Discuss XMSS tree caching
 - Consider future-proofing WOTS+C addressing scheme/layout for XMSS^MT.
 - Specify which `ADRS` fields should be prefilled and when.
+- Add note about how callers cannot accurately depend on tree structures of untrusted parties, due to collision attacks.
 
 [^slhdsa]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
