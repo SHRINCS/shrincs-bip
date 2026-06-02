@@ -172,7 +172,6 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `SF_WOTS_C_GRIND` | 10 bytes: zero padding <br> 2 bytes: grinding counter |
 | `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
 
-<!--Mike: SF_WOTS_C_GRIND type should be as SL_WOTS_TW_PK: key pair index and zero padding. The counter goes not as a tweak but as an argument  -->
 <!--Mike: How does the SL_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
 TODO: make this more visual and explain each field better in context.
 
@@ -268,6 +267,27 @@ H(PK.seed, ADRS, M_2) = sha256(pad(PK.seed) || ADRS || M_2)[:16]
 
 This function is used in both stateful and stateless paths.
 
+
+### `H_grind(...)`
+
+The tweaked hash function `H_grind` hashes an input `digest`, which is a 32-byte hash. This function will be used to map `digest` into a constant-sum message space for WOTS+C, using a grinding counter embedded in `ADRS`.
+
+```py
+H_grind(PK.seed, ADRS, digest) = sha256(pad(PK.seed) || ADRS || digest)[:16]
+```
+
+- Inputs:
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `digest`: an array of 32 bytes.
+- Output:
+  - A 16-byte hash.
+
+This function is only used in the stateful path.
+
+`H_grind` has exactly the same definition as `H` but is renamed to distinguish its use in WOTS+C.
+
+
 ### `PRF(...)`
 
 The tweaked hash function `PRF` hashes `SK.seed` with an `ADRS` to derive secret preimage values needed for signing and key generation.
@@ -355,11 +375,9 @@ If deterministic signing is required and an RNG is not available, `opt_rand` wil
 
 TODO: domain separate between stateful/stateless.
 
-<!-- Mike: I think we also could have a separate specification for H_grind -->
-
 ### Implementation Notes
 
-- The only difference between `T_xmss`, `T_sphx`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
+- The only difference between `T_xmss`, `T_sphx`, `F`, `H`, and `H_grind` is the byte-length of the third input parameter. They are defined as different hash functions for security.
 - `PRF_msg` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
@@ -621,8 +639,6 @@ Eventually the signer finds a counter which maps the message to a set of indexes
 ### `wots_c_grind(...)`
 
 The WOTS+C grinding function. Takes in a `message_digest`, the `PK.seed`, and an `ADRS`, and grinds - up to a maximum of 2<sup>16</sup> attempts - until we find a counter that maps to a constant sum index-set. Returns the lowest valid integer counter and the corresponding array of constant-sum hash chain indexes. The `ADRS` should be prefilled with the location of the WOTS+C key which will be used to sign the resulting indexes.
-<!-- Mike: I suggest a separate hash function for this use case. And We should not use a counter as an address.-->
-
 
 ```py
 def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
@@ -631,7 +647,7 @@ def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
 
   for i in range(0, 2**16):
     ADRS[20:22] = be_bytes(i, 2)
-    hashed = H(PK.seed, ADRS, message_digest)
+    hashed = H_grind(PK.seed, ADRS, message_digest)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
@@ -661,7 +677,7 @@ def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
   ADRS[9] = SF_WOTS_C_GRIND
   ADRS[10:20] = repeat(0x00, 10)
   ADRS[20:22] = be_bytes(counter, 2)
-  hashed = H(PK.seed, ADRS, message_digest)
+  hashed = H_grind(PK.seed, ADRS, message_digest)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
     return indexes
