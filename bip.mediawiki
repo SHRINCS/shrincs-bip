@@ -19,7 +19,7 @@
 
 ===Abstract===
 
-This BIP introduces a softfork via Tapscript leaf version 0xC2, which redefines OP_CHECKSIG to support cryptographic agility through algorithm flags attached to public keys. This BIP specifies two such flags: <code>0x02</code>to verify BIP340 Schnorr signatures and the <code>0x01</code> to verify SHRINCS signatures. Reserved flags are defined as always-succeed paths, so that new signature verification algorithms may be added in the future. It also lifts the 520-byte witness stack element size limit within this leaf version to 6000 bytes.
+This BIP introduces a softfork via Tapscript leaf version 0xC2, which redefines OP_CHECKSIG to support cryptographic agility through algorithm flags attached to public keys. This BIP specifies two such flags: <code>0x02</code>to verify BIP340 Schnorr signatures and the <code>0x01</code> to verify SHRINCS signatures. Reserved flags are defined as always-succeed paths, so that new signature verification algorithms may be added in the future. It also lifts the 520-byte stack element size limit within this leaf version to 6000 bytes.
 
 ===Copyright===
 
@@ -137,7 +137,7 @@ PK = PK.seed || PK.sf_root || PK.sl_root
 
 ====Signature Format====
 
-SHRINCS signatures can exceed the 520-byte limit for stack elements. Therefore, the new tapscript version <code>0xC2</code> introduced in this BIP lifts the 520 byte limit on witness stack element sizes to 6000 bytes.
+SHRINCS signatures can exceed the 520-byte limit for stack elements. Therefore, the new tapscript version <code>0xC2</code> introduced in this BIP lifts the 520 byte limit on stack element sizes to 6000 bytes.
 
 SHRINCS signatures may either use the stateful or the stateless path inside the key, and either is equally valid. Stateless SHRINCS signatures are very large, but always a constant size of 5776 bytes. Stateful SHRINCS signatures are much shorter, but are of variable size, to a maximum of XXX bytes.
 
@@ -238,6 +238,54 @@ SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a statef
 ** Extrapolate the ‘max repeated signing lifetime’ using a worst-case single-signer scenario.
 ** Graph the signature overuse security degradation curve.
 * Mention how quantum security bits are difficult to empirically measure. Unclear if 64 bits of quantum security is acceptable. TODO: find that link to DJB’s critique of NIST….
+
+
+==Relaxing the Max Stack Element Size==
+
+The <code>0xC2</code> leaf version relaxes the limit on stack element size from 520 bytes to 6000 bytes. This section describes why this change is necessary, and how to mitigate the risks associated with larger stack elements.
+
+SHRINCS signature size varies widely - between xxx and 5776 bytes. The signature size is chosen by the signer and can't be statically determined from the public key alone. This presents a challenge when deploying SHRINCS on-chain because the legacy tapscript version <code>0xC0</code> restricts stack elements to a maximum size of 520 bytes which SHRINCS signatures may overrun.
+
+To understand why the stack element size limit must be relaxed, let us first consider how we'd need to implement SHRINCS if we worked around the 520-byte stack element size limit in legacy tapscript.
+
+Signatures which exceed the 520 byte limit would need to be broken up into smaller <i>chunks</i> of at most 520 bytes, to be attached to the transaction witness field. When a node validates the transaction, these chunks must be popped & concatenated by the <code>CHECKSIG</code> family of opcodes (and any future opcodes which check signatures, e.g. <code>CHECKSIGFROMSTACK</code>) during script evaluation <i>before</i> verifying the signature. There are several ways one might do this.
+
+First, the <code>CHECKSIG</code> opcodes could parse the leading 520b of the signature from the top stack item and use this to determine how long the signature should be, and thus how many stack elements must be popped. This is undesirable, because (1) the script interpreter cannot treat signatures as a black box anymore, and (2) we may open the door to transaction introspection, as the script interpreter must parse and react dynamically to the internal contents of a signature, which is itself bound to the transaction. We would like to maintain a tight scope in our proposal and avoid inadvertently introducing such edgecase behavior with SHRINCS, and so we discard this option out of caution.
+
+Second, and perhaps more attractively, we could explicitly provide <code>CHECKSIG</code> opcodes with the number of signature chunks to pop, by passing an additional witness element as input. This is more stable but still we face many complex problems.
+
+* <b>Static analysis</b>. We would be introducing the first tapscript opcode which pops a variable number of elements from the stack, and that variable number is not typically fixed by the script-pubkey (as it was in legacy <code>OP_CHECKMULTISIG</code>). Instead the spender can control this, making static script analysis much harder.
+* <b>Inefficiency</b>. We'd need one extra witness element encoding the number of signature chunks, which would consume 2 witness bytes in the TX witness field. For every sig-chunk larger than 252 bytes, we require three more witness bytes to specify the stack element length with a CompactSize int<ref>https://learnmeabitcoin.com/technical/general/compact-size/</ref>. The final smallest chunk may be less than 252 bytes, and so would require at least a 1 byte CompactSize. This works out to an additional witness size overhead of $3 \cdot \lfloor \frac{5776}{520} \rfloor + 1 = 34$ bytes for a stateless signature, and at most $3 \cdot \lceil \frac{546 + 16n}{520} \rceil$ bytes for a stateful signature at depth $n$.
+* <b>Complex off-chain verification</b>. Off-chain verifiers (e.g. PSBTs, lightning nodes) can no longer just extract a signature from the witness field of a signed TX and verify it. They must duplicate the consensus logic to parse and concatenate signature chunks before the full reconstructed signature can be verified. Verifiers must contend with potential adversarial chunking.
+* <b>Complex edgecases</b>.
+** We must handle situations where some of the signature chunks are smaller than 520 bytes.
+** Some scripts that work fine today would be vulnerable if an attacker could dynamically specify how many stack elements to pop (e.g. by popping a pubkey and replacing it with one of their own).
+** Other signature schemes like Schnorr never need signature chunking behavior; How do we handle them?
+* <b>Precedence</b>. From a more philosophical perspective, it is generally bad practice to allow untrusted witness data to tell a verifier how to parse and verify it. A common class of vulnerability originates from this anti-pattern. Deploying SHRINCS with chunked signatures sets a questionable precedent for subsequent new signature algorithms and other upgrades to follow the same path.
+
+For these reasons, we elect instead to relax the 520-byte stack element size limit to 6000 bytes, permitting any size of SHRINCS signature to be represented as a single stack element as in Schnorr/ECDSA, and resolving all the above problems.
+
+However, by doing so, we do introduce several new problems - Namely the risk of denial-of-service (DoS) attacks.
+
+Our main DoS concern with raising the stack element size limit would be that someone could construct a script which duplicates and/or hashes a very large (6000-byte) stack element many times to consume CPU and/or memory on verifying nodes at relatively low cost. The spender only needs to pay for the script and the initial large stack element.
+
+* <b>Memory attack</b>. The tapscript stack depth limit is 1000 elements<ref>https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki#user-content-Resource_limits</ref>, so with a relaxed stack element size limit of 6000, the stack could theoretically consume at most 6 megabytes of memory with the script <code><big_data> OP_DUP OP_2DUP OP_3DUP OP_3DUP ...</code>. This memory consumption occurs because the current implementation of <code>OP_DUP</code> simply duplicates raw bytes in memory <ref>https://github.com/bitcoin/bitcoin/blob/4f348c2d730ce167d2918727aa2fdb6849182ab1/src/script/interpreter.cpp#L799</ref>.
+* <b>CPU attack</b>. <code>OP_RIPEMD160</code> is by far the slowest hash function opcode available in consensus due to lack of hardware acceleration for the RIPEMD160 hash function. Without mitigations, a script like <code><big_data> OP_DUP OP_2DUP OP_3DUP OP_RIPEMD160 OP_DROP OP_RIPEMD160 OP_DROP OP_RIPEMD160 OP_DROP OP_3DUP ...</code> could quickly consume a lot of CPU power on the verifying node, while the spender only has to pay for the cost of the 6kb stack element as an up-front cost. Beyond that, the spender only needs to pay for about 7 witness-discounted bytes per triplet of OP_RIPEMD160 opcodes which the verifier executes. When hashing a 6000-byte message, RMD160 runs 94 compressions. So the total cost to the verifier measured in terms of RMD160 compressions, as a function of the spender's witness byte cost $s$ would be: $c(s) = 94 \cdot \frac{3}{7} (s - 6000)$. At a fee rate of 1 sat/vbyte, a spender could pay a few dollars in mining fees to force the entire Bitcoin network to run hundreds of thousands of RMD160 compressions each.
+* <b>Hybrid attack</b>. Attackers could combine the above attacks to consume both memory & CPU simultaneously, e.g. with <code><big_data> OP_DUP OP_2DUP OP_3DUP OP_3DUP OP_3DUP ... OP_RIPEMD160 OP_DROP OP_RIPEMD160 OP_DROP ...</code>.
+
+We evaluated three potential solutions to the above attacks.
+
+# <b>Restriction</b>. Forbid <code>DUP</code> opcodes and/or hash opcodes like <code>OP_RIPEMD160</code> from accepting stack elements larger than 520 bytes as input.
+# <b>Caching</b>. When verifying a transaction, a node maintains an evicting cache with a fixed max capacity, which maps hash function inputs to outputs. Since CPU attacks rely on reusing the same hash input over and over, this would nullify the performance penalty which nodes endure from repeated hashing and duplication. At most, a verifier would evaluate each of the 3 scriptable hash functions (SHA1, SHA256, RIPEMD160)<ref>https://en.bitcoin.it/wiki/Script#Crypto</ref> once on any given stack element input; All further hash invocations on that input would hit a cache.
+# <b>Pointers</b>. Node implementations can represent stack elements with pointers or other reference types, so duplication of stack elements is cheap. <i>Care would need to be taken to avoid shared-pointer mutation or use-after-free.</i>
+
+Option (1) addresses both CPU and memory DoS attacks, and doesn't change the status quo from tapscript version <code>0xC0</code>. However, it would affect legitimate script authors' ability to work with SHRINCS signatures on the stack the way they can with Schnorr/ECDSA today. It is unclear if use-cases exist for duplicating and/or hashing signatures in script.
+
+Options (2) and (3) are pure implementation changes, and have no practical effect on script authors. Together, they address both CPU and memory DoS attacks. To circumvent the hash-cache mitigation, the attacker would either need to pay for the cost of distinct 6000-byte inputs, or mutate an initial 6000-byte stack element in script (without making it meaningfully smaller) to trigger a cache-miss, and force the verifier to recompute its hash. The former would be expensive, and the latter is not possible under the current Bitcoin scripting environment. Note the attacker could implement a hash-chain in script, e.g. <code>OP_RIPEMD160 OP_RIPEMD160 OP_RIPEMD160 ... OP_RIPEMD160 OP_EQUAL</code>,  each hash operation would indeed be a cache miss, but only the first hash operation will invoke the full 94 compressions.
+
+Thus in possession of viable implementation-level mitigations (which are desirable to implement even before this proposal), we opt to relax the stack element size generally, and permit hashing/duplication opcodes to operate on any stack element up to the new limit of 6000 bytes.
+
+Note that if <code>OP_CAT</code>, <code>OP_XOR</code>, or any other opcodes which permit mutation of stack elements are enabled, then the caching and pointer mitigations may not suffice; Specific restrictions on duplication and hashing opcodes may be necessary.
 
 
 ==Performance==
