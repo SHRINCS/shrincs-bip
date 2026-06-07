@@ -334,7 +334,7 @@ Note that `PK.seed` is not padded in this tweaked hash function.
 The tweaked hash function `H_msg_xmss` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateful path.
 
 ```py
-H_msg_xmss(R, PK.seed, root, position, M) = sha256(R || PK.seed || position || sha256(R || PK.seed || root || position || M) || 0x00000000)
+H_msg_xmss(R, PK.seed, root, position, M) = sha256(R || PK.seed || position || sha256(R || PK.seed || root || position || M))
 ```
 
 TODO: can `position` be used only once?
@@ -349,8 +349,6 @@ TODO: can `position` be used only once?
   - A 32-byte hash.
 
 This function is only used in the stateless path.
-
-The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_xmss` satisfies FIPS-205[^slhdsa], wherein `H_msg_xmss` is defined using MGF1-SHA-256[^mgf1]. (TODO: no reason to use MGF1 here if we only need 32 bytes?)
 
 Note that `PK.seed` is not padded in this tweaked hash function.
 
