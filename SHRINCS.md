@@ -39,7 +39,7 @@ Here follows a table of parameters.
 | `WOTS_TW_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SPHINCS keypair. |
 | `WOTS_C_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
 | `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS hypertree. |
-| `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS hypertree. |
+| `SPHX_BXMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS hypertree. |
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
 | `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS signature. |
 
@@ -145,15 +145,16 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 |:-:|:-:|:-:|:-:|
 | `SL_WOTS_TW_HASH` | 0 | Used when iterating WOTS-TW hash chains. | Stateless |
 | `SL_WOTS_TW_PK`  | 1 | Used when compressing WOTS-TW public keys. | Stateless |
-| `SL_TREE` | 2 | Used when combining merkle nodes in the SPHINCS hypertree. | Stateless |
+| `SL_BXMSS_TREE` | 2 | Used when combining merkle nodes in the SPHINCS hypertree. | Stateless |
 | `SL_FORS_TREE` | 3 | Used when combining merkle nodes in FORS trees. | Stateless |
 | `SL_FORS_ROOTS` | 4 | Used when compressing FORS merkle roots together. | Stateless |
 | `SL_WOTS_TW_PRF` | 5 | Used when generating WOTS-TW secret preimages. | Stateless |
 | `SL_FORS_PRF` | 6 | Used when generating FORS secret preimages. | Stateless |
 | `SF_WOTS_C_HASH` | 16 | Used when iterating WOTS+C hash chains. | Stateful |
 | `SF_WOTS_C_PK`  | 17 | Used when compressing WOTS+C public keys. | Stateful |
-| `SF_WOTS_C_GRIND` | 18 | Used when grinding WOTS+C message digests. | Stateful |
-| `SF_WOTS_C_PRF` | 19 | Used when generating WOTS+C secret preimages. | Stateless |
+| `SF_FXMSS_TREE` | 18 | Used when combining merkle nodes in the stateful FXMSS tree. | Stateful |
+| `SF_WOTS_C_PRF` | 21 | Used when generating WOTS+C secret preimages. | Stateless |
+| `SF_WOTS_C_GRIND` | 22 | Used when grinding WOTS+C message digests. | Stateful |
 
 ### ADRS Payloads
 
@@ -162,17 +163,18 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 |:-:|-|
 | `SL_WOTS_TW_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index |
 | `SL_WOTS_TW_PK` | 4 bytes: key pair index <br> 8 bytes: zero padding |
-| `SL_TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index |
+| `SL_BXMSS_TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index |
 | `SL_FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index |
 | `SL_FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding |
 | `SL_WOTS_TW_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding |
 | `SL_FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index |
 | `SF_WOTS_C_HASH` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: hash index |
 | `SF_WOTS_C_PK` | 12 bytes: zero padding |
-| `SF_WOTS_C_GRIND` | 10 bytes: zero padding <br> 2 bytes: grinding counter |
+| `SF_FXMSS_TREE` | 12 bytes: zero padding |
 | `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
+| `SF_WOTS_C_GRIND` | 10 bytes: zero padding <br> 2 bytes: grinding counter |
 
-<!--Mike: How does the SL_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
+<!--Mike: How does the SL_BXMSS_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
 TODO: make this more visual and explain each field better in context.
 
 ## Tweakable Hash Functions
@@ -196,12 +198,12 @@ SHA256 and HMAC outputs are often truncated, which we denote using Pythonic list
 The following sections describe tweaked hash functions to fill different roles.
 
 
-### `T_sphx(...)`
+### `T_sl(...)`
 
-The tweaked hash function `T_sphx` hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in SPHINCS.
+The tweaked hash function `T_sl` hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in SPHINCS.
 
 ```py
-T_sphx(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
+T_sl(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 ```
 
 - Inputs:
@@ -214,12 +216,12 @@ T_sphx(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 This function is only used in the stateless path.
 
 
-### `T_xmss(...)`
+### `T_sf(...)`
 
-The tweaked hash function `T_xmss` hashes an input `M_l`, which is a sequence of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in XMSS.
+The tweaked hash function `T_sf` hashes an input `M_l`, which is a sequence of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long, concatenated together. This function will be used to compress Winternitz chain tips to a single hash in XMSS.
 
 ```py
-T_xmss(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
+T_sf(PK.seed, ADRS, M_l) = sha256(pad(PK.seed) || ADRS || M_l)[:16]
 ```
 
 - Inputs:
@@ -308,12 +310,12 @@ This function is used in both stateful and stateless paths, but only by the sign
 
 Note the order of the arguments passed to `PRF` is _not_ the same order in which those arguments are processed by `sha256`. This aligns with definitions in FIPS-205[^slhdsa].
 
-### `H_msg_sphx(...)`
+### `H_msg_sl(...)`
 
-The tweaked hash function `H_msg_sphx` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateless path.
+The tweaked hash function `H_msg_sl` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateless path.
 
 ```py
-H_msg_sphx(R, PK.seed, root, M) = sha256(R || PK.seed || sha256(R || PK.seed || root || M) || 0x00000000)
+H_msg_sl(R, PK.seed, root, M) = sha256(R || PK.seed || sha256(R || PK.seed || root || M) || 0x00000000)
 ```
 - Inputs:
   - `R`: a 16-byte randomizer.
@@ -325,16 +327,16 @@ H_msg_sphx(R, PK.seed, root, M) = sha256(R || PK.seed || sha256(R || PK.seed || 
 
 This function is only used in the stateless path.
 
-The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sphx` satisfies FIPS-205[^slhdsa], wherein `H_msg_sphx` is defined using MGF1-SHA-256[^mgf1].
+The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` satisfies FIPS-205[^slhdsa], wherein `H_msg_sl` is defined using MGF1-SHA-256[^mgf1].
 
 Note that `PK.seed` is not padded in this tweaked hash function.
 
-### `H_msg_xmss(...)`
+### `H_msg_sf(...)`
 
-The tweaked hash function `H_msg_xmss` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateful path.
+The tweaked hash function `H_msg_sf` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateful path.
 
 ```py
-H_msg_xmss(R, PK.seed, root, position, M) = sha256(R || PK.seed || position || sha256(R || PK.seed || root || position || M))
+H_msg_sf(R, PK.seed, root, position, M) = sha256(R || PK.seed || position || sha256(R || PK.seed || root || position || M))
 ```
 
 TODO: can `position` be used only once?
@@ -348,7 +350,7 @@ TODO: can `position` be used only once?
 - Output:
   - A 32-byte hash.
 
-This function is only used in the stateless path.
+This function is only used in the stateful path.
 
 Note that `PK.seed` is not padded in this tweaked hash function.
 
@@ -375,7 +377,7 @@ TODO: domain separate between stateful/stateless.
 
 ### Implementation Notes
 
-- The only difference between `T_xmss`, `T_sphx`, `F`, `H`, and `H_grind` is the byte-length of the third input parameter. They are defined as different hash functions for security.
+- The only difference between `T_sf`, `T_sl`, `F`, `H`, and `H_grind` is the byte-length of the third input parameter. They are defined as different hash functions for security.
 - `PRF_msg` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
@@ -545,7 +547,7 @@ def wots_tw_pubkey_gen(SK.seed, PK.seed, ADRS):
 
   ADRS[9] = SL_WOTS_TW_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_sphx(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sl(PK.seed, ADRS, wots_pk)
   return wots_pk_hash
 ```
 
@@ -604,7 +606,7 @@ def wots_tw_pubkey_from_sig(signature, message, PK.seed, ADRS):
 
   ADRS[9] = SL_WOTS_TW_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_sphx(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sl(PK.seed, ADRS, wots_pk)
   return wots_pk_hash
 ```
 
@@ -655,7 +657,7 @@ def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
 
 - Inputs:
   - `PK.seed`: a 16-byte salt.
-  - `message_digest`: a 32-byte intermediate message digest (from `H_msg_xmss`).
+  - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `ADRS`: a 22-byte address.
 - Outputs:
   - The smallest possible valid counter.
@@ -685,7 +687,7 @@ def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
 
 - Inputs:
   - `PK.seed`: a 16-byte salt.
-  - `message_digest`: a 32-byte intermediate message digest (from `H_msg_xmss`).
+  - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `ADRS`: a 22-byte address.
   - `counter`: an unsigned integer.
 - Output:
@@ -712,7 +714,7 @@ def wots_c_pubkey_gen(SK.seed, PK.seed, ADRS):
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_xmss(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sf(PK.seed, ADRS, wots_pk)
   return wots_pk_hash
 ```
 
@@ -780,7 +782,7 @@ def wots_c_pubkey_from_sig(signature, counter, message_digest, PK.seed, ADRS):
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_xmss(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sf(PK.seed, ADRS, wots_pk)
   return wots_pk_hash
 ```
 
