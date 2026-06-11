@@ -275,23 +275,24 @@ This function is used in both stateful and stateless paths.
 
 ### `H_grind(...)`
 
-The tweaked hash function `H_grind` hashes an input `digest`, which is a 32-byte hash. This function will be used to map `digest` into a constant-sum message space for WOTS+C, using a grinding counter embedded in `ADRS`.
+The tweaked hash function `H_grind` hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to map `digest` into a constant-sum message space for WOTS+C.
 
 ```py
-H_grind(PK.seed, ADRS, digest) = sha256(pad(PK.seed) || ADRS || digest)[:16]
+H_grind(PK.seed, position, digest, counter) =
+  sha256(pad(PK.seed) || position || digest || repeat(0x00, 2) || be_bytes(counter, 4))[:16]
 ```
 
 - Inputs:
   - `PK.seed`: a 16-byte salt.
-  - `ADRS`: a 22-byte address.
+  - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
   - `digest`: an array of 32 bytes.
+  - `counter`: a 16-bit unsigned integer.
 - Output:
   - A 16-byte hash.
 
 This function is only used in the stateful path.
 
-`H_grind` has exactly the same definition as `H` but is renamed to distinguish its use in WOTS+C.
-
+The extra 2 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
 
 ### `PRF(...)`
 
@@ -380,7 +381,7 @@ TODO: domain separate between stateful/stateless.
 
 ### Implementation Notes
 
-- The only difference between `T_sf`, `T_sl`, `F`, `H`, and `H_grind` is the byte-length of the third input parameter. They are defined as different hash functions for security.
+- The only difference between `T_sf`, `T_sl`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
 - `PRF_msg` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
@@ -646,11 +647,8 @@ The WOTS+C grinding function. Takes in a `message_digest`, the `PK.seed`, and an
 ```py
 def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
   ADRS[9] = SF_WOTS_C_GRIND
-  ADRS[10:20] = repeat(0x00, 10)
-
   for i in range(0, 2**16):
-    ADRS[20:22] = be_bytes(i, 2)
-    hashed = H_grind(PK.seed, ADRS, message_digest)
+    hashed = H_grind(PK.seed, ADRS[0:10], message_digest, i)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
@@ -678,9 +676,7 @@ The WOTS+C digest validation function. Takes in a `message_digest`, the `PK.seed
 ```py
 def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
   ADRS[9] = SF_WOTS_C_GRIND
-  ADRS[10:20] = repeat(0x00, 10)
-  ADRS[20:22] = be_bytes(counter, 2)
-  hashed = H_grind(PK.seed, ADRS, message_digest)
+  hashed = H_grind(PK.seed, ADRS[0:10], message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
     return indexes
