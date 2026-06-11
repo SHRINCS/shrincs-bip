@@ -895,7 +895,41 @@ This algorithm is used only by the signer.
 
 ### `bxmss_pubkey_from_sig(...)`
 
-TODO
+The BXMSS verification function. Recovers a BXMSS public key from a `signature` on a given 16-byte `message`. Takes in the `PK.seed`, and an `ADRS`. The exact position of the WOTS-TW signing leaf is given by the `keypair_index` argument.
+
+```py
+def bxmss_pubkey_from_sig(keypair_index, signature, message, PK.seed, ADRS):
+  wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT]
+  xmss_auth = signature[WOTS_TW_CHAIN_COUNT : WOTS_TW_CHAIN_COUNT+SPHX_BXMSS_HEIGHT]
+
+  ADRS[10:14] = be_bytes(keypair_index, 4) # AKA keypair address
+  node = wots_tw_pubkey_from_sig(wots_sig, message, PK.seed, ADRS):
+
+  ADRS[9] = SL_BXMSS_TREE
+  ADRS[10:14] = repeat(0x00, 4)
+
+  for k in range(0, SPHX_BXMSS_HEIGHT):
+    ADRS[14:18] = be_bytes(k, 4)
+    ADRS[18:22] = be_bytes(keypair_index >> (k+1), 4)
+    if (keypair_index >> k) & 1:
+      node = H(PK.seed, ADRS, xmss_auth[k] || node)
+    else:
+      node = H(PK.seed, ADRS, node || xmss_auth[k])
+
+  return node
+```
+
+- Inputs:
+  - `keypair_index`: a 32-bit unsigned integer.
+  - `signature`: a BXMSS signature consisting of:
+    - a WOTS-TW signature (`16 * WOTS_TW_CHAIN_COUNT` bytes).
+    - a BXMSS authentication path (`16 * SPHX_BXMSS_HEIGHT` bytes).
+  - `message`: a 16-byte message.
+  - `keypair_index`: The index of the WOTS-TW keypair to sign with.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - a 16-byte BXMSS root node hash
 
 
 ## FXMSS
