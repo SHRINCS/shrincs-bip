@@ -484,7 +484,7 @@ def wots_tw_message_to_indexes(message):
 
 ```py
 # Alternate definition from FIPS-205 (algorithm 7); The above algorithm is equivalent to this.
-SPHX_WOTS_CHECKSUM_SHIFT = (8 - (ceil(WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8)) % 8
+SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
 SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS / 8)
 def wots_tw_message_to_indexes_alt(message):
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
@@ -639,7 +639,7 @@ Only a subset of index-sets have this "constant-sum" property - about 2<sup>122<
 
 Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
 
-### `wots_c_grind(...)`
+### `wots_c_grind_to_constant_sum(...)`
 
 The WOTS+C grinding function. Takes in a `message_digest`, the `PK.seed`, and an `ADRS`, and grinds - up to a maximum of 2<sup>16</sup> attempts - until we find a counter that maps to a constant sum index-set. Returns the lowest valid integer counter and the corresponding array of constant-sum hash chain indexes. The `ADRS` should be prefilled with the location of the WOTS+C key which will be used to sign the resulting indexes.
 
@@ -651,7 +651,7 @@ def wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
   for i in range(0, 2**16):
     ADRS[20:22] = be_bytes(i, 2)
     hashed = H_grind(PK.seed, ADRS, message_digest)
-    indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
+    indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
 
