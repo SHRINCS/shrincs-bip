@@ -77,6 +77,7 @@ We make use of the following utility helper functions in specifying SHRINCS.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `be_bytes(i, n)`: returns the big-endian encoding of the unsigned integer `i`, serialized as a string of `n` bytes.
 - `be_decode(b)`: returns the integer represented by the given big-endian-encoded bytes `b`.
+- `concat(array)`: concatenates the elements of the given `array`.
 
 #### `base_2b(...)`
 
@@ -549,7 +550,7 @@ def wots_tw_pubkey_gen(SK.seed, PK.seed, ADRS):
 
   ADRS[9] = SL_WOTS_TW_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_sl(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sl(PK.seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 ```
 
@@ -578,7 +579,7 @@ def wots_tw_sign(message, SK.seed, PK.seed, ADRS):
     sk = PRF(PK.seed, SK.seed, ADRS)
     ADRS[9] = SL_WOTS_TW_HASH
     signature[i] = wots_chain_iter(sk, 0, indexes[i], PK.seed, ADRS)
-  return signature
+  return concat(signature)
 ```
 
 - Inputs:
@@ -587,7 +588,7 @@ def wots_tw_sign(message, SK.seed, PK.seed, ADRS):
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - A WOTS signature composed of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long.
+  - A WOTS signature composed of `WOTS_TW_CHAIN_COUNT * 16` bytes.
 
 This algorithm is used only by the signer.
 
@@ -604,16 +605,16 @@ def wots_tw_pubkey_from_sig(signature, message, PK.seed, ADRS):
   for i in range(0, WOTS_TW_CHAIN_COUNT):
     ADRS[14:18] = be_bytes(i, 4)
     steps = 2**WOTS_TW_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_chain_iter(signature[i], indexes[i], steps, PK.seed, ADRS)
+    wots_pk[i] = wots_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, PK.seed, ADRS)
 
   ADRS[9] = SL_WOTS_TW_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_sl(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sl(PK.seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 ```
 
 - Inputs:
-  - `signature`: an array of `chain_count` 16-byte hashes.
+  - `signature`: a string of `WOTS_TW_CHAIN_COUNT * 16` bytes.
   - `message`: a 16-byte message.
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
@@ -716,7 +717,7 @@ def wots_c_pubkey_gen(SK.seed, PK.seed, ADRS):
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_sf(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sf(PK.seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 ```
 
@@ -747,7 +748,7 @@ def wots_c_sign(message_digest, SK.seed, PK.seed, ADRS):
     sk = PRF(PK.seed, SK.seed, ADRS)
     ADRS[9] = SF_WOTS_C_HASH
     signature[i] = wots_chain_iter(sk, 0, indexes[i], PK.seed, ADRS)
-  return (signature, counter)
+  return (concat(signature), counter)
 ```
 
 - Inputs:
@@ -756,7 +757,7 @@ def wots_c_sign(message_digest, SK.seed, PK.seed, ADRS):
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Outputs:
-  - A WOTS signature composed of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long.
+  - A WOTS signature composed of `WOTS_C_CHAIN_COUNT * 16` bytes.
   - A 16-bit integer grinding counter.
 
 This algorithm is used only by the signer.
@@ -780,16 +781,16 @@ def wots_c_pubkey_from_sig(signature, counter, message_digest, PK.seed, ADRS):
   for i in range(0, WOTS_C_CHAIN_COUNT):
     ADRS[14:18] = be_bytes(i, 4)
     steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_chain_iter(signature[i], indexes[i], steps, PK.seed, ADRS)
+    wots_pk[i] = wots_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, PK.seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = repeat(0x00, 8)
-  wots_pk_hash = T_sf(PK.seed, ADRS, wots_pk)
+  wots_pk_hash = T_sf(PK.seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 ```
 
 - Inputs:
-  - `signature`: an array of `chain_count` 16-byte hashes.
+  - `signature`: a string of `WOTS_C_CHAIN_COUNT * 16` bytes.
   - `counter`: a 16-bit unsigned integer.
   - `message_digest`: a 32-byte message digest.
   - `PK.seed`: a 16-byte salt.
@@ -888,7 +889,7 @@ def bxmss_sign(message, SK.seed, keypair_index, PK.seed, ADRS):
   - `PK.seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Outputs:
-  - A BXMSS signature (`16 * (SPHX_BXMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` bytes)
+  - A BXMSS signature consisting of `16 * (SPHX_BXMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` bytes.
 
 This algorithm is used only by the signer.
 
@@ -899,8 +900,8 @@ The BXMSS verification function. Recovers a BXMSS public key from a `signature` 
 
 ```py
 def bxmss_pubkey_from_sig(keypair_index, signature, message, PK.seed, ADRS):
-  wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT]
-  xmss_auth = signature[WOTS_TW_CHAIN_COUNT : WOTS_TW_CHAIN_COUNT+SPHX_BXMSS_HEIGHT]
+  wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT*16]
+  xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_BXMSS_HEIGHT)*16]
 
   ADRS[10:14] = be_bytes(keypair_index, 4) # AKA keypair address
   node = wots_tw_pubkey_from_sig(wots_sig, message, PK.seed, ADRS):
@@ -911,19 +912,18 @@ def bxmss_pubkey_from_sig(keypair_index, signature, message, PK.seed, ADRS):
   for k in range(0, SPHX_BXMSS_HEIGHT):
     ADRS[14:18] = be_bytes(k, 4)
     ADRS[18:22] = be_bytes(keypair_index >> (k+1), 4)
+    sibling = xmss_auth[k*16 : (k+1)*16]
     if (keypair_index >> k) & 1:
-      node = H(PK.seed, ADRS, xmss_auth[k] || node)
+      node = H(PK.seed, ADRS, sibling || node)
     else:
-      node = H(PK.seed, ADRS, node || xmss_auth[k])
+      node = H(PK.seed, ADRS, node || sibling)
 
   return node
 ```
 
 - Inputs:
   - `keypair_index`: a 32-bit unsigned integer.
-  - `signature`: a BXMSS signature consisting of:
-    - a WOTS-TW signature (`16 * WOTS_TW_CHAIN_COUNT` bytes).
-    - a BXMSS authentication path (`16 * SPHX_BXMSS_HEIGHT` bytes).
+  - `signature`: a BXMSS signature consisting of `16 * (WOTS_TW_CHAIN_COUNT + SPHX_BXMSS_HEIGHT)` bytes.
   - `message`: a 16-byte message.
   - `keypair_index`: The index of the WOTS-TW keypair to sign with.
   - `PK.seed`: a 16-byte salt.
@@ -953,13 +953,12 @@ The length of the `signature` implies the depth of the WOTS+C signing leaf. The 
 
 ```py
 def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, PK.seed, ADRS):
-  wots_sig = signature[0 : WOTS_C_CHAIN_COUNT]
-  xmss_auth = signature[WOTS_C_CHAIN_COUNT : len(signature)]
+  wots_sig = signature[0 : WOTS_C_CHAIN_COUNT*16]
+  xmss_auth = signature[WOTS_C_CHAIN_COUNT*16 : len(signature)]
 
-  node_depth = len(xmss_auth)
+  node_depth = floor(len(xmss_auth) / 16)
 
   # Ensure node_index describes a valid position in the FXMSS tree.
-  assert node_depth <= FXMSS_HEIGHT
   assert node_index < 2 ** min(64, node_depth)
 
   node_height = FXMSS_HEIGHT - node_depth
@@ -976,19 +975,21 @@ def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, PK.see
   for k in range(0, node_depth):
     ADRS[0] += 1
     ADRS[1:9] = be_bytes(node_index >> (k+1), 8)
+    sibling = xmss_auth[k*16 : (k+1)*16]
     if (node_index >> k) & 1:
-      node = H(PK.seed, ADRS, xmss_auth[k] || node)
+      node = H(PK.seed, ADRS, sibling || node)
     else:
-      node = H(PK.seed, ADRS, node || xmss_auth[k])
+      node = H(PK.seed, ADRS, node || sibling)
 
   return node
 ```
 
 - Inputs:
   - `node_index`: a 64-bit unsigned integer.
-  - `signature`: a FXMSS signature consisting of:
-    - a WOTS+C signature (`16 * WOTS_C_CHAIN_COUNT` bytes).
-    - an FXMSS authentication path (byte string, length is multiple of 16).
+  - `signature`: a variable-length FXMSS signature.
+    - Must be at least `16 * WOTS_C_CHAIN_COUNT` bytes long.
+    - Must be no longer than `16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
+    - Byte length must be a multiple of 16.
   - `counter`: a 16-bit unsigned integer.
   - `message_digest`: a 32-byte message digest.
   - `PK.seed`: a 16-byte salt.
