@@ -947,19 +947,25 @@ TODO
 
 ### `fxmss_pubkey_from_sig(...)`
 
-The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given 32-byte `message_digest`. Takes in a grinding `counter`, the `PK.seed`, and an `ADRS`. The exact position of the WOTS+C signing leaf is given by the `node_height` and `node_index` arguments.
+The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given 32-byte `message_digest`. Takes in a grinding `counter`, the `PK.seed`, and an `ADRS`.
+
+The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact left/right position of the WOTS+C signing leaf within its layer is given explicitly by the `node_index` argument.
 
 ```py
-def fxmss_pubkey_from_sig(node_height, node_index, signature,
-                          counter, message_digest, PK.seed, ADRS):
-  # Ensure node_index describes a valid position in the FXMSS tree.
-  assert node_index < 2 ** min(64, FXMSS_HEIGHT - node_height)
+def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, PK.seed, ADRS):
+  wots_sig = signature[0 : WOTS_C_CHAIN_COUNT]
+  xmss_auth = signature[WOTS_C_CHAIN_COUNT : len(signature)]
 
-  wots_sig = signature[:WOTS_C_CHAIN_COUNT]
-  xmss_auth = signature[WOTS_C_CHAIN_COUNT:]
+  node_depth = len(xmss_auth)
+
+  # Ensure node_index describes a valid position in the FXMSS tree.
+  assert node_depth <= FXMSS_HEIGHT
+  assert node_index < 2 ** min(64, node_depth)
+
+  node_height = FXMSS_HEIGHT - node_depth
+
   ADRS[0] = node_height
   ADRS[1:9] = be_bytes(node_index, 8)
-
   node = wots_c_pubkey_from_sig(wots_sig, counter, message_digest, PK.seed, ADRS)
   if node is None:
     return None
@@ -967,7 +973,7 @@ def fxmss_pubkey_from_sig(node_height, node_index, signature,
   ADRS[9] = SF_FXMSS_TREE
   ADRS[10:22] = repeat(0x00, 12)
 
-  for k in range(0, FXMSS_HEIGHT - node_height):
+  for k in range(0, node_depth):
     ADRS[0] += 1
     ADRS[1:9] = be_bytes(node_index >> (k+1), 8)
     if (node_index >> k) & 1:
@@ -977,6 +983,19 @@ def fxmss_pubkey_from_sig(node_height, node_index, signature,
 
   return node
 ```
+
+- Inputs:
+  - `node_index`: a 64-bit unsigned integer.
+  - `signature`: a FXMSS signature consisting of:
+    - a WOTS+C signature (`16 * WOTS_C_CHAIN_COUNT` bytes).
+    - an FXMSS authentication path (byte string, length is multiple of 16).
+  - `counter`: a 16-bit unsigned integer.
+  - `message_digest`: a 32-byte message digest.
+  - `PK.seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - a 16-byte FXMSS root node hash
+
 
 ## TODO
 
