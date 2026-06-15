@@ -43,6 +43,9 @@ Here follows a table of parameters.
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
 | `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS signature. |
 | `FXMSS_HEIGHT` | 255 | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+| `FXMSS_STRUCTURE_UNBALANCED` | 0 | Flag indicating the use of UXMSS in the stateful path, with a left-leaning unbalanced tree structure. |
+| `FXMSS_STRUCTURE_BALANCED` | 1 | Flag indicating the use of BXMSS in the stateful path, with a balanced tree structure. |
+
 
 ## Keygen Inputs
 
@@ -65,7 +68,7 @@ The padding bytes used depend on whether the `PK.seed` is being used to salt the
 - In the stateless path, `pad(PK.seed) = PK.seed || repeat(0x00, 48)`
 - In the stateful path, `pad(PK.seed) = PK.seed || repeat(0xFF, 48)`
 
-### Utilities
+## Utilities
 
 We make use of the following utility helper functions in specifying SHRINCS.
 
@@ -79,7 +82,7 @@ We make use of the following utility helper functions in specifying SHRINCS.
 - `be_decode(b)`: returns the integer represented by the given big-endian-encoded bytes `b`.
 - `concat(array)`: concatenates the elements of the given `array`.
 
-#### `base_2b(...)`
+### `base_2b(...)`
 
 The `base_2b(x, b, outlen)` helper function decomposes a byte string `x` into `outlen` groups of `b` bits which are each parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits of `x` are parsed, and so `x` must have accordingly sufficient length.
 
@@ -929,6 +932,64 @@ def xmss_pubkey_from_sig(keypair_index, signature, message, PK.seed, ADRS):
 
 
 ## FXMSS
+
+FXMSS is used in the stateful signing path of SHRINCS. FXMSS offers a unique paradigm in the genre of XMSS: Unlike most XMSS-like schemes, FXMSS allows the signer to pick (almost) any arbitrary tree structure.
+
+### Tree Structures
+
+For standardization, we recommend and prove secure two specific FXMSS tree structures: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**. When a SHRINCS secret key is created, the signer stores as an additional byte in the secret key encoding the stateful tree structure, represented by either of the constants `FXMSS_STRUCTURE_UNBALANCED` or `FXMSS_STRUCTURE_BALANCED`. We leave open the possibility of bespoke structures with unique shape, but encourage users to make use of recommended structures for the sake of security and anonymity.
+
+
+#### `FXMSS_STRUCTURE_UNBALANCED`
+
+An unbalanced, left-leaning XMSS tree structure, used for UXMSS signers.
+
+```
+                   root
+                  /    \
+                 O    leaf
+               /   \
+              O   leaf
+            /   \
+           O   leaf
+         /   \
+       ...  leaf
+       /
+      O
+    /   \
+ leaf   leaf
+```
+
+This FXMSS tree structure allows signers to generate very short stateful signatures for the first few initial signatures, since the signer can use the shallowest WOTS+C leaves at first. However, since each WOTS+C leaf can be used only once, subsequent signatures will grow larger at a rate of 16 bytes per signature issued. Eventually after `FXMSS_HEIGHT + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and signatures will be very large.
+
+
+#### `FXMSS_STRUCTURE_BALANCED`
+
+An balanced binary XMSS tree structure, used for BXMSS signers.
+
+```
+                  root
+              /          \
+           /                \
+         O                    O
+       /   \                /   \
+     /       \            /       \
+    O         O          O         O
+  /   \     /   \      /   \     /   \
+leaf leaf leaf leaf  leaf leaf leaf leaf
+```
+
+This FXMSS tree structure allows signers to generate a larger quantity of stateful signatures which have constant size. The exact size of signatures and signing budget of a BXMSS key is dictated by the height of the BXMSS tree at key-generation time. Signer implementations may specify the height of their BXMSS trees, but typical safe defaults range from `height = 8` (256 signatures, matching the budget of UXMSS) to `height = 20` (1 million signatures), or more in special circumstances.
+
+Unlike UXMSS, a SHRINCS key using BXMSS will maintain constant-size signatures up until the stateful path is exhausted.
+
+#### Custom Structures
+
+Signers _may_ design custom structures. The key requirement for a valid structure is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable.
+
+Again, for security and privacy we highly recommend signers stick to the two approved structures: BXMSS and UXMSS.
+
+### Algorithms
 
 These algorithms are used only for the stateful FXMSS sub-scheme.
 
