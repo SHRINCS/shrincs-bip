@@ -279,7 +279,7 @@ The tweaked hash function `H_grind` hashes a 32-byte message `digest` and a grin
 
 ```py
 H_grind(PK.seed, position, digest, counter) =
-  sha256(pad(PK.seed) || position || digest || repeat(0x00, 2) || be_bytes(counter, 4))[:16]
+  sha256(pad(PK.seed) || position || digest || repeat(0x00, 4) || be_bytes(counter, 2))[:16]
 ```
 
 - Inputs:
@@ -292,7 +292,7 @@ H_grind(PK.seed, position, digest, counter) =
 
 This function is only used in the stateful path.
 
-The extra 2 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
+The extra 4 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
 
 ### `PRF(...)`
 
