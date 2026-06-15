@@ -677,7 +677,7 @@ The WOTS+C digest validation function. Takes in a `message_digest`, the `PK.seed
 def wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
   ADRS[9] = SF_WOTS_C_GRIND
   hashed = H_grind(PK.seed, ADRS[0:10], message_digest, counter)
-  indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT):
+  indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
     return indexes
   else:
@@ -733,7 +733,7 @@ The WOTS+C signing function. Takes in a 32-byte `message_digest`, the `SK.seed` 
 
 ```py
 def wots_c_sign(message_digest, SK.seed, PK.seed, ADRS):
-  counter, indexes = wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS):
+  counter, indexes = wots_c_grind_to_constant_sum(PK.seed, message_digest, ADRS)
   signature = []
 
   ADRS[10:14] = repeat(0x00, 4) # zeros reserved
@@ -765,7 +765,7 @@ The WOTS+C verification procedure. Recovers a WOTS+C public key from a `signatur
 
 ```py
 def wots_c_pubkey_from_sig(signature, counter, message_digest, PK.seed, ADRS):
-  indexes = wots_c_map_digest(PK.seed, message_digest, ADRS, counter):
+  indexes = wots_c_map_digest(PK.seed, message_digest, ADRS, counter)
 
   # Reject if counter doesn't satisfy the constant-sum requirement.
   if indexes is None:
