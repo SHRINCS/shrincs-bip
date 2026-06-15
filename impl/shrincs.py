@@ -56,7 +56,7 @@ WOTS_TW_CHAIN_COUNT  = 35
 WOTS_TW_CHECKSUM_MAX = 480
 WOTS_C_CONSTANT_SUM  = 240
 SPHX_LAYER_COUNT     = 5
-SPHX_BXMSS_HEIGHT    = 9
+SPHX_XMSS_HEIGHT    = 9
 SPHX_FORS_HEIGHT     = 13
 SPHX_FORS_COUNT      = 10
 FXMSS_HEIGHT         = 255
@@ -65,7 +65,7 @@ FXMSS_HEIGHT         = 255
 #  ADRS type flags
 SL_WOTS_TW_HASH = 0
 SL_WOTS_TW_PK   = 1
-SL_BXMSS_TREE   = 2
+SL_XMSS_TREE   = 2
 SL_FORS_TREE    = 3
 SL_FORS_ROOTS   = 4
 SL_WOTS_TW_PRF  = 5
@@ -349,9 +349,9 @@ def wots_c_pubkey_from_sig(signature, counter, message_digest, pk_seed, ADRS):
   wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
-def bxmss_node(sk_seed, node_index, node_height, pk_seed, ADRS):
+def xmss_node(sk_seed, node_index, node_height, pk_seed, ADRS):
   """
-  The BXMSS internal node computation helper function. This is a recursive function which takes
+  The XMSS internal node computation helper function. This is a recursive function which takes
   in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an `ADRS`.
   """
   # Bottom layer: return the WOTS-TW pubkey hash.
@@ -362,20 +362,20 @@ def bxmss_node(sk_seed, node_index, node_height, pk_seed, ADRS):
   # Recursively derive the left/right child nodes
   lchild_index = 2 * node_index
   lchild_height = node_height - 1
-  lchild = bxmss_node(sk_seed, lchild_index, lchild_height, pk_seed, ADRS)
-  rchild = bxmss_node(sk_seed, lchild_index + 1, lchild_height, pk_seed, ADRS)
+  lchild = xmss_node(sk_seed, lchild_index, lchild_height, pk_seed, ADRS)
+  rchild = xmss_node(sk_seed, lchild_index + 1, lchild_height, pk_seed, ADRS)
 
   # Compute & return the parent node.
-  ADRS[9] = SL_BXMSS_TREE
+  ADRS[9] = SL_XMSS_TREE
   ADRS[10:14] = repeat(0, 4)
   ADRS[14:18] = node_height.to_bytes(4)
   ADRS[18:22] = node_index.to_bytes(4)
   return H(pk_seed, ADRS, lchild + rchild)
 
-def bxmss_sign(message, sk_seed, keypair_index, pk_seed, ADRS):
+def xmss_sign(message, sk_seed, keypair_index, pk_seed, ADRS):
   """
-  The BXMSS signing procedure. This function produces a deterministic WOTS-TW signature using a
-  specific leaf of a BXMSS tree, and appends a merkle authentication path to form a BXMSS
+  The XMSS signing procedure. This function produces a deterministic WOTS-TW signature using a
+  specific leaf of a XMSS tree, and appends a merkle authentication path to form a XMSS
   signature. Takes in the `message` to sign, the `sk_seed`, the `keypair_index` to sign with,
   the `pk_seed`, and an `ADRS` which contains a pre-filled WOTS-TW keypair index.
   """
@@ -384,28 +384,28 @@ def bxmss_sign(message, sk_seed, keypair_index, pk_seed, ADRS):
   sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
 
   # Append the Merkle authentication path
-  for j in range(SPHX_BXMSS_HEIGHT):
+  for j in range(SPHX_XMSS_HEIGHT):
     sibling_index = (keypair_index >> j) ^ 1
-    sig += bxmss_node(sk_seed, sibling_index, j, pk_seed, ADRS)
+    sig += xmss_node(sk_seed, sibling_index, j, pk_seed, ADRS)
 
   return sig
 
-def bxmss_pubkey_from_sig(keypair_index, signature, message, pk_seed, ADRS):
+def xmss_pubkey_from_sig(keypair_index, signature, message, pk_seed, ADRS):
   """
-  The BXMSS verification function. Recovers a BXMSS public key from a `signature` on a given
+  The XMSS verification function. Recovers an XMSS public key from a `signature` on a given
   16-byte `message`. Takes in the `pk_seed`, and an `ADRS`. The exact position of the WOTS-TW
   signing leaf is given by the `keypair_index` argument.
   """
   wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT*16]
-  xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_BXMSS_HEIGHT)*16]
+  xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_XMSS_HEIGHT)*16]
 
   ADRS[10:14] = keypair_index.to_bytes(4) # AKA keypair address
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, ADRS)
 
-  ADRS[9] = SL_BXMSS_TREE
+  ADRS[9] = SL_XMSS_TREE
   ADRS[10:14] = repeat(0, 4)
 
-  for k in range(SPHX_BXMSS_HEIGHT):
+  for k in range(SPHX_XMSS_HEIGHT):
     ADRS[14:18] = k.to_bytes(4)
     ADRS[18:22] = (keypair_index >> (k+1)).to_bytes(4)
     sibling = xmss_auth[k*16 : (k+1)*16]
