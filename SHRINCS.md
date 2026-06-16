@@ -74,11 +74,6 @@ Every SHRINCS keypair contains a randomly generated 16-byte salt value called `P
 
 To save computational effort, `PK.seed` is padded to a length of 64 bytes in most cases. This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
 
-The padding bytes used depend on whether the `PK.seed` is being used to salt the stateful or stateless signing path of SHRINCS. This serves to separate contexts between stateful and stateless paths. This contextual padding of `PK.seed` is denoted by `pad(PK.seed)`.
-
-- In the stateless path, `pad(PK.seed) = PK.seed || repeat(0x00, 48)`
-- In the stateful path, `pad(PK.seed) = PK.seed || repeat(0xFF, 48)`
-
 ## Utilities
 
 We make use of the following utility helper functions in specifying SHRINCS.
