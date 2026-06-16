@@ -354,8 +354,7 @@ def xmss_node(sk_seed, node_index, node_height, pk_seed, ADRS):
   The XMSS internal node computation helper function. This is a recursive function which takes
   in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an `ADRS`.
   """
-  # Bottom layer: return the WOTS-TW pubkey hash.
-  if node_height == 0:
+  if node_height == 0: # Bottom layer: return the WOTS-TW pubkey hash.
     ADRS[10:14] = node_index.to_bytes(4)
     return wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
 
