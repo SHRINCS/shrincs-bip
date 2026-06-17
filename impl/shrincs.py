@@ -56,7 +56,7 @@ WOTS_TW_CHAIN_COUNT  = 35
 WOTS_TW_CHECKSUM_MAX = 480
 WOTS_C_CONSTANT_SUM  = 240
 SPHX_LAYER_COUNT     = 5
-SPHX_XMSS_HEIGHT    = 9
+SPHX_XMSS_HEIGHT     = 9
 SPHX_FORS_HEIGHT     = 13
 SPHX_FORS_COUNT      = 10
 FXMSS_HEIGHT         = 255
@@ -68,7 +68,7 @@ FXMSS_SHAPE_BALANCED   = 1
 #  ADRS type flags
 SL_WOTS_TW_HASH = 0
 SL_WOTS_TW_PK   = 1
-SL_XMSS_TREE   = 2
+SL_XMSS_TREE    = 2
 SL_FORS_TREE    = 3
 SL_FORS_ROOTS   = 4
 SL_WOTS_TW_PRF  = 5
@@ -680,7 +680,6 @@ def fxmss_node(sk_seed, node_index, node_height, pk_seed, structure, ADRS):
   ADRS[10:22] = repeat(0, 12)
   return H(pk_seed, ADRS, lchild + rchild)
 
-
 def fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, structure, ADRS):
   """
   The FXMSS signing procedure. This function produces a deterministic WOTS+C signature using a
@@ -698,7 +697,6 @@ def fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, struct
     sig += fxmss_node(sk_seed, sibling_index, j, pk_seed, structure, ADRS)
 
   return counter.to_bytes(2) + sig
-
 
 def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, pk_seed, ADRS):
   """

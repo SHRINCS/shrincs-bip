@@ -6,6 +6,7 @@ SHRINCS is a hybrid stateful/stateless signature scheme built using only hash fu
 
 This spec serves to describe the keygen, signing, and verification algorithms of SHRINCS.
 
+
 ## Templating
 
 This SHRINCS specification includes Python reference code and documentation defined inline at [`impl/shrincs.py`](./impl/shrincs.py). The markdown file you are currently reading uses simple templating to pull Python code and docstrings from `shrincs.py`. If you wish to make changes to the specification of SHRINCS functions inside of a `<!-- DOC START xyz -->` ... `<!-- DOC END xyz -->` templating envelope, please make the changes directly in `shrincs.py` first, and then run the [`pydoc_insert.py` script](./pydoc_insert.py).
@@ -16,6 +17,7 @@ This SHRINCS specification includes Python reference code and documentation defi
 ```sh
 ./pydoc_insert.py
 ```
+
 
 ## Overview
 
@@ -68,11 +70,13 @@ Generating a SHRINCS key is straightforward and consists only of generating 48 r
 
 Note this is the bare minimum needed to generate a full SHRINCS public key. More performant (but larger) secret key representations are possible.
 
+
 ### Padding
 
 Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key. This salts every hash function invocation to introduce domain separation between different instances of a signature scheme, to counter offline/precomputation attacks, and to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
 
 To save computational effort, `PK.seed` is padded with zero bytes to a length of 64 bytes in most cases. This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
+
 
 ## Utilities
 
@@ -85,6 +89,7 @@ We make use of the following utility helper functions in specifying SHRINCS.
 - `repeat(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates the elements of the given `array`.
+
 
 ### `base_2b(...)`
 
@@ -116,6 +121,7 @@ def base_2b(x, b, outlen):
 ```
 <!-- DOC END base_2b -->
 
+
 # Building Blocks
 
 SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and _tweakable hash functions_ - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SPHINCS, which together form SHRINCS.
@@ -138,11 +144,13 @@ SHRINCS is a high-level construction built out of many smaller sub-schemes. To f
         SHRINCS
 ```
 
+
 ## ADRS
 
 A critical security property of SHRINCS and its components is that every hash function invocation used in the verification algorithm must be _unique,_ so that inputs used in one hash function cannot be reused to produce the same output in another hash function.
 
 To accomplish this goal, we will use _tweakable hash functions_ (explained below) which modify a hash function with some context-dependent location information. This unambiguously specifies the exact instance of the hash function in the signing/verification algorithms where the hash function is being used. This location is called an _address_ and we encode it into a 22-byte array, often called an `ADRS`.[^adrs]
+
 
 ### ADRS Format
 <!--Mike: I think the presentation of ADRS format should be done a bit differently. We can have to tables. One for the stateless and for the stateful. Then we write the purpose of bytes for stateless and stateful there. This way we can also have different names for the fields. -->
@@ -152,6 +160,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 | `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. <br> In the stateful path, this specifies the node index within a layer of the XMSS tree. <br> In the stateless path, this specifies the node index within a layer of the SPHINCS hypertree. |
 | `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
+
 
 ### ADRS Types
 
@@ -169,6 +178,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 | `SF_FXMSS_TREE` | 18 | Used when combining merkle nodes in the stateful FXMSS tree. | Stateful |
 | `SF_WOTS_C_PRF` | 21 | Used when generating WOTS+C secret preimages. | Stateless |
 | `SF_WOTS_C_GRIND` | 22 | Used when grinding WOTS+C message digests. | Stateful |
+
 
 ### ADRS Payloads
 
@@ -190,6 +200,7 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 
 <!--Mike: How does the SL_XMSS_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
 TODO: make this more visual and explain each field better in context.
+
 
 ## Tweakable Hash Functions
 
@@ -424,6 +435,7 @@ def H_msg_sf(R, pk_seed, root, position, M):
 ```
 <!-- DOC END H_msg_sf -->
 
+
 ### `PRF_msg(...)`
 
 The tweaked hash function `PRF_msg`.
@@ -451,6 +463,7 @@ def PRF_msg(sk_prf, opt_rand, M):
 ```
 <!-- DOC END PRF_msg -->
 
+
 ### Implementation Notes
 
 - The only difference between `T_sf`, `T_sl`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
@@ -473,6 +486,7 @@ The following two sections describe a pair of related one-time signature schemes
 
 Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signature scheme_ (WOTS).[^merkle]
 
+
 ### Informal Description
 
 Here follows an intuitive description of Winternitz OTS (WOTS) schemes in general.
@@ -488,6 +502,7 @@ The verifier maps the message to those same integers as the signer did, and fini
 <sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
 
 As written this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes. WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a small salt which the signer must grind to find a set of indexes which sum to a specific constant.
+
 
 ## WOTS Algorithm
 
@@ -587,6 +602,7 @@ def wots_tw_message_to_indexes_alt(message):
 <!-- DOC END wots_tw_message_to_indexes_alt -->
 
 This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.** Note especially how the bits of the checksum are sliced off and appended to the very end of the final encoding; The checksum bits are NOT appended directly to the message indexes.
+
 
 #### Example
 
@@ -1078,6 +1094,7 @@ These two parameters define the _structure_ of the FXMSS stateful path.
 
 The shape and depth bytes will be encoded in the serialized SHRINCS secret key so that implementations which import the key have a clear directive for how to build the same FXMSS tree in the SHRINCS stateful path. Implementations which import SHRINCS keys MUST respect the shape and depth bytes - doing otherwise would be unsafe and may lead to forgeries and theft.
 
+
 ### Tree Shapes
 
 We prescribe and define two FXMSS tree shapes: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**. For clarity: We use the terms UXMSS and BXMSS in the context of signing and key-generation, while FXMSS refers more generally to the verifier, which is decoupled from tree shape.
@@ -1202,6 +1219,7 @@ def fxmss_node(sk_seed, node_index, node_height, pk_seed, structure, ADRS):
 
 TODO: inputs/outputs
 
+
 ### `fxmss_sign(...)`
 
 <!-- DOC START fxmss_sign -->
@@ -1226,6 +1244,7 @@ def fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, struct
 <!-- DOC END fxmss_sign -->
 
 TODO inputs/outputs
+
 
 ### `fxmss_pubkey_from_sig(...)`
 
