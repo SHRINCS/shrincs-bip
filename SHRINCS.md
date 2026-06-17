@@ -186,7 +186,7 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `SF_WOTS_C_PK` | 12 bytes: zero padding |
 | `SF_FXMSS_TREE` | 12 bytes: zero padding |
 | `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
-| `SF_WOTS_C_GRIND` | 10 bytes: zero padding <br> 2 bytes: grinding counter |
+| `SF_WOTS_C_GRIND` | 12 bytes: zero padding |
 
 <!--Mike: How does the SL_XMSS_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
 TODO: make this more visual and explain each field better in context.
