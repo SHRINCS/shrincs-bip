@@ -54,8 +54,8 @@ Here follows a table of parameters.
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
 | `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS signature. |
 | `FXMSS_HEIGHT` | 255 | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
-| `FXMSS_STRUCTURE_UNBALANCED` | 0 | Flag indicating the use of UXMSS in the stateful path, with a left-leaning unbalanced tree structure. |
-| `FXMSS_STRUCTURE_BALANCED` | 1 | Flag indicating the use of BXMSS in the stateful path, with a balanced tree structure. |
+| `FXMSS_SHAPE_UNBALANCED` | 0 | Flag indicating the use of UXMSS in the stateful path, with a left-leaning unbalanced tree shape. |
+| `FXMSS_SHAPE_BALANCED` | 1 | Flag indicating the use of BXMSS in the stateful path, with a balanced tree shape. |
 
 
 ## Keygen Inputs
@@ -1050,16 +1050,41 @@ def xmss_pubkey_from_sig(keypair_index, signature, message, pk_seed, ADRS):
 
 ## FXMSS
 
-FXMSS is used in the stateful signing path of SHRINCS. FXMSS offers a unique paradigm in the genre of XMSS: Unlike most XMSS-like schemes, FXMSS allows the signer to pick (almost) any arbitrary tree structure.
+FXMSS is the stateful signing path of SHRINCS. FXMSS offers a unique paradigm in the genre of XMSS: Unlike most related schemes, FXMSS allows the signer to pick (almost[^fxmss_node_index]) any arbitrary tree structure. By tree structure, we mean the choice of which positions in the FXMSS tree are used by the signer as WOTS+C leaf nodes.
 
-### Tree Structures
+The FXMSS verifier does not care about the positions of unused WOTS+C leaf nodes - The verifier only cares about the WOTS+C leaf whose signature is attached in the FXMSS signature. This makes the verifier simpler to implement, and frees signers to select their XMSS tree structure at key generation time to suit their use-case.
 
-For standardization, we recommend and prove secure two specific FXMSS tree structures: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**. When a SHRINCS secret key is created, the signer stores as an additional byte in the secret key encoding the stateful tree structure, represented by either of the constants `FXMSS_STRUCTURE_UNBALANCED` or `FXMSS_STRUCTURE_BALANCED`. We leave open the possibility of bespoke structures with unique shape, but encourage users to make use of recommended structures for the sake of security and anonymity.
+Because of this flexibility, it is necessary for signers to remember what structure of FXMSS tree they created at key generation time. To encourage interoperability, we define an encoding for FXMSS tree structures which will be stored in the SHRINCS signer's serialized secret key as two additional bytes.
+
+A _tree structure_ for FXMSS is encoded as a tuple of two numbers: ***shape*** and ***depth***.
+
+- ***Shape*** is a flag byte that defines which FXMSS nodes are to be WOTS+C leaves. We will describe two recommended tree shapes below.
+- ***Depth*** is an 8-bit unsigned integer describing the height of the FXMSS tree, or more precisely, the distance from the root node to the deepest leaf node.
+
+These two parameters define the _structure_ of the FXMSS stateful path.
+
+The shape and depth bytes will be encoded in the serialized SHRINCS secret key so that implementations which import the key have a clear directive for how to build the same FXMSS tree in the SHRINCS stateful path. Implementations which import SHRINCS keys MUST respect the shape and depth bytes - doing otherwise would be unsafe and may lead to forgeries and theft.
+
+### Tree Shapes
+
+We prescribe and define two FXMSS tree shapes: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**. For clarity: We use the terms UXMSS and BXMSS in the context of signing and key-generation, while FXMSS refers more generally to the verifier, which is decoupled from tree shape.
+
+The two shapes are identified by their respective constants.
+
+| Shape Flag | Description |
+|:-:|:-:|
+| `FXMSS_SHAPE_UNBALANCED` | Indicates UXMSS, with a left-leaning unbalanced tree. |
+| `FXMSS_SHAPE_BALANCED` | Indicates BXMSS, with a balanced tree of specific depth. |
+| Anything else | Reserved. |
+
+We leave open the possibility to define new shape flags for new XMSS tree structures, but we encourage signers to utilize the recommended shapes wherever possible, for the sake of security and anonymity.
+
+The following sections describe the usage properties of the two shapes, and we let the variable `depth` represent the depth byte as a parameter of the shape.
 
 
-#### `FXMSS_STRUCTURE_UNBALANCED`
+#### `FXMSS_SHAPE_UNBALANCED`
 
-An unbalanced, left-leaning XMSS tree structure, used for UXMSS signers.
+When the shape byte is set to `FXMSS_SHAPE_UNBALANCED`, signers use an unbalanced, left-leaning XMSS tree of height `depth`.
 
 ```
                    root
@@ -1077,12 +1102,16 @@ An unbalanced, left-leaning XMSS tree structure, used for UXMSS signers.
  leaf   leaf
 ```
 
-This FXMSS tree structure allows signers to generate very short stateful signatures for the first few initial signatures, since the signer can use the shallowest WOTS+C leaves at first. However, since each WOTS+C leaf can be used only once, subsequent signatures will grow larger at a rate of 16 bytes per signature issued. Eventually after `FXMSS_HEIGHT + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and signatures will be very large.
+This FXMSS tree shape allows signers to generate very short stateful signatures for the first few initial signatures, since the signer can use the shallowest WOTS+C leaves right away, and these have very short merkle authentication paths.
+
+However, since each WOTS+C leaf can be used only once, subsequent signatures will grow larger at a rate of 16 bytes per signature issued as the merkle authentication path grows in length. Eventually after `depth + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and the last few stateful signatures will be very large.
+
+For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS, as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path.
 
 
-#### `FXMSS_STRUCTURE_BALANCED`
+#### `FXMSS_SHAPE_BALANCED`
 
-An balanced binary XMSS tree structure, used for BXMSS signers.
+When the shape byte is set to `FXMSS_SHAPE_BALANCED`, signers use a balanced binary XMSS tree, of height `depth`.
 
 ```
                   root
@@ -1090,21 +1119,33 @@ An balanced binary XMSS tree structure, used for BXMSS signers.
            /                \
          O                    O
        /   \                /   \
+     ...   ...            ...   ...
      /       \            /       \
     O         O          O         O
   /   \     /   \      /   \     /   \
 leaf leaf leaf leaf  leaf leaf leaf leaf
 ```
 
-This FXMSS tree structure allows signers to generate a larger quantity of stateful signatures which have constant size. The exact size of signatures and signing budget of a BXMSS key is dictated by the height of the BXMSS tree at key-generation time. Signer implementations may specify the height of their BXMSS trees, but typical safe defaults range from `height = 8` (256 signatures, matching the budget of UXMSS) to `height = 20` (1 million signatures), or more in special circumstances.
+This FXMSS tree shape allows signers to generate a larger quantity of stateful signatures. Unlike UXMSS, stateful SHRINCS signatures using a BXMSS tree will have a consistent size, up until the stateful path is exhausted (after `2 ** depth` signatures), because all WOTS+C leaves will the same merkle authentication path length.
 
-Unlike UXMSS, a SHRINCS key using BXMSS will maintain constant-size signatures up until the stateful path is exhausted.
+The `depth` of the BXMSS tree at key generation time has a significant impact on the performance of the SHRINCS stateful signing path. The exact size of the constant-size signatures is also dictated by `depth`: each step further from the root node we take, we must add 16 bytes to the FXMSS signature. Furthermore, each step doubles the number of leaf nodes, and so doubles the signature budget, but also doubles the amount of computational work needed for BXMSS key generation and/or signing.
 
-#### Custom Structures
+Signer implementations may specify any height for BXMSS trees depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
 
-Signers _may_ design custom structures. The key requirement for a valid structure is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable.
 
-Again, for security and privacy we highly recommend signers stick to the two approved structures: BXMSS and UXMSS.
+#### Custom Shapes
+
+Signers _may_ design custom shapes.[^fxmss_node_index]
+
+For security and privacy we highly recommend signers stick to the two prescribed shapes: BXMSS and UXMSS.
+
+
+#### Caveats
+
+- Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
+- Some structures are fungible, such as any tree of depth 0 or depth 1 will be the same regardless of shape.
+- Implementations must take care when using SHRINCS secret keys imported from untrusted sources, especially if depending on shape and depth bytes for security-critical logic.
+
 
 ### Algorithms
 
@@ -1201,3 +1242,4 @@ def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, pk_see
 [^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
 [^sphincs+c]: https://eprint.iacr.org/2022/778
 [^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
+[^fxmss_node_index]: The key requirement for a valid FXMSS tree shape is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable. This provides plenty of space while maintaining a fixed max-length encoding for node indexes.
