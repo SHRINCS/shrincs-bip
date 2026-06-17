@@ -56,8 +56,6 @@ Here follows a table of parameters.
 | `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
 | `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS signature. |
 | `FXMSS_HEIGHT` | 255 | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
-| `FXMSS_SHAPE_UNBALANCED` | 0 | Flag indicating the use of UXMSS in the stateful path, with a left-leaning unbalanced tree shape. |
-| `FXMSS_SHAPE_BALANCED` | 1 | Flag indicating the use of BXMSS in the stateful path, with a balanced tree shape. |
 
 
 ## Keygen Inputs
@@ -1101,11 +1099,11 @@ We prescribe and define two FXMSS tree shapes: **Unbalanced XMSS (UXMSS)** and *
 
 The two shapes are identified by their respective constants.
 
-| Shape Flag | Description |
-|:-:|:-:|
-| `FXMSS_SHAPE_UNBALANCED` | Indicates UXMSS, with a left-leaning unbalanced tree. |
-| `FXMSS_SHAPE_BALANCED` | Indicates BXMSS, with a balanced tree of specific depth. |
-| Anything else | Reserved. |
+| Shape Flag | Value | Description |
+|:-:|:-:|:-:|
+| `FXMSS_SHAPE_UNBALANCED` | 0 | Indicates UXMSS, with a left-leaning unbalanced tree. |
+| `FXMSS_SHAPE_BALANCED` | 1 | Indicates BXMSS, with a balanced tree of specific depth. |
+| ... | 2...255 | Reserved. |
 
 We leave open the possibility to define new shape flags for new XMSS tree structures, but we encourage signers to utilize the recommended shapes wherever possible, for the sake of security and anonymity.
 
