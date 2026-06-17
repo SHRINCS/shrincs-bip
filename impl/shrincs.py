@@ -99,6 +99,15 @@ def T_sl(pk_seed, ADRS, M_l):
   Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
   concatenated together. This function will be used to compress Winternitz chain tips to a single
   hash in SPHINCS.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+    - `M_l`: an array of `WOTS_TW_CHAIN_COUNT * 16` bytes.
+  - Output:
+    - A 16-byte hash.
+
+  This function is only used in the stateless path.
   """
   return sha256(pk_seed + repeat(0, 48) + ADRS + M_l)[:16]
 
@@ -107,6 +116,15 @@ def T_sf(pk_seed, ADRS, M_l):
   Hashes an input `M_l`, which is a sequence of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long,
   concatenated together. This function will be used to compress Winternitz chain tips to a single
   hash in FXMSS.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+    - `M_l`: an array of `WOTS_C_CHAIN_COUNT * 16` bytes.
+  - Output:
+    - A 16-byte hash.
+
+  This function is only used in the stateful path.
   """
   return sha256(pk_seed + repeat(0, 48) + ADRS + M_l)[:16]
 
@@ -114,6 +132,15 @@ def F(pk_seed, ADRS, M_1):
   """
   Hashes an input `M_1`, which is a single 16-byte hash. This function will be used to generate
   and iterate Winternitz hash chains and to hash FORS leaves.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+    - `M_1`: a 16-byte hash.
+  - Output:
+    - A 16-byte hash.
+
+  This function is used in both stateful and stateless paths.
   """
   return sha256(pk_seed + repeat(0, 48) + ADRS + M_1)[:16]
 
@@ -121,6 +148,15 @@ def H(pk_seed, ADRS, M_2):
   """
   Hashes an input `M_2`, which is a pair of 16-byte hashes, concatenated together. This function
   will be used to combine pairs of merkle nodes, to construct merkle trees in XMSS and FORS.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+    - `M_2`: an array of 32 bytes.
+  - Output:
+    - A 16-byte hash.
+
+  This function is used in both stateful and stateless paths.
   """
   return sha256(pk_seed + repeat(0, 48) + ADRS + M_2)[:16]
 
@@ -128,6 +164,16 @@ def H_grind(pk_seed, position, digest, counter):
   """
   Hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to
   map `digest` into a constant-sum message space for WOTS+C.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
+    - `digest`: an array of 32 bytes.
+    - `counter`: a 16-bit unsigned integer.
+  - Output:
+    - A 16-byte hash.
+
+  This function is only used in the stateful path.
   """
   assert counter <= 0xFFFF
   return sha256(pk_seed + repeat(0, 48) + position + digest + repeat(0, 4) + counter.to_bytes(2))[:16]
@@ -136,6 +182,15 @@ def PRF(pk_seed, sk_seed, ADRS):
   """
   Hashes `sk_seed` with an `ADRS` to derive secret preimage values needed for signing and key
   generation.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `sk_seed`: a 16-byte secret.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - A 16-byte hash.
+
+  This function is used in both stateful and stateless paths, but only by the signing algorithm.
   """
   return sha256(pk_seed + repeat(0, 48) + ADRS + sk_seed)[:16]
 
@@ -143,6 +198,18 @@ def H_msg_sl(R, pk_seed, root, M):
   """
   Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
   bytestring `M`. It will be used to produce a digest for signing in the stateless path.
+
+  - Inputs:
+    - `R`: a 16-byte randomizer.
+    - `pk_seed`: a 16-byte salt.
+    - `root`: a 16-byte hash.
+    - `M`: an arbitrary-length bytestring (TODO).
+  - Output:
+    - A 32-byte hash.
+
+  This function is only used in the stateless path.
+
+  Note that `pk_seed` is not padded in this tweaked hash function.
   """
   return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + repeat(0, 4))
 
@@ -150,6 +217,21 @@ def H_msg_sf(R, pk_seed, root, position, M):
   """
   Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
   bytestring `M`. It will be used to produce a digest for signing in the stateful path.
+
+  TODO: can `position` be used only once?
+
+  - Inputs:
+    - `R`: a 16-byte randomizer.
+    - `pk_seed`: a 16-byte salt.
+    - `root`: a 16-byte hash.
+    - `position`: a 9-byte specifier of the location of the WOTS+C leaf keypair.
+    - `M`: an arbitrary-length bytestring (TODO).
+  - Output:
+    - A 32-byte hash.
+
+  This function is only used in the stateful path.
+
+  Note that `pk_seed` is not padded in this tweaked hash function.
   """
   return sha256(R + pk_seed + position + sha256(R + pk_seed + root + position + M))
 
@@ -157,6 +239,19 @@ def PRF_msg(sk_prf, opt_rand, M):
   """
   Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
   This function will be used to derive a _randomizer_ (salt) for the given message.
+
+  - Inputs:
+    - `sk_prf`: a 16-byte secret.
+    - `opt_rand`: a 16-byte salt.
+    - `M`: an arbitrary-length bytestring (TODO).
+  - Output:
+    - A 16-byte hash.
+
+  This function is used in both stateful and stateless paths, but only by the signing algorithm.
+
+  If deterministic signing is required and an RNG is not available, `opt_rand` will be set to `pk_seed`.
+
+  TODO: domain separate between stateful/stateless.
   """
   return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
 
@@ -169,6 +264,18 @@ def wots_chain_iter(node, start, steps, pk_seed, ADRS):
   in a hash chain. This method iterates the hash chain by `steps` iterations, returning the hash
   chain node at index `start+steps`. The `ADRS` must be prefilled to ensure the hashes are properly
   tweaked.
+
+  - Inputs:
+    - `node`: a 16-byte hash.
+    - `start`: an unsigned integer indicating the index of `node` in the hash chain.
+    - `steps`: an unsigned integer indicating how many steps to take up the hash chain.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - A 16-byte hash at index `start + steps`.
+
+  This function is used very heavily by both stateful and stateless paths and is the core target
+  for optimization and parallelization.
   """
   for j in range(start, start+steps):
     ADRS[18:22] = j.to_bytes(4)
@@ -179,6 +286,11 @@ def wots_tw_message_to_indexes(message):
   """
   The WOTS-TW message map function. Converts a 16-byte `message` to a checksummed array
   of `WOTS_TW_CHAIN_COUNT` WOTS hash chain indexes in the range `[0, 2**WOTS_TW_CHAIN_BITS)`.
+
+  - Inputs:
+    - `message`: a 16-byte hash
+  - Output:
+    - An checksummed array of `WOTS_TW_CHAIN_BITS`-bit integers of length `WOTS_TW_CHAIN_COUNT`.
   """
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)
@@ -207,6 +319,15 @@ def wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS):
   """
   The WOTS-TW public key generation function. Takes in the secret `sk_seed`, the `pk_seed`,
   and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+  - Inputs:
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - A 16-byte hash representing the WOTS-TW public key.
+
+  This algorithm is used only by the signer.
   """
   wots_pk = [None] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
@@ -226,6 +347,16 @@ def wots_tw_sign(message, sk_seed, pk_seed, ADRS):
   """
   The WOTS-TW signing function. Takes in a 16-byte `message`, the `sk_seed` and `pk_seed`,
   and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+  - Inputs:
+    - `message`: a 16-byte message to sign.
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - A WOTS signature composed of `WOTS_TW_CHAIN_COUNT * 16` bytes.
+
+  This algorithm is used only by the signer.
   """
   indexes = wots_tw_message_to_indexes(message)
   signature = [None] * WOTS_TW_CHAIN_COUNT
@@ -243,6 +374,16 @@ def wots_tw_pubkey_from_sig(signature, message, pk_seed, ADRS):
   The WOTS-TW verification procedure. Recovers a WOTS-TW public key from a `signature` on a given
   16-byte `message`. Takes in the `pk_seed`. The `ADRS` should be prefilled with the location of
   the WOTS keypair being used.
+
+  - Inputs:
+    - `signature`: a string of `WOTS_TW_CHAIN_COUNT * 16` bytes.
+    - `message`: a 16-byte message.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - A 16-byte hash representing the WOTS-TW public key.
+
+  This algorithm is used by both signers and verifiers.
   """
   indexes = wots_tw_message_to_indexes(message)
   wots_pk = [None] * WOTS_TW_CHAIN_COUNT
@@ -264,6 +405,16 @@ def wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS):
   constant sum index-set. Returns the lowest valid integer counter and the corresponding array
   of constant-sum hash chain indexes. The `ADRS` should be prefilled with the location of the
   WOTS+C key which will be used to sign the resulting indexes.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
+    - `ADRS`: a 22-byte address.
+  - Outputs:
+    - The smallest possible valid counter.
+    - The corresponding constant-sum set of hash chain indexes.
+
+  This algorithm is used only by the signer.
   """
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
@@ -280,6 +431,16 @@ def wots_c_map_digest(pk_seed, message_digest, ADRS, counter):
   and a `counter` parsed from a WOTS+C signature. This evaluates the grinding counter and attempts
   to map the digest to a constant sum set of hash chain indexes. If the `counter` is valid, this
   function returns the constant sum index-set. Otherwise, it returns null.
+
+  - Inputs:
+    - `pk_seed`: a 16-byte salt.
+    - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
+    - `ADRS`: a 22-byte address.
+    - `counter`: an unsigned integer.
+  - Output:
+    - A constant-sum set of hash chain indexes, or null.
+
+  This algorithm is used only by the verifier.
   """
   ADRS[9] = SF_WOTS_C_GRIND
   hashed = H_grind(pk_seed, ADRS[:10], message_digest, counter)
@@ -293,6 +454,15 @@ def wots_c_pubkey_gen(sk_seed, pk_seed, ADRS):
   """
   The WOTS+C public key generation function. Takes in the secret `sk_seed`, the `pk_seed`, and an
   `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+  - Inputs:
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - A 16-byte hash representing the WOTS+C public key.
+
+  This algorithm is used only by the signer.
   """
   wots_pk = [None] * WOTS_C_CHAIN_COUNT
   ADRS[10:14] = repeat(0, 4) # zeros reserved
@@ -313,6 +483,17 @@ def wots_c_sign(message_digest, sk_seed, pk_seed, ADRS):
   """
   The WOTS+C signing function. Takes in a 32-byte `message_digest`, the `sk_seed` and `pk_seed`,
   and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+
+  - Inputs:
+    - `message_digest`: a 32-byte message digest to sign.
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Outputs:
+    - A WOTS signature composed of `WOTS_C_CHAIN_COUNT * 16` bytes.
+    - A 16-bit integer grinding counter.
+
+  This algorithm is used only by the signer.
   """
   counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
   signature = [None] * WOTS_C_CHAIN_COUNT
@@ -332,6 +513,17 @@ def wots_c_pubkey_from_sig(signature, counter, message_digest, pk_seed, ADRS):
   The WOTS+C verification procedure. Recovers a WOTS+C public key from a `signature` on a given
   32-byte `message_digest`. Takes in a grinding `counter`, the `pk_seed`, and an `ADRS`. The `ADRS`
   should be prefilled with the location of the WOTS keypair being used.
+
+  - Inputs:
+    - `signature`: a string of `WOTS_C_CHAIN_COUNT * 16` bytes.
+    - `counter`: a 16-bit unsigned integer.
+    - `message_digest`: a 32-byte message digest.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - A 16-byte hash representing the WOTS+C public key, or null.
+
+  This algorithm is used by both signers and verifiers.
   """
   indexes = wots_c_map_digest(pk_seed, message_digest, ADRS, counter)
 
@@ -352,10 +544,24 @@ def wots_c_pubkey_from_sig(signature, counter, message_digest, pk_seed, ADRS):
   wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
+
+#  XMSS algorithms
+
 def xmss_node(sk_seed, node_index, node_height, pk_seed, ADRS):
   """
   The XMSS internal node computation helper function. This is a recursive function which takes
   in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an `ADRS`.
+
+  - Inputs:
+    - `sk_seed`: a 16-byte secret.
+    - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the BMXSS layer.
+    - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the BMXSS layer.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Outputs:
+    - A 16-byte XMSS node hash
+
+  This algorithm is used only by the signer.
   """
   if node_height == 0: # Bottom layer: return the WOTS-TW pubkey hash.
     ADRS[10:14] = node_index.to_bytes(4)
@@ -380,6 +586,17 @@ def xmss_sign(message, sk_seed, keypair_index, pk_seed, ADRS):
   specific leaf of a XMSS tree, and appends a merkle authentication path to form a XMSS
   signature. Takes in the `message` to sign, the `sk_seed`, the `keypair_index` to sign with,
   the `pk_seed`, and an `ADRS`.
+
+  - Inputs:
+    - `message`: a 16-byte message to sign.
+    - `sk_seed`: a 16-byte secret.
+    - `keypair_index`: The index of the WOTS-TW keypair to sign with.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Outputs:
+    - A XMSS signature consisting of `16 * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` bytes.
+
+  This algorithm is used only by the signer.
   """
   # Sign the message with WOTS-TW
   ADRS[10:14] = keypair_index.to_bytes(4)
@@ -397,6 +614,18 @@ def xmss_pubkey_from_sig(keypair_index, signature, message, pk_seed, ADRS):
   The XMSS verification function. Recovers an XMSS public key from a `signature` on a given
   16-byte `message`. Takes in the `pk_seed`, and an `ADRS`. The exact position of the WOTS-TW
   signing leaf is given by the `keypair_index` argument.
+
+  - Inputs:
+    - `keypair_index`: a 32-bit unsigned integer.
+    - `signature`: an XMSS signature consisting of `16 * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)` bytes.
+    - `message`: a 16-byte message.
+    - `keypair_index`: The index of the WOTS-TW keypair to sign with.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - a 16-byte XMSS root node hash
+
+  This algorithm is used only by the signer.
   """
   wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT*16]
   xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_XMSS_HEIGHT)*16]
@@ -418,6 +647,8 @@ def xmss_pubkey_from_sig(keypair_index, signature, message, pk_seed, ADRS):
 
   return node
 
+
+#  FXMSS algorithms
 
 def fxmss_node(sk_seed, node_index, node_height, pk_seed, structure, ADRS):
   """
@@ -477,6 +708,19 @@ def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, pk_see
   The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact
   left/right position of the WOTS+C signing leaf within its layer is given explicitly by the
   `node_index` argument.
+
+  - Inputs:
+    - `node_index`: a 64-bit unsigned integer.
+    - `signature`: a variable-length FXMSS signature.
+      - Must be at least `16 * WOTS_C_CHAIN_COUNT` bytes long.
+      - Must be no longer than `16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
+      - Byte length must be a multiple of 16.
+    - `counter`: a 16-bit unsigned integer.
+    - `message_digest`: a 32-byte message digest.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - a 16-byte FXMSS root node hash
   """
   wots_sig = signature[0 : WOTS_C_CHAIN_COUNT*16]
   xmss_auth = signature[WOTS_C_CHAIN_COUNT*16 : len(signature)]
