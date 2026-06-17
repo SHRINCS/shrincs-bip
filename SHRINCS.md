@@ -1153,8 +1153,41 @@ These algorithms are used only for the stateful FXMSS sub-scheme.
 
 
 ### `fxmss_node(...)`
-TODO
 
+<!-- DOC START fxmss_node -->
+The FXMSS internal node computation helper function. This is a recursive function which takes
+in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, an FXMSS tree
+`structure` identifier, and an `ADRS`.
+
+```py
+def fxmss_node(sk_seed, node_index, node_height, pk_seed, structure, ADRS):
+  node_depth = FXMSS_HEIGHT - node_height
+  tree_shape, tree_depth = structure[0], structure[1]
+
+  is_uxmss_leaf = tree_shape == FXMSS_SHAPE_UNBALANCED and (node_index == 1 or node_depth == tree_depth)
+  is_bxmss_leaf = tree_shape == FXMSS_SHAPE_BALANCED and node_depth == tree_depth
+
+  if is_uxmss_leaf or is_bxmss_leaf:
+    ADRS[0] = node_height
+    ADRS[1:9] = node_index.to_bytes(8)
+    return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
+
+  # Recursively derive the left/right child nodes
+  lchild_index = 2 * node_index
+  lchild_height = node_height - 1
+  lchild = fxmss_node(sk_seed, lchild_index, lchild_height, pk_seed, structure, ADRS)
+  rchild = fxmss_node(sk_seed, lchild_index + 1, lchild_height, pk_seed, structure, ADRS)
+
+  # Compute & return the parent node.
+  ADRS[0] = node_height
+  ADRS[1:9] = node_index.to_bytes(8)
+  ADRS[9] = SF_FXMSS_TREE
+  ADRS[10:22] = repeat(0, 12)
+  return H(pk_seed, ADRS, lchild + rchild)
+```
+<!-- DOC END fxmss_node -->
+
+TODO: inputs/outputs
 
 ### `fxmss_sign(...)`
 TODO
