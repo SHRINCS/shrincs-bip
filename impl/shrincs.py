@@ -6,6 +6,9 @@ import hashlib
 def repeat(b, n):
   return [b for _ in range(n)]
 
+def zeros(n: int) -> list[int]:
+  return repeat(0, n)
+
 def concat(array):
   assert len(array) > 0
   acc = array[0]
@@ -86,7 +89,7 @@ def sha256(message):
   return list(hashlib.sha256(bytes(message)).digest())
 
 def hmac_sha256(key, msg):
-  padded_key = repeat(0, 64)
+  padded_key = zeros(64)
   padded_key[:len(key)] = key
   inner = sha256(xor(padded_key, [0x36] * 64) + msg)
   return sha256(xor(padded_key, [0x5C] * 64) + inner)
@@ -109,7 +112,7 @@ def T_sl(pk_seed, ADRS, M_l):
 
   This function is only used in the stateless path.
   """
-  return sha256(pk_seed + repeat(0, 48) + ADRS + M_l)[:16]
+  return sha256(pk_seed + zeros(48) + ADRS + M_l)[:16]
 
 def T_sf(pk_seed, ADRS, M_l):
   """
@@ -126,7 +129,7 @@ def T_sf(pk_seed, ADRS, M_l):
 
   This function is only used in the stateful path.
   """
-  return sha256(pk_seed + repeat(0, 48) + ADRS + M_l)[:16]
+  return sha256(pk_seed + zeros(48) + ADRS + M_l)[:16]
 
 def F(pk_seed, ADRS, M_1):
   """
@@ -142,7 +145,7 @@ def F(pk_seed, ADRS, M_1):
 
   This function is used in both stateful and stateless paths.
   """
-  return sha256(pk_seed + repeat(0, 48) + ADRS + M_1)[:16]
+  return sha256(pk_seed + zeros(48) + ADRS + M_1)[:16]
 
 def H(pk_seed, ADRS, M_2):
   """
@@ -158,7 +161,7 @@ def H(pk_seed, ADRS, M_2):
 
   This function is used in both stateful and stateless paths.
   """
-  return sha256(pk_seed + repeat(0, 48) + ADRS + M_2)[:16]
+  return sha256(pk_seed + zeros(48) + ADRS + M_2)[:16]
 
 def H_grind(pk_seed, position, digest, counter):
   """
@@ -176,7 +179,7 @@ def H_grind(pk_seed, position, digest, counter):
   This function is only used in the stateful path.
   """
   assert counter <= 0xFFFF
-  return sha256(pk_seed + repeat(0, 48) + position + digest + repeat(0, 4) + counter.to_bytes(2))[:16]
+  return sha256(pk_seed + zeros(48) + position + digest + zeros(4) + counter.to_bytes(2))[:16]
 
 def PRF(pk_seed, sk_seed, ADRS):
   """
@@ -192,7 +195,7 @@ def PRF(pk_seed, sk_seed, ADRS):
 
   This function is used in both stateful and stateless paths, but only by the signing algorithm.
   """
-  return sha256(pk_seed + repeat(0, 48) + ADRS + sk_seed)[:16]
+  return sha256(pk_seed + zeros(48) + ADRS + sk_seed)[:16]
 
 def H_msg_sl(R, pk_seed, root, M):
   """
@@ -211,7 +214,7 @@ def H_msg_sl(R, pk_seed, root, M):
 
   Note that `pk_seed` is not padded in this tweaked hash function.
   """
-  return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + repeat(0, 4))
+  return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + zeros(4))
 
 def H_msg_sf(R, pk_seed, root, position, M):
   """
@@ -333,13 +336,13 @@ def wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS):
   for i in range(WOTS_TW_CHAIN_COUNT):
     ADRS[9] = SL_WOTS_TW_PRF
     ADRS[14:18] = i.to_bytes(4) # chain index
-    ADRS[18:22] = repeat(0, 4) # zero hash index
+    ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
     ADRS[9] = SL_WOTS_TW_HASH
     wots_pk[i] = wots_chain_iter(sk, 0, 2**WOTS_TW_CHAIN_BITS - 1, pk_seed, ADRS)
 
   ADRS[9] = SL_WOTS_TW_PK
-  ADRS[14:22] = repeat(0, 8)
+  ADRS[14:22] = zeros(8)
   wots_pk_hash = T_sl(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
@@ -363,7 +366,7 @@ def wots_tw_sign(message, sk_seed, pk_seed, ADRS):
   for i in range(WOTS_TW_CHAIN_COUNT):
     ADRS[9] = SL_WOTS_TW_PRF
     ADRS[14:18] = i.to_bytes(4)  # chain index
-    ADRS[18:22] = repeat(0, 4) # zero hash index
+    ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
     ADRS[9] = SL_WOTS_TW_HASH
     signature[i] = wots_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
@@ -394,7 +397,7 @@ def wots_tw_pubkey_from_sig(signature, message, pk_seed, ADRS):
     wots_pk[i] = wots_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed, ADRS)
 
   ADRS[9] = SL_WOTS_TW_PK
-  ADRS[14:22] = repeat(0, 8)
+  ADRS[14:22] = zeros(8)
   wots_pk_hash = T_sl(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
@@ -465,17 +468,17 @@ def wots_c_pubkey_gen(sk_seed, pk_seed, ADRS):
   This algorithm is used only by the signer.
   """
   wots_pk = [None] * WOTS_C_CHAIN_COUNT
-  ADRS[10:14] = repeat(0, 4) # zeros reserved
+  ADRS[10:14] = zeros(4) # zeros reserved
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[9] = SF_WOTS_C_PRF
     ADRS[14:18] = i.to_bytes(4) # chain index
-    ADRS[18:22] = repeat(0, 4) # zero hash index
+    ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
     ADRS[9] = SF_WOTS_C_HASH
     wots_pk[i] = wots_chain_iter(sk, 0, 2**WOTS_C_CHAIN_BITS - 1, pk_seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
-  ADRS[14:22] = repeat(0, 8)
+  ADRS[14:22] = zeros(8)
   wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
@@ -498,11 +501,11 @@ def wots_c_sign(message_digest, sk_seed, pk_seed, ADRS):
   counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
   signature = [None] * WOTS_C_CHAIN_COUNT
 
-  ADRS[10:14] = repeat(0, 4) # zeros reserved
+  ADRS[10:14] = zeros(4) # zeros reserved
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[9] = SF_WOTS_C_PRF
     ADRS[14:18] = i.to_bytes(4)  # chain index
-    ADRS[18:22] = repeat(0, 4) # zero hash index
+    ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
     ADRS[9] = SF_WOTS_C_HASH
     signature[i] = wots_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
@@ -533,14 +536,14 @@ def wots_c_pubkey_from_sig(signature, counter, message_digest, pk_seed, ADRS):
 
   wots_pk = [None] * WOTS_C_CHAIN_COUNT
   ADRS[9] = SF_WOTS_C_HASH
-  ADRS[10:14] = repeat(0, 4) # zeros reserved
+  ADRS[10:14] = zeros(4) # zeros reserved
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[14:18] = i.to_bytes(4)
     steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
     wots_pk[i] = wots_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
-  ADRS[14:22] = repeat(0, 8)
+  ADRS[14:22] = zeros(8)
   wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
@@ -575,7 +578,7 @@ def xmss_node(sk_seed, node_index, node_height, pk_seed, ADRS):
 
   # Compute & return the parent node.
   ADRS[9] = SL_XMSS_TREE
-  ADRS[10:14] = repeat(0, 4)
+  ADRS[10:14] = zeros(4)
   ADRS[14:18] = node_height.to_bytes(4)
   ADRS[18:22] = node_index.to_bytes(4)
   return H(pk_seed, ADRS, lchild + rchild)
@@ -634,7 +637,7 @@ def xmss_pubkey_from_sig(keypair_index, signature, message, pk_seed, ADRS):
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, ADRS)
 
   ADRS[9] = SL_XMSS_TREE
-  ADRS[10:14] = repeat(0, 4)
+  ADRS[10:14] = zeros(4)
 
   for k in range(SPHX_XMSS_HEIGHT):
     ADRS[14:18] = k.to_bytes(4)
@@ -677,7 +680,7 @@ def fxmss_node(sk_seed, node_index, node_height, pk_seed, structure, ADRS):
   ADRS[0] = node_height
   ADRS[1:9] = node_index.to_bytes(8)
   ADRS[9] = SF_FXMSS_TREE
-  ADRS[10:22] = repeat(0, 12)
+  ADRS[10:22] = zeros(12)
   return H(pk_seed, ADRS, lchild + rchild)
 
 def fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, structure, ADRS):
@@ -737,7 +740,7 @@ def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, pk_see
     return None
 
   ADRS[9] = SF_FXMSS_TREE
-  ADRS[10:22] = repeat(0, 12)
+  ADRS[10:22] = zeros(12)
 
   for k in range(0, node_depth):
     ADRS[0] += 1
