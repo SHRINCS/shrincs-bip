@@ -379,7 +379,7 @@ def xmss_sign(message, sk_seed, keypair_index, pk_seed, ADRS):
   The XMSS signing procedure. This function produces a deterministic WOTS-TW signature using a
   specific leaf of a XMSS tree, and appends a merkle authentication path to form a XMSS
   signature. Takes in the `message` to sign, the `sk_seed`, the `keypair_index` to sign with,
-  the `pk_seed`, and an `ADRS` which contains a pre-filled WOTS-TW keypair index.
+  the `pk_seed`, and an `ADRS`.
   """
   # Sign the message with WOTS-TW
   ADRS[10:14] = keypair_index.to_bytes(4)
@@ -450,8 +450,23 @@ def fxmss_node(sk_seed, node_index, node_height, pk_seed, structure, ADRS):
   return H(pk_seed, ADRS, lchild + rchild)
 
 
-def fxmss_sign(message_digest, sk_seed, keypair_index, pk_seed, structure, ADRS):
-  ...
+def fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, structure, ADRS):
+  """
+  The FXMSS signing procedure. This function produces a deterministic WOTS+C signature using a
+  specific leaf of an FXMSS tree, and appends a merkle authentication path to form an FXMSS
+  signature. Takes in a `message_digest` to sign, the `sk_seed`, the WOTS+C leaf position
+  described by `leaf_height` and `leaf_height`, the `pk_seed`, the tree `structure`, and an `ADRS`.
+  """
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
+  sig, counter = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+
+  # Append the Merkle authentication path
+  for j in range(leaf_height):
+    sibling_index = (leaf_index >> j) ^ 1
+    sig += fxmss_node(sk_seed, sibling_index, j, pk_seed, structure, ADRS)
+
+  return counter.to_bytes(2) + sig
 
 
 def fxmss_pubkey_from_sig(node_index, signature, counter, message_digest, pk_seed, ADRS):

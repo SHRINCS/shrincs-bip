@@ -394,7 +394,7 @@ Note that `PK.seed` is not padded in this tweaked hash function.
 
 ### `H_msg_sf(...)`
 
-The tweaked hash function `H_msg_sf` hashes a _randomizer_ `R`, the `PK.seed`, a merkle root `root`, and an arbitrary-length (TODO: fixed-length?) message bytestring `M`. It will be used to produce a digest for signing in the stateful path.
+The tweaked hash function `H_msg_sf`.
 
 <!-- DOC START H_msg_sf -->
 Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
@@ -423,7 +423,7 @@ Note that `PK.seed` is not padded in this tweaked hash function.
 
 ### `PRF_msg(...)`
 
-The tweaked hash function `PRF_msg` uses HMAC-SHA256 to hash `SK.prf`, randomness `opt_rand`, and an arbitrary-length message `M` (TODO: fixed length?). This function will be used to derive a _randomizer_ (salt) for the given message.
+The tweaked hash function `PRF_msg`.
 
 <!-- DOC START PRF_msg -->
 Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
@@ -978,7 +978,7 @@ This algorithm is used only by the signer.
 The XMSS signing procedure. This function produces a deterministic WOTS-TW signature using a
 specific leaf of a XMSS tree, and appends a merkle authentication path to form a XMSS
 signature. Takes in the `message` to sign, the `sk_seed`, the `keypair_index` to sign with,
-the `pk_seed`, and an `ADRS` which contains a pre-filled WOTS-TW keypair index.
+the `pk_seed`, and an `ADRS`.
 
 ```py
 def xmss_sign(message, sk_seed, keypair_index, pk_seed, ADRS):
@@ -1190,8 +1190,29 @@ def fxmss_node(sk_seed, node_index, node_height, pk_seed, structure, ADRS):
 TODO: inputs/outputs
 
 ### `fxmss_sign(...)`
-TODO
 
+<!-- DOC START fxmss_sign -->
+The FXMSS signing procedure. This function produces a deterministic WOTS+C signature using a
+specific leaf of an FXMSS tree, and appends a merkle authentication path to form an FXMSS
+signature. Takes in a `message_digest` to sign, the `sk_seed`, the WOTS+C leaf position
+described by `leaf_height` and `leaf_height`, the `pk_seed`, the tree `structure`, and an `ADRS`.
+
+```py
+def fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, structure, ADRS):
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
+  sig, counter = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+
+  # Append the Merkle authentication path
+  for j in range(leaf_height):
+    sibling_index = (leaf_index >> j) ^ 1
+    sig += fxmss_node(sk_seed, sibling_index, j, pk_seed, structure, ADRS)
+
+  return counter.to_bytes(2) + sig
+```
+<!-- DOC END fxmss_sign -->
+
+TODO inputs/outputs
 
 ### `fxmss_pubkey_from_sig(...)`
 
