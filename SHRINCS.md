@@ -175,7 +175,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 | `SF_WOTS_C_HASH` | 16 | Used when iterating WOTS+C hash chains. | Stateful |
 | `SF_WOTS_C_PK`  | 17 | Used when compressing WOTS+C public keys. | Stateful |
 | `SF_FXMSS_TREE` | 18 | Used when combining merkle nodes in the stateful FXMSS tree. | Stateful |
-| `SF_WOTS_C_PRF` | 21 | Used when generating WOTS+C secret preimages. | Stateless |
+| `SF_WOTS_C_PRF` | 21 | Used when generating WOTS+C secret preimages. | Stateful |
 | `SF_WOTS_C_GRIND` | 22 | Used when grinding WOTS+C message digests. | Stateful |
 
 
