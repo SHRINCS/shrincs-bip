@@ -163,7 +163,9 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
 def H_grind(pk_seed: bytes, position: bytearray, digest: bytes, counter: int) -> bytes:
   """
   Hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to
-  map `digest` into a constant-sum message space for WOTS+C.
+  map `digest` into a constant-sum message space for WOTS+C. Also takes in `pk_seed` and
+  a WOTS+C leaf `position`.
+
 
   - Inputs:
     - `pk_seed`: a 16-byte salt.
@@ -213,10 +215,11 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
   """
   return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + zeros(4))
 
-def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytes, M: bytes) -> bytes:
+def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytearray, M: bytes) -> bytes:
   """
-  Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
-  bytestring `M`. It will be used to produce a digest for signing in the stateful path.
+  Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `position`, a merkle root `root`,
+  and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
+  signing in the stateful path.
 
   TODO: can `position` be used only once?
 
@@ -224,7 +227,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytes, M: bytes) -
     - `R`: a 16-byte randomizer.
     - `pk_seed`: a 16-byte salt.
     - `root`: a 16-byte hash.
-    - `position`: a 9-byte specifier of the location of the WOTS+C leaf keypair.
+    - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
     - `M`: an arbitrary-length bytestring (TODO).
   - Output:
     - A 32-byte hash.
@@ -616,10 +619,9 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   signing leaf is given by the `keypair_index` argument.
 
   - Inputs:
-    - `keypair_index`: a 32-bit unsigned integer.
+    - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
     - `signature`: an XMSS signature consisting of `16 * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)` bytes.
     - `message`: a 16-byte message.
-    - `keypair_index`: The index of the WOTS-TW keypair to sign with.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
@@ -685,7 +687,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   The FXMSS signing procedure. This function produces a deterministic WOTS+C signature using a
   specific leaf of an FXMSS tree, and appends a merkle authentication path to form an FXMSS
   signature. Takes in a `message_digest` to sign, the `sk_seed`, the WOTS+C leaf position
-  described by `leaf_height` and `leaf_height`, the `pk_seed`, the tree `structure`, and an `ADRS`.
+  described by `leaf_index` and `leaf_height`, the `pk_seed`, the tree `structure`, and an `ADRS`.
   """
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
