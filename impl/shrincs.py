@@ -639,7 +639,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   ADRS[10:14] = zeros(4)
 
   for k in range(SPHX_XMSS_HEIGHT):
-    ADRS[14:18] = k.to_bytes(4)
+    ADRS[14:18] = (k + 1).to_bytes(4)
     ADRS[18:22] = (keypair_index >> (k+1)).to_bytes(4)
     sibling = xmss_auth[k*16 : (k+1)*16]
     if (keypair_index >> k) & 1 == 1:
