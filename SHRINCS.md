@@ -2,7 +2,7 @@
 
 This document fully specifies SHRINCS: _Shrunken SPHINCS._
 
-SHRINCS is a hybrid stateful/stateless signature scheme built using only hash functions. The security of SHRINCS rests on the multi-target collision resistance of the underlying base hash function, for which we use SHA256. A detailed proof of security is not provided here.
+SHRINCS is a hybrid stateful/stateless signature scheme built using only hash functions. The security of SHRINCS rests on the multi-target target collision resistance of the underlying base hash function, for which we use SHA256. A detailed proof of security is not provided here.
 
 This spec serves to describe the keygen, signing, and verification algorithms of SHRINCS.
 
@@ -136,10 +136,11 @@ SHRINCS is a high-level construction built out of many smaller sub-schemes. To f
    WOTS+C   WOTS-TW   FORS
     /           \      /
    /             \    /
- XMSS      SPHINCS+ (SLH-DSA)
-    \             /
+ FXMSS    SPHINCS+ (SLH-DSA)
+    \      (contains XMSS)
      \           /
       \         /
+       \       /
         SHRINCS
 ```
 
@@ -197,7 +198,7 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
 | `SF_WOTS_C_GRIND` | 12 bytes: zero padding |
 
-<!--Mike: How does the SL_BXMSS_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
+<!--Mike: SF_WOTS_C_GRIND should be 10 bytes padding. And we should mark it as an exception out of the general ADRS format.-->
 The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common `layer`, `tree_address`, and `type` fields, followed by the type-specific interpretation of the 12-byte `payload`. Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
 
 <img src="img/adrs-stateless.svg">
@@ -338,7 +339,7 @@ Hashes a 32-byte message `digest` and a grinding `counter`. This function will b
 map `digest` into a constant-sum message space for WOTS+C. Also takes in `pk_seed` and
 a WOTS+C leaf `position`.
 
-
+<!--Mike: I think we need explicitly discuss here that position = ADRS but with 10 bytes payload. -->
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
@@ -415,7 +416,7 @@ The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` sa
 
 
 ### `H_msg_sf(...)`
-
+<!--Mike: Does it make sense to use an ADRS type for the WOTS+C position? This will match the WOTS_C_PK type but with a new identifier.-->
 The tweaked hash function `H_msg_sf`.
 
 <!-- DOC START H_msg_sf -->
@@ -444,6 +445,11 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytearray, M: byte
 ```
 <!-- DOC END H_msg_sf -->
 
+Unlike `H_msg_sl`, this function is a SHRINCS-specific construction and is **not** required to satisfy FIPS-205[^slhdsa]. This accounts for two intentional differences from `H_msg_sl`:
+
+- There is no trailing 4-byte zero-padding on the outer hash. That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
+- The WOTS+C leaf `position` is bound into both the inner and outer hash inputs. This domain-separates the stateful digest by the leaf used to sign it.
+
 
 ### `PRF_msg(...)`
 
@@ -465,7 +471,7 @@ This function is used in both stateful and stateless paths, but only by the sign
 If deterministic signing is required and an RNG is not available, `opt_rand` will be set to `pk_seed`.
 
 TODO: domain separate between stateful/stateless.
-
+<!--Mike: Maybe for the domain separation we can fix the opt_rand for both cases. For the stateless part the pk_seed and for the stateful we can use leaf index? RFC 8391 specifies the randomness generation as  r = PRF(SK_PRF,idx_sig, 32). 16 bytes will be sufficient for that.>
 ```py
 def PRF_msg(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
@@ -948,7 +954,21 @@ The _eXtended Merkle Signature Scheme_ (XMSS) is a stateful hash-based signature
 
 Conceptually, an XMSS keypair is a merkle tree whose leaves are one-time signature (OTS) keypairs. The XMSS public key is the root hash of the merkle tree. An XMSS signature is an OTS signature alongside a merkle tree authentication proof which links the OTS public key to the merkle root hash. The verifier recomputes the OTS public key, and follows the merkle proof to recompute the XMSS public key.
 
-TODO: insert diagram
+```
+      XMSS (balanced)                  |             FXMSS (flexible)        
+         
+            root                       |                 root
+        ___/    \___                   |                /    \
+      O            O                   |               O      L
+     / \          / \                  |              / \
+    O   O        O   O                 |             L   O
+   / \ / \      / \ / \                |                / \
+  L  L L  L    L  L L  L               |               L   L
+
+                O = inner Merkle node    L = WOTS leaf (OTS keypair)    
+```
+
+Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key. They differ only in shape: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
 
 In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful and stateless components of a SHRINCS keypair.
 
@@ -977,8 +997,8 @@ in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an 
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the BMXSS layer.
-  - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the BMXSS layer.
+  - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the XMSS layer.
+  - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the XMSS layer.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Outputs:
@@ -1073,6 +1093,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
 
   for k in range(SPHX_XMSS_HEIGHT):
     ADRS[14:18] = k.to_bytes(4)
+    
     ADRS[18:22] = (keypair_index >> (k+1)).to_bytes(4)
     sibling = xmss_auth[k*16 : (k+1)*16]
     if (keypair_index >> k) & 1 == 1:
@@ -1082,6 +1103,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
 
   return node
 ```
+<!--Mike: `shrincs.py:641`:   `ADRS[14:18] = (k + 1).to_bytes(4) -->
 <!-- DOC END xmss_pubkey_from_sig -->
 
 
@@ -1146,6 +1168,7 @@ However, since each WOTS+C leaf can be used only once, subsequent signatures wil
 
 For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS, as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path.
 
+<!--Mike: Should we mark that depth can not exceed FXMSS_Height as there is a variable size constraint?-->
 
 #### `FXMSS_SHAPE_BALANCED`
 
@@ -1246,9 +1269,16 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   for j in range(leaf_height):
     sibling_index = (leaf_index >> j) ^ 1
     sig += fxmss_node(sk_seed, sibling_index, j, pk_seed, structure, ADRS)
-
   return counter.to_bytes(2) + sig
 ```
+<!--Mike: `shrincs.py:696-701`:
+  ```py
+  for j in range(FXMSS_HEIGHT - leaf_height):
+    sibling_index = (leaf_index >> j) ^ 1
+    sibling_height = leaf_height + j
+    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, structure, ADRS)
+  return sig -->
+
 <!-- DOC END fxmss_sign -->
 
 TODO inputs/outputs
@@ -1263,7 +1293,7 @@ The FXMSS verification function. Recovers an FXMSS public key from a `signature`
 The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact
 left/right position of the WOTS+C signing leaf within its layer is given explicitly by the
 `node_index` argument.
-
+<!--Mike: Same question here, we may wnat to unify the encodings of the node. We can reuse the ADRS format. But maybe we can skip that. Not sure.-->
 - Inputs:
   - `node_index`: a 64-bit unsigned integer.
   - `signature`: a variable-length FXMSS signature.
