@@ -417,7 +417,7 @@ The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` sa
 
 
 ### `H_msg_sf(...)`
-<!--Mike: Does it make sense to use an ADRS type for the WOTS+C position? This will match the WOTS_C_PK type but with a new identifier.-->
+
 The tweaked hash function `H_msg_sf`.
 
 <!-- DOC START H_msg_sf -->
