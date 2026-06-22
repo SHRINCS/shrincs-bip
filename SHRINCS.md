@@ -339,7 +339,7 @@ Hashes a 32-byte message `digest` and a grinding `counter`. This function will b
 map `digest` into a constant-sum message space for WOTS+C. Also takes in `pk_seed` and
 a WOTS+C leaf `position`.
 
-<!--Mike: I think we need explicitly discuss here that position = ADRS but with 10 bytes payload. -->
+
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
@@ -471,7 +471,7 @@ This function is used in both stateful and stateless paths, but only by the sign
 If deterministic signing is required and an RNG is not available, `opt_rand` will be set to `pk_seed`.
 
 TODO: domain separate between stateful/stateless.
-<!--Mike: Maybe for the domain separation we can fix the opt_rand for both cases. For the stateless part the pk_seed and for the stateful we can use leaf index? RFC 8391 specifies the randomness generation as  r = PRF(SK_PRF,idx_sig, 32). 16 bytes will be sufficient for that.>
+
 ```py
 def PRF_msg(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
@@ -883,13 +883,12 @@ and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keyp
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Outputs:
-  - A WOTS signature composed of `WOTS_C_CHAIN_COUNT * 16` bytes.
-  - A 16-bit integer grinding counter.
+  - A WOTS signature composed of `2 + WOTS_C_CHAIN_COUNT * 16` bytes.
 
 This algorithm is used only by the signer.
 
 ```py
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> tuple[bytes, int]:
+def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
@@ -901,7 +900,7 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
     sk = PRF(pk_seed, sk_seed, ADRS)
     ADRS[9] = SF_WOTS_C_HASH
     signature[i] = wots_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
-  return (concat(signature), counter)
+  return counter.to_bytes(2) + concat(signature)
 ```
 <!-- DOC END wots_c_sign -->
 
@@ -910,12 +909,11 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
 
 <!-- DOC START wots_c_pubkey_from_sig -->
 The WOTS+C verification procedure. Recovers a WOTS+C public key from a `signature` on a given
-32-byte `message_digest`. Takes in a grinding `counter`, the `pk_seed`, and an `ADRS`. The `ADRS`
+32-byte `message_digest`. Takes in the `pk_seed`, and an `ADRS`. The `ADRS`
 should be prefilled with the location of the WOTS keypair being used.
 
 - Inputs:
-  - `signature`: a string of `WOTS_C_CHAIN_COUNT * 16` bytes.
-  - `counter`: a 16-bit unsigned integer.
+  - `signature`: a string of `2 + WOTS_C_CHAIN_COUNT * 16` bytes.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
@@ -925,7 +923,8 @@ should be prefilled with the location of the WOTS keypair being used.
 This algorithm is used by both signers and verifiers.
 
 ```py
-def wots_c_pubkey_from_sig(signature: bytes, counter: int, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+  counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, ADRS, counter)
 
   # Reject if counter doesn't satisfy the constant-sum requirement.
@@ -938,7 +937,7 @@ def wots_c_pubkey_from_sig(signature: bytes, counter: int, message_digest: bytes
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[14:18] = i.to_bytes(4)
     steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed, ADRS)
+    wots_pk[i] = wots_chain_iter(signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = zeros(8)
@@ -997,8 +996,8 @@ in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an 
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the XMSS layer.
-  - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the XMSS layer.
+  - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the BMXSS layer.
+  - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the BMXSS layer.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Outputs:
@@ -1092,8 +1091,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   ADRS[10:14] = zeros(4)
 
   for k in range(SPHX_XMSS_HEIGHT):
-    ADRS[14:18] = k.to_bytes(4)
-    
+    ADRS[14:18] = (k + 1).to_bytes(4)
     ADRS[18:22] = (keypair_index >> (k+1)).to_bytes(4)
     sibling = xmss_auth[k*16 : (k+1)*16]
     if (keypair_index >> k) & 1 == 1:
@@ -1103,7 +1101,6 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
 
   return node
 ```
-<!--Mike: `shrincs.py:641`:   `ADRS[14:18] = (k + 1).to_bytes(4) -->
 <!-- DOC END xmss_pubkey_from_sig -->
 
 
@@ -1263,22 +1260,16 @@ described by `leaf_index` and `leaf_height`, the `pk_seed`, the tree `structure`
 def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  sig, counter = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
 
   # Append the Merkle authentication path
-  for j in range(leaf_height):
-    sibling_index = (leaf_index >> j) ^ 1
-    sig += fxmss_node(sk_seed, sibling_index, j, pk_seed, structure, ADRS)
-  return counter.to_bytes(2) + sig
-```
-<!--Mike: `shrincs.py:696-701`:
-  ```py
   for j in range(FXMSS_HEIGHT - leaf_height):
     sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
     sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, structure, ADRS)
-  return sig -->
 
+  return sig
+```
 <!-- DOC END fxmss_sign -->
 
 TODO inputs/outputs
@@ -1288,19 +1279,18 @@ TODO inputs/outputs
 
 <!-- DOC START fxmss_pubkey_from_sig -->
 The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given
-32-byte `message_digest`. Takes in a grinding `counter`, the `pk_seed`, and an `ADRS`.
+32-byte `message_digest`. Takes in the `pk_seed`, and an `ADRS`.
 
 The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact
 left/right position of the WOTS+C signing leaf within its layer is given explicitly by the
 `node_index` argument.
-<!--Mike: Same question here, we may wnat to unify the encodings of the node. We can reuse the ADRS format. But maybe we can skip that. Not sure.-->
+
 - Inputs:
   - `node_index`: a 64-bit unsigned integer.
   - `signature`: a variable-length FXMSS signature.
-    - Must be at least `16 * WOTS_C_CHAIN_COUNT` bytes long.
-    - Must be no longer than `16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
-    - Byte length must be a multiple of 16.
-  - `counter`: a 16-bit unsigned integer.
+    - Must be at least `2 + 16 * WOTS_C_CHAIN_COUNT` bytes long.
+    - Must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
+    - Byte length must be 2 more than a multiple of 16.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
@@ -1308,9 +1298,9 @@ left/right position of the WOTS+C signing leaf within its layer is given explici
   - a 16-byte FXMSS root node hash, or null
 
 ```py
-def fxmss_pubkey_from_sig(node_index: int, signature: bytes, counter: int, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
-  wots_sig = signature[0 : WOTS_C_CHAIN_COUNT*16]
-  xmss_auth = signature[WOTS_C_CHAIN_COUNT*16 : len(signature)]
+def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+  wots_sig = signature[0 : 2+WOTS_C_CHAIN_COUNT*16]
+  xmss_auth = signature[2+WOTS_C_CHAIN_COUNT*16 : len(signature)]
 
   node_depth = floor(len(xmss_auth) / 16)
 
@@ -1321,14 +1311,14 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, counter: int, messa
 
   ADRS[0] = node_height
   ADRS[1:9] = node_index.to_bytes(8)
-  node = wots_c_pubkey_from_sig(wots_sig, counter, message_digest, pk_seed, ADRS)
+  node = wots_c_pubkey_from_sig(wots_sig, message_digest, pk_seed, ADRS)
   if node is None:
     return None
 
   ADRS[9] = SF_FXMSS_TREE
   ADRS[10:22] = zeros(12)
 
-  for k in range(0, node_depth):
+  for k in range(node_depth):
     ADRS[0] += 1
     ADRS[1:9] = (node_index >> (k+1)).to_bytes(8)
     sibling = xmss_auth[k*16 : (k+1)*16]
