@@ -252,9 +252,11 @@ def PRF_msg(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 
   This function is used in both stateful and stateless paths, but only by the signing algorithm.
 
-  If deterministic signing is required and an RNG is not available, `opt_rand` will be set to `pk_seed`.
+  In the stateless path, `opt_rand` is set to either `pk_seed` (giving the "deterministic variant"
+  of SLH-DSA[^slhdsa]), or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA,
+  resistant to side-channel attacks).
 
-  TODO: domain separate between stateful/stateless.
+  In the stateful path, `opt_rand` is set to `ADRS[0:9] + zeros(7)`.
   """
   return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
 
