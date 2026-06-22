@@ -160,16 +160,16 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
   """
   return sha256(pk_seed + zeros(48) + ADRS + M_2)[:16]
 
-def H_grind(pk_seed: bytes, position: bytearray, digest: bytes, counter: int) -> bytes:
+def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> bytes:
   """
   Hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to
   map `digest` into a constant-sum message space for WOTS+C. Also takes in `pk_seed` and
-  a WOTS+C leaf `position`.
+  a WOTS+C leaf `ADRS`.
 
 
   - Inputs:
     - `pk_seed`: a 16-byte salt.
-    - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
+    - `ADRS`: a 22-byte address.
     - `digest`: an array of 32 bytes.
     - `counter`: a 16-bit unsigned integer.
   - Output:
@@ -178,7 +178,7 @@ def H_grind(pk_seed: bytes, position: bytearray, digest: bytes, counter: int) ->
   This function is only used in the stateful path.
   """
   assert counter <= 0xFFFF
-  return sha256(pk_seed + zeros(48) + position + digest + zeros(4) + counter.to_bytes(2))[:16]
+  return sha256(pk_seed + zeros(48) + ADRS[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
 
 def PRF(pk_seed: bytes, sk_seed: bytes, ADRS: bytearray) -> bytes:
   """
@@ -215,9 +215,9 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
   """
   return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + zeros(4))
 
-def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytearray, M: bytes) -> bytes:
+def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -> bytes:
   """
-  Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `position`, a merkle root `root`,
+  Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `ADRS`, a merkle root `root`,
   and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
   signing in the stateful path.
 
@@ -227,7 +227,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytearray, M: byte
     - `R`: a 16-byte randomizer.
     - `pk_seed`: a 16-byte salt.
     - `root`: a 16-byte hash.
-    - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
+    - `ADRS`: a 22-byte address.
     - `M`: an arbitrary-length bytestring (TODO).
   - Output:
     - A 32-byte hash.
@@ -236,7 +236,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytearray, M: byte
 
   Note that `pk_seed` is not padded in this tweaked hash function.
   """
-  return sha256(R + pk_seed + position + sha256(R + pk_seed + root + position + M))
+  return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + root + ADRS[:9] + M))
 
 def PRF_msg(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   """
@@ -421,7 +421,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
   """
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
-    hashed = H_grind(pk_seed, ADRS[:10], message_digest, i)
+    hashed = H_grind(pk_seed, ADRS, message_digest, i)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
@@ -446,7 +446,7 @@ def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, co
   This algorithm is used only by the verifier.
   """
   ADRS[9] = SF_WOTS_C_GRIND
-  hashed = H_grind(pk_seed, ADRS[:10], message_digest, counter)
+  hashed = H_grind(pk_seed, ADRS, message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
     return indexes

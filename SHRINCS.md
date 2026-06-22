@@ -198,7 +198,6 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
 | `SF_WOTS_C_GRIND` | 12 bytes: zero padding |
 
-<!--Mike: SF_WOTS_C_GRIND should be 10 bytes padding. And we should mark it as an exception out of the general ADRS format.-->
 The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common `layer`, `tree_address`, and `type` fields, followed by the type-specific interpretation of the 12-byte `payload`. Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
 
 <img src="img/adrs-stateless.svg">
@@ -337,12 +336,12 @@ The tweaked hash function `H_grind`.
 <!-- DOC START H_grind -->
 Hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to
 map `digest` into a constant-sum message space for WOTS+C. Also takes in `pk_seed` and
-a WOTS+C leaf `position`.
+a WOTS+C leaf `ADRS`.
 
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
-  - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
+  - `ADRS`: a 22-byte address.
   - `digest`: an array of 32 bytes.
   - `counter`: a 16-bit unsigned integer.
 - Output:
@@ -351,13 +350,15 @@ a WOTS+C leaf `position`.
 This function is only used in the stateful path.
 
 ```py
-def H_grind(pk_seed: bytes, position: bytearray, digest: bytes, counter: int) -> bytes:
+def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> bytes:
   assert counter <= 0xFFFF
-  return sha256(pk_seed + zeros(48) + position + digest + zeros(4) + counter.to_bytes(2))[:16]
+  return sha256(pk_seed + zeros(48) + ADRS[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
 ```
 <!-- DOC END H_grind -->
 
 The extra 4 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
+
+Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash input fits inside a single SHA256 compression call. The remaining 12 bytes are always zero padding.
 
 
 ### `PRF(...)`
@@ -420,7 +421,7 @@ The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` sa
 The tweaked hash function `H_msg_sf`.
 
 <!-- DOC START H_msg_sf -->
-Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `position`, a merkle root `root`,
+Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `ADRS`, a merkle root `root`,
 and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
 signing in the stateful path.
 
@@ -430,7 +431,7 @@ TODO: can `position` be used only once?
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
   - `root`: a 16-byte hash.
-  - `position`: a 10-byte identifier for the position of the WOTS+C leaf.
+  - `ADRS`: a 22-byte address.
   - `M`: an arbitrary-length bytestring (TODO).
 - Output:
   - A 32-byte hash.
@@ -440,15 +441,17 @@ This function is only used in the stateful path.
 Note that `pk_seed` is not padded in this tweaked hash function.
 
 ```py
-def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, position: bytearray, M: bytes) -> bytes:
-  return sha256(R + pk_seed + position + sha256(R + pk_seed + root + position + M))
+def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -> bytes:
+  return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + root + ADRS[:9] + M))
 ```
 <!-- DOC END H_msg_sf -->
+
+Notice we only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
 
 Unlike `H_msg_sl`, this function is a SHRINCS-specific construction and is **not** required to satisfy FIPS-205[^slhdsa]. This accounts for two intentional differences from `H_msg_sl`:
 
 - There is no trailing 4-byte zero-padding on the outer hash. That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
-- The WOTS+C leaf `position` is bound into both the inner and outer hash inputs. This domain-separates the stateful digest by the leaf used to sign it.
+- The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs. This domain-separates the stateful digest by the leaf used to sign it.
 
 
 ### `PRF_msg(...)`
@@ -792,7 +795,7 @@ This algorithm is used only by the signer.
 def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> tuple[int, list[int]]:
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
-    hashed = H_grind(pk_seed, ADRS[:10], message_digest, i)
+    hashed = H_grind(pk_seed, ADRS, message_digest, i)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
@@ -826,7 +829,7 @@ This algorithm is used only by the verifier.
 ```py
 def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[list[int]]:
   ADRS[9] = SF_WOTS_C_GRIND
-  hashed = H_grind(pk_seed, ADRS[:10], message_digest, counter)
+  hashed = H_grind(pk_seed, ADRS, message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
     return indexes
