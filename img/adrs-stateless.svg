@@ -1,0 +1,353 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="768" height="708" viewBox="0 0 768 708" font-family="Arial, Helvetica, sans-serif">
+<rect x="0" y="0" width="768" height="708" fill="#141414"/>
+<text x="20" y="34" style="font-family:Arial, Helvetica, sans-serif;font-size:18px;font-weight:700;fill:#f2f2f2">Stateless ADRS types</text>
+<text x="20" y="54" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;fill:#9a9ea3">22-byte address &#183; layer (1) &#183; tree_address (8) &#183; type (1) &#183; payload (12). Byte offsets shown above.</text>
+<line x1="216.0" y1="80" x2="216.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="216.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">0</text>
+<line x1="240.0" y1="80" x2="240.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="240.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">1</text>
+<line x1="264.0" y1="80" x2="264.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="264.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">2</text>
+<line x1="288.0" y1="80" x2="288.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="288.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">3</text>
+<line x1="312.0" y1="80" x2="312.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="312.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">4</text>
+<line x1="336.0" y1="80" x2="336.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="336.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">5</text>
+<line x1="360.0" y1="80" x2="360.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="360.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">6</text>
+<line x1="384.0" y1="80" x2="384.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="384.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">7</text>
+<line x1="408.0" y1="80" x2="408.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="408.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">8</text>
+<line x1="432.0" y1="80" x2="432.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="432.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">9</text>
+<line x1="456.0" y1="80" x2="456.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="456.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">10</text>
+<line x1="480.0" y1="80" x2="480.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="480.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">11</text>
+<line x1="504.0" y1="80" x2="504.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="504.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">12</text>
+<line x1="528.0" y1="80" x2="528.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="528.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">13</text>
+<line x1="552.0" y1="80" x2="552.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="552.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">14</text>
+<line x1="576.0" y1="80" x2="576.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="576.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">15</text>
+<line x1="600.0" y1="80" x2="600.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="600.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">16</text>
+<line x1="624.0" y1="80" x2="624.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="624.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">17</text>
+<line x1="648.0" y1="80" x2="648.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="648.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">18</text>
+<line x1="672.0" y1="80" x2="672.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="672.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">19</text>
+<line x1="696.0" y1="80" x2="696.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="696.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">20</text>
+<line x1="720.0" y1="80" x2="720.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="720.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">21</text>
+<line x1="744.0" y1="80" x2="744.0" y2="85" stroke="#8a8e92" stroke-width="0.75"/>
+<text x="744.0" y="78.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:7.5px;fill:#8a8e92">22</text>
+<g transform="translate(216,94)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#3a3a3e" stroke="#5c5c62" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#f2f2f2">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#f2f2f2;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#3a3a3e" stroke="#5c5c62" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#f2f2f2">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#f2f2f2;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#3a3a3e" stroke="#5c5c62" stroke-width="1"/>
+<text x="228.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#f2f2f2">type</text>
+<text x="228.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#f2f2f2;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="288.0" height="44" rx="3" fill="#3a3a3e" stroke="#5c5c62" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="336.0" y1="2" x2="336.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="432.0" y1="2" x2="432.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="384.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#f2f2f2">payload</text>
+<text x="384.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#f2f2f2;opacity:0.7">12 B</text>
+</g>
+<text x="20" y="198.0" style="font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;fill:#f2f2f2">SL_WOTS_TW_HASH</text>
+<text x="20" y="214.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10.5px;fill:#9a9ea3">type = 0</text>
+<g transform="translate(216,180)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#9a9ea3">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#9a9ea3">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="228.0" y="19.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:9px;font-weight:700;fill:#ffffff">0</text>
+<text x="228.0" y="31.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="288.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">key pair index</text>
+<text x="288.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="336.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="384.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">chain index</text>
+<text x="384.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="432.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="480.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">hash index</text>
+<text x="480.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+</g>
+<text x="20" y="268.0" style="font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;fill:#f2f2f2">SL_WOTS_TW_PK</text>
+<text x="20" y="284.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10.5px;fill:#9a9ea3">type = 1</text>
+<g transform="translate(216,250)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#9a9ea3">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#9a9ea3">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="228.0" y="19.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:9px;font-weight:700;fill:#ffffff">1</text>
+<text x="228.0" y="31.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="288.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">key pair index</text>
+<text x="288.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="336.0" y="0" width="192.0" height="44" rx="3" fill="#1f1f21" stroke="#3a3a3e" stroke-width="1"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="432.0" y1="2" x2="432.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="432.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#8a8e92;font-style:italic">zero padding</text>
+<text x="432.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#8a8e92;opacity:0.7">8 B</text>
+</g>
+<text x="20" y="338.0" style="font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;fill:#f2f2f2">SL_BXMSS_TREE</text>
+<text x="20" y="354.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10.5px;fill:#9a9ea3">type = 2</text>
+<g transform="translate(216,320)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#9a9ea3">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#9a9ea3">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="228.0" y="19.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:9px;font-weight:700;fill:#ffffff">2</text>
+<text x="228.0" y="31.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="96.0" height="44" rx="3" fill="#1f1f21" stroke="#3a3a3e" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="288.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#8a8e92;font-style:italic">zero padding</text>
+<text x="288.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#8a8e92;opacity:0.7">4 B</text>
+<rect x="336.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="384.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">tree height</text>
+<text x="384.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="432.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="480.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">tree index</text>
+<text x="480.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+</g>
+<text x="20" y="408.0" style="font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;fill:#f2f2f2">SL_FORS_TREE</text>
+<text x="20" y="424.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10.5px;fill:#9a9ea3">type = 3</text>
+<g transform="translate(216,390)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#9a9ea3">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#9a9ea3">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="228.0" y="19.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:9px;font-weight:700;fill:#ffffff">3</text>
+<text x="228.0" y="31.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="288.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">key pair index</text>
+<text x="288.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="336.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="384.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">tree height</text>
+<text x="384.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="432.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="480.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">tree index</text>
+<text x="480.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+</g>
+<text x="20" y="478.0" style="font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;fill:#f2f2f2">SL_FORS_ROOTS</text>
+<text x="20" y="494.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10.5px;fill:#9a9ea3">type = 4</text>
+<g transform="translate(216,460)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#9a9ea3">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#9a9ea3">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="228.0" y="19.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:9px;font-weight:700;fill:#ffffff">4</text>
+<text x="228.0" y="31.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="288.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">key pair index</text>
+<text x="288.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="336.0" y="0" width="192.0" height="44" rx="3" fill="#1f1f21" stroke="#3a3a3e" stroke-width="1"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="432.0" y1="2" x2="432.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="432.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#8a8e92;font-style:italic">zero padding</text>
+<text x="432.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#8a8e92;opacity:0.7">8 B</text>
+</g>
+<text x="20" y="548.0" style="font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;fill:#f2f2f2">SL_WOTS_TW_PRF</text>
+<text x="20" y="564.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10.5px;fill:#9a9ea3">type = 5</text>
+<g transform="translate(216,530)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#9a9ea3">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#9a9ea3">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="228.0" y="19.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:9px;font-weight:700;fill:#ffffff">5</text>
+<text x="228.0" y="31.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="288.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">key pair index</text>
+<text x="288.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="336.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="384.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">chain index</text>
+<text x="384.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="432.0" y="0" width="96.0" height="44" rx="3" fill="#1f1f21" stroke="#3a3a3e" stroke-width="1"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="480.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#8a8e92;font-style:italic">zero padding</text>
+<text x="480.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#8a8e92;opacity:0.7">4 B</text>
+</g>
+<text x="20" y="618.0" style="font-family:Arial, Helvetica, sans-serif;font-size:13px;font-weight:700;fill:#f2f2f2">SL_FORS_PRF</text>
+<text x="20" y="634.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10.5px;fill:#9a9ea3">type = 6</text>
+<g transform="translate(216,600)">
+<rect x="0.0" y="0" width="24.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="12.0" y="19.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;font-weight:400;fill:#9a9ea3">layer</text>
+<text x="12.0" y="31.0" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">1 B</text>
+<rect x="24.0" y="0" width="192.0" height="44" rx="3" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<line x1="48.0" y1="2" x2="48.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="72.0" y1="2" x2="72.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="96.0" y1="2" x2="96.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="120.0" y1="2" x2="120.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="144.0" y1="2" x2="144.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="168.0" y1="2" x2="168.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="192.0" y1="2" x2="192.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="120.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#9a9ea3">tree_address</text>
+<text x="120.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#9a9ea3;opacity:0.7">8 B</text>
+<rect x="216.0" y="0" width="24.0" height="44" rx="3" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="228.0" y="19.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:9px;font-weight:700;fill:#ffffff">6</text>
+<text x="228.0" y="31.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">1 B</text>
+<rect x="240.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="264.0" y1="2" x2="264.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="288.0" y1="2" x2="288.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="312.0" y1="2" x2="312.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="288.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">key pair index</text>
+<text x="288.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+<rect x="336.0" y="0" width="96.0" height="44" rx="3" fill="#1f1f21" stroke="#3a3a3e" stroke-width="1"/>
+<line x1="360.0" y1="2" x2="360.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="384.0" y1="2" x2="384.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="408.0" y1="2" x2="408.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="384.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#8a8e92;font-style:italic">zero padding</text>
+<text x="384.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#8a8e92;opacity:0.7">4 B</text>
+<rect x="432.0" y="0" width="96.0" height="44" rx="3" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<line x1="456.0" y1="2" x2="456.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="480.0" y1="2" x2="480.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<line x1="504.0" y1="2" x2="504.0" y2="42" stroke="#3a3a3e" stroke-width="0.75"/>
+<text x="480.0" y="20.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:400;fill:#ffffff">tree index</text>
+<text x="480.0" y="32.5" text-anchor="middle" style="font-family:Arial, Helvetica, sans-serif;font-size:8px;fill:#ffffff;opacity:0.7">4 B</text>
+</g>
+<rect x="20" y="667" width="16" height="13" rx="2" fill="#7c5cff" stroke="#7c5cff" stroke-width="1"/>
+<text x="42" y="678.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10px;fill:#f2f2f2">type byte</text>
+<rect x="120.0" y="667" width="16" height="13" rx="2" fill="#33285f" stroke="#8b6fff" stroke-width="1"/>
+<text x="142.0" y="678.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10px;fill:#f2f2f2">active payload field</text>
+<rect x="286.0" y="667" width="16" height="13" rx="2" fill="#1f1f21" stroke="#3a3a3e" stroke-width="1"/>
+<text x="308.0" y="678.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10px;fill:#f2f2f2">zero padding</text>
+<rect x="404.0" y="667" width="16" height="13" rx="2" fill="#242426" stroke="#3c3c40" stroke-width="1"/>
+<text x="426.0" y="678.0" style="font-family:Arial, Helvetica, sans-serif;font-size:10px;fill:#f2f2f2">common header (layer / tree_address)</text>
+</svg>
