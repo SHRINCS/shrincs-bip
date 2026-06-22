@@ -482,7 +482,7 @@ def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> tuple[bytes, int]:
+def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   """
   The WOTS+C signing function. Takes in a 32-byte `message_digest`, the `sk_seed` and `pk_seed`,
   and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
@@ -493,8 +493,7 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Outputs:
-    - A WOTS signature composed of `WOTS_C_CHAIN_COUNT * 16` bytes.
-    - A 16-bit integer grinding counter.
+    - A WOTS signature composed of `2 + WOTS_C_CHAIN_COUNT * 16` bytes.
 
   This algorithm is used only by the signer.
   """
@@ -509,17 +508,16 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
     sk = PRF(pk_seed, sk_seed, ADRS)
     ADRS[9] = SF_WOTS_C_HASH
     signature[i] = wots_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
-  return (concat(signature), counter)
+  return counter.to_bytes(2) + concat(signature)
 
-def wots_c_pubkey_from_sig(signature: bytes, counter: int, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
   """
   The WOTS+C verification procedure. Recovers a WOTS+C public key from a `signature` on a given
-  32-byte `message_digest`. Takes in a grinding `counter`, the `pk_seed`, and an `ADRS`. The `ADRS`
+  32-byte `message_digest`. Takes in the `pk_seed`, and an `ADRS`. The `ADRS`
   should be prefilled with the location of the WOTS keypair being used.
 
   - Inputs:
-    - `signature`: a string of `WOTS_C_CHAIN_COUNT * 16` bytes.
-    - `counter`: a 16-bit unsigned integer.
+    - `signature`: a string of `2 + WOTS_C_CHAIN_COUNT * 16` bytes.
     - `message_digest`: a 32-byte message digest.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
@@ -528,6 +526,7 @@ def wots_c_pubkey_from_sig(signature: bytes, counter: int, message_digest: bytes
 
   This algorithm is used by both signers and verifiers.
   """
+  counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, ADRS, counter)
 
   # Reject if counter doesn't satisfy the constant-sum requirement.
@@ -540,7 +539,7 @@ def wots_c_pubkey_from_sig(signature: bytes, counter: int, message_digest: bytes
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[14:18] = i.to_bytes(4)
     steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed, ADRS)
+    wots_pk[i] = wots_chain_iter(signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = zeros(8)
@@ -691,19 +690,19 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   """
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  sig, counter = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
 
   # Append the Merkle authentication path
   for j in range(leaf_height):
     sibling_index = (leaf_index >> j) ^ 1
     sig += fxmss_node(sk_seed, sibling_index, j, pk_seed, structure, ADRS)
 
-  return counter.to_bytes(2) + sig
+  return sig
 
-def fxmss_pubkey_from_sig(node_index: int, signature: bytes, counter: int, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
   """
   The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given
-  32-byte `message_digest`. Takes in a grinding `counter`, the `pk_seed`, and an `ADRS`.
+  32-byte `message_digest`. Takes in the `pk_seed`, and an `ADRS`.
 
   The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact
   left/right position of the WOTS+C signing leaf within its layer is given explicitly by the
@@ -712,18 +711,17 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, counter: int, messa
   - Inputs:
     - `node_index`: a 64-bit unsigned integer.
     - `signature`: a variable-length FXMSS signature.
-      - Must be at least `16 * WOTS_C_CHAIN_COUNT` bytes long.
-      - Must be no longer than `16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
-      - Byte length must be a multiple of 16.
-    - `counter`: a 16-bit unsigned integer.
+      - Must be at least `2 + 16 * WOTS_C_CHAIN_COUNT` bytes long.
+      - Must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
+      - Byte length must be 2 more than a multiple of 16.
     - `message_digest`: a 32-byte message digest.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
     - a 16-byte FXMSS root node hash, or null
   """
-  wots_sig = signature[0 : WOTS_C_CHAIN_COUNT*16]
-  xmss_auth = signature[WOTS_C_CHAIN_COUNT*16 : len(signature)]
+  wots_sig = signature[0 : 2+WOTS_C_CHAIN_COUNT*16]
+  xmss_auth = signature[2+WOTS_C_CHAIN_COUNT*16 : len(signature)]
 
   node_depth = floor(len(xmss_auth) / 16)
 
@@ -734,7 +732,7 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, counter: int, messa
 
   ADRS[0] = node_height
   ADRS[1:9] = node_index.to_bytes(8)
-  node = wots_c_pubkey_from_sig(wots_sig, counter, message_digest, pk_seed, ADRS)
+  node = wots_c_pubkey_from_sig(wots_sig, message_digest, pk_seed, ADRS)
   if node is None:
     return None
 
