@@ -693,9 +693,10 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
 
   # Append the Merkle authentication path
-  for j in range(leaf_height):
+  for j in range(FXMSS_HEIGHT - leaf_height):
     sibling_index = (leaf_index >> j) ^ 1
-    sig += fxmss_node(sk_seed, sibling_index, j, pk_seed, structure, ADRS)
+    sibling_height = leaf_height + j
+    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, structure, ADRS)
 
   return sig
 
