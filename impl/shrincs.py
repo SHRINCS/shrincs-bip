@@ -739,7 +739,7 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
   ADRS[9] = SF_FXMSS_TREE
   ADRS[10:22] = zeros(12)
 
-  for k in range(0, node_depth):
+  for k in range(node_depth):
     ADRS[0] += 1
     ADRS[1:9] = (node_index >> (k+1)).to_bytes(8)
     sibling = xmss_auth[k*16 : (k+1)*16]
