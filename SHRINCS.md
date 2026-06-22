@@ -178,7 +178,15 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `SF_WOTS_C_GRIND` | 10 bytes: zero padding <br> 2 bytes: grinding counter |
 
 <!--Mike: How does the SL_BXMSS_TREE payload work with the stateful branch. Is not it already specified in (layer + tree_address)? Oh, I see. It is only used in the stateless path. But I think my confusion is a good argument for separating the stateful and stateless ADRS structure into two parts.-->
-TODO: make this more visual and explain each field better in context.
+The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common `layer`, `tree_address`, and `type` fields, followed by the type-specific interpretation of the 12-byte `payload`. Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
+
+<img src="img/adrs-stateless.svg">
+
+<sup>Stateless (`SL_*`) `ADRS` types, used along the SPHINCS hypertree signing path.</sup>
+
+<img src="img/adrs-stateful.svg">
+
+<sup>Stateful (`SF_*`) `ADRS` types, used along the FXMSS signing path.</sup>
 
 ## Tweakable Hash Functions
 
