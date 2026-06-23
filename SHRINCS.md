@@ -956,6 +956,8 @@ The _eXtended Merkle Signature Scheme_ (XMSS) is a stateful hash-based signature
 
 Conceptually, an XMSS keypair is a merkle tree whose leaves are one-time signature (OTS) keypairs. The XMSS public key is the root hash of the merkle tree. An XMSS signature is an OTS signature alongside a merkle tree authentication proof which links the OTS public key to the merkle root hash. The verifier recomputes the OTS public key, and follows the merkle proof to recompute the XMSS public key.
 
+In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful and stateless components of a SHRINCS keypair.
+
 ```
       XMSS (balanced)                  |             FXMSS (flexible)
 
@@ -971,8 +973,6 @@ Conceptually, an XMSS keypair is a merkle tree whose leaves are one-time signatu
 ```
 
 Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key. They differ only in shape: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
-
-In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful and stateless components of a SHRINCS keypair.
 
 - In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SPHINCS hypertree, and to certify FORS public keys.
 - In the stateful component, Flexible XMSS (FXMSS) is used with WOTS+C to sign messages directly.
