@@ -1166,9 +1166,7 @@ This FXMSS tree shape allows signers to generate very short stateful signatures 
 
 However, since each WOTS+C leaf can be used only once, subsequent signatures will grow larger at a rate of 16 bytes per signature issued as the merkle authentication path grows in length. Eventually after `depth + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and the last few stateful signatures will be very large.
 
-For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS, as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path.
-
-<!--Mike: Should we mark that depth can not exceed FXMSS_Height as there is a variable size constraint?-->
+For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS (the maximum), as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path. FXMSS depth cannot exceed `FXMSS_HEIGHT = 255` because the FXMSS node height number is encoded into the signature and `ADRS` as a single byte.
 
 #### `FXMSS_SHAPE_BALANCED`
 
