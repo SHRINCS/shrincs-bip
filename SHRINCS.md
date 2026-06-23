@@ -152,12 +152,22 @@ A critical security property of SHRINCS and its components is that every hash fu
 To accomplish this goal, we will use _tweakable hash functions_ (explained below) which modify a hash function with some context-dependent location information. This unambiguously specifies the exact instance of the hash function in the signing/verification algorithms where the hash function is being used. This location is called an _address_ and we encode it into a 22-byte array, often called an `ADRS`.[^adrs]
 
 
-### ADRS Format
-<!--Mike: I think the presentation of ADRS format should be done a bit differently. We can have to tables. One for the stateless and for the stateful. Then we write the purpose of bytes for stateless and stateful there. This way we can also have different names for the fields. -->
+### Stateless ADRS Format
+
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
-| `layer` | 1 byte | In the stateful path, this specifies depth in the XMSS tree. <br> In the stateless path, this specifies the layer in the SPHINCS hypertree. |
-| `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. <br> In the stateful path, this specifies the node index within a layer of the XMSS tree. <br> In the stateless path, this specifies the node index within a layer of the SPHINCS hypertree. |
+| `layer` | 1 byte | Specifies the layer in the SPHINCS hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT`. |
+| `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the index of an XMSS tree within a layer of the SPHINCS hypertree. |
+| `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
+| `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
+
+
+### Stateful ADRS Format
+
+| `ADRS` Field | Size | Purpose |
+|:-:|:-:|:-:|
+| `node_height` | 1 byte | Specifies the height of a node or leaf the FXMSS tree. The root node is at height `FXMSS_HEIGHT`. |
+| `node_index` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the node index (from the left) within a layer of the FXMSS tree. |
 | `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
@@ -207,6 +217,7 @@ The following figures show, for each `ADRS` type, how the 22-byte address is lai
 <img src="img/adrs-stateful.svg">
 
 <sup>Stateful (`SF_*`) `ADRS` types, used along the FXMSS signing path.</sup>
+
 
 ## Tweakable Hash Functions
 
