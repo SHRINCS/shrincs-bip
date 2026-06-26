@@ -790,3 +790,30 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
       node = H(pk_seed, ADRS, node + sibling)
 
   return node
+
+
+#  FORS algorithms
+
+def fors_sk_gen():
+  """
+  TODO
+  """
+  ...
+
+def fors_node():
+  """
+  TODO
+  """
+  ...
+
+def fors_sign():
+  """
+  TODO
+  """
+  ...
+
+def fors_pubkey_from_sig():
+  """
+  TODO
+  """
+  ...

@@ -1380,6 +1380,85 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
 <!-- DOC END fxmss_pubkey_from_sig -->
 
 
+## FORS
+
+The stateless signing path of SHRINCS uses Forest Of Random Subsets (FORS), a hash-based _few-time_ signature scheme (FTS), to sign messages.
+
+Compared to one-time signature (OTS) schemes like Winternitz, FTS schemes are characterized by security which resists forgery even when a keypair is reused to sign multiple messages. The degradation in security can be quantified and calibrated using parameters, so that forgery-resistance does not reduce below a target bound. FORS is one such FTS scheme.
+
+
+### Informal Description
+
+Here follows an informal description of the FORS FTS scheme as it is defined in FIPS-205.[^slhdsa]
+
+A FORS keypair consists of a _forest_ of merkle trees of a fixed size, where each leaf is a hash of a preimage derived by a PRF. We parameterize the number of merkle trees as `SPHX_FORS_COUNT`, and the height of each tree as `SPHX_FORS_HEIGHT`. The FORS public key is a hash of the merkle roots of the entire forest.
+
+When signing, a message is mapped - via a salted hash - to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each. Each index identifies a specific preimage from each merkle tree which the signer must reveal, along a merkle authentication path. The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
+
+<img src="img/fors.svg">
+
+<sup>This diagram illustrates a toy FORS keypair, with merkle trees of height 2. Messages are mapped to a set of `k` 2-bit integers which select an index from each tree.</sup>
+
+Each signature reveals one of the preimages in each merkle tree in the forest. Over the course of many signatures, the signer may reuse preimages that have already been revealed in prior signatures, because some messages may map to intersecting index-sets.
+
+Unless he has an efficient way to find preimages, an adversary must hope the signer publishes signatures which admits a forgery by mixing and matching preimages from prior signatures. The adversary _cannot_ control which index-sets the victim signs (because of the salt), and so he cannot trick the signer into exposing specific preimages, even if the adversary can query the signer for arbitrary signatures.
+
+However, the adversary _may_ grind to find a message and salt which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery. The probability that this occurs with a randomly sampled index-set can be reduced arbitrarily low by using more and taller trees, or by reducing the limit on the number of signatures the signer is expected to produce. This is formalized as the security notion of _interleaved target-subset resilience._[^sphincs+]
+
+
+## FORS Algorithms
+
+The following sections describe the algorithms needed for FORS key-generation, signing, and verification.
+
+
+### `fors_sk_gen(...)`
+
+<!-- DOC START fors_sk_gen -->
+TODO
+
+```py
+def fors_sk_gen():
+  ...
+```
+<!-- DOC END fors_sk_gen -->
+
+
+### `fors_node(...)`
+
+<!-- DOC START fors_node -->
+TODO
+
+```py
+def fors_node():
+  ...
+```
+<!-- DOC END fors_node -->
+
+
+### `fors_sign(...)`
+
+<!-- DOC START fors_sign -->
+TODO
+
+```py
+def fors_sign():
+  ...
+```
+<!-- DOC END fors_sign -->
+
+
+### `fors_pubkey_from_sig(...)`
+
+<!-- DOC START fors_pubkey_from_sig -->
+TODO
+
+```py
+def fors_pubkey_from_sig():
+  ...
+```
+<!-- DOC END fors_pubkey_from_sig -->
+
+
 ## TODO
 
 - Because SLH-DSA and XMSS have different signature sizes, this means the SHRINCS signature size is variable.
@@ -1402,6 +1481,7 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
 [^vulkan]: https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
 [^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
+[^sphincs+]: https://sphincs.org/data/sphincs+-paper.pdf
 [^sphincs+c]: https://eprint.iacr.org/2022/778
 [^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
 [^fxmss_node_index]: The key requirement for a valid FXMSS tree shape is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable. This provides plenty of space while maintaining a fixed max-length encoding for node indexes.
