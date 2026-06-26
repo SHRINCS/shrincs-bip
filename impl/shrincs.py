@@ -656,6 +656,18 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
   The FXMSS internal node computation helper function. This is a recursive function which takes
   in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, an FXMSS tree
   `structure` identifier, and an `ADRS`.
+
+  - Inputs:
+    - `sk_seed`: a 16-byte secret.
+    - `node_index`: A 64-bit unsigned integer indicating the index (from the left) of the desired node in the FXMSS layer.
+    - `node_height`: An 8-bit unsigned integer indicating the height (from the bottom) of the desired node in the FXMSS tree.
+    - `pk_seed`: a 16-byte salt.
+    - `structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `ADRS`: a 22-byte address.
+  - Outputs:
+    - A 16-byte FXMSS node hash
+
+  This algorithm is used only by the signer.
   """
   node_depth = FXMSS_HEIGHT - node_height
   tree_shape, tree_depth = structure[0], structure[1]
@@ -687,6 +699,19 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   specific leaf of an FXMSS tree, and appends a merkle authentication path to form an FXMSS
   signature. Takes in a `message_digest` to sign, the `sk_seed`, the WOTS+C leaf position
   described by `leaf_index` and `leaf_height`, the `pk_seed`, the tree `structure`, and an `ADRS`.
+
+  - Inputs:
+    - `message_digest`: a 32-byte message digest.
+    - `sk_seed`: a 16-byte secret.
+    - `leaf_index`: A 64-bit unsigned integer indicating the index (from the left) of the signing leaf in the FXMSS layer.
+    - `leaf_height`: An 8-bit unsigned integer indicating the height (from the bottom) of the signing leaf in the FXMSS tree.
+    - `pk_seed`: a 16-byte salt.
+    - `structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `ADRS`: a 22-byte address.
+  - Outputs:
+    - An FXMSS signature, a byte string with length `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`
+
+  This algorithm is used only by the signer.
   """
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
