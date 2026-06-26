@@ -1414,11 +1414,29 @@ The following sections describe the algorithms needed for FORS key-generation, s
 ### `fors_sk_gen(...)`
 
 <!-- DOC START fors_sk_gen -->
-TODO
+The FORS secret preimage generation function. Generates a secret 16-byte preimage from `sk_seed`.
+Takes in `pk_seed`, an `ADRS`, and the `tree_index` to indicate the position of the FORS leaf
+in the forest.
+
+- Inputs:
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `tree_index`: a `SPHX_FORS_HEIGHT`-bit unsigned integer.
+- Output:
+  - A 16-byte preimage.
+
+This algorithm is used only by the signer.
+
+Note the `tree_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
+within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
 
 ```py
-def fors_sk_gen():
-  ...
+def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, tree_index: int) -> bytes:
+  ADRS[9] = SL_FORS_PRF
+  ADRS[14:18] = zeros(4)
+  ADRS[18:22] = tree_index.to_bytes(4)
+  return PRF(pk_seed, sk_seed, ADRS)
 ```
 <!-- DOC END fors_sk_gen -->
 
@@ -1426,11 +1444,41 @@ def fors_sk_gen():
 ### `fors_node(...)`
 
 <!-- DOC START fors_node -->
-TODO
+The FORS internal merkle node computation helper function. This is a recursive function which
+takes in the `sk_seed`, `pk_seed`, an `ADRS`, and integers `node_height`, `node_index` which
+describe the position of the FORS node in the forest of merkle trees.
+
+- Inputs:
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `tree_index`: a `SPHX_FORS_HEIGHT`-bit unsigned integer.
+- Output:
+  - A 16-byte FORS node hash.
+
+This function is used only by the signer.
+
+Note the `tree_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
+within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
 
 ```py
-def fors_node():
-  ...
+def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  if node_height == 0:
+    preimage = fors_sk_gen(sk_seed, pk_seed, ADRS, node_index)
+    ADRS[9] = SL_FORS_TREE
+    ADRS[14:18] = zeros(4)
+    ADRS[18:22] = node_index.to_bytes(4)
+    return F(pk_seed, ADRS, preimage)
+
+  lchild_index = 2 * node_index
+  child_height = node_height - 1
+  lchild = fors_node(sk_seed, lchild_index, child_height, pk_seed, ADRS)
+  rchild = fors_node(sk_seed, lchild_index + 1, child_height, pk_seed, ADRS)
+
+  ADRS[9] = SL_FORS_TREE
+  ADRS[14:18] = node_height.to_bytes(4)
+  ADRS[18:22] = node_index.to_bytes(4)
+  return H(pk_seed, ADRS, lchild + rchild)
 ```
 <!-- DOC END fors_node -->
 
