@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+from argparse import ArgumentParser
 import shutil
 
 """
@@ -35,6 +36,11 @@ regex_doc_start = r"^<!-- DOC START (\w+) -->$"
 regex_doc_end = r"^<!-- DOC END (\w+) -->$"
 
 if __name__ == "__main__":
+  parser = ArgumentParser(description="SHRINCS.md templating script.")
+  parser.add_argument("-n", "--dry-run", action="store_true",
+                     help="Produce the templated specification file in SHRINCS.new.md but do not overwrite SHRINCS.md.")
+  args = parser.parse_args()
+
   with open('SHRINCS.md') as fh:
     markdown_lines = [line for line in fh]
 
@@ -66,4 +72,5 @@ if __name__ == "__main__":
 
       i += 1
 
-  shutil.move('SHRINCS.new.md', 'SHRINCS.md')
+  if not args.dry_run:
+    shutil.move('SHRINCS.new.md', 'SHRINCS.md')
