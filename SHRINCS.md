@@ -1254,6 +1254,12 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
     ADRS[1:9] = node_index.to_bytes(8)
     return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
 
+  # Catch and throw if control would enter an infinite resursive loop.
+  if tree_shape == FXMSS_SHAPE_UNBALANCED:
+    assert node_index == 0
+  elif tree_shape == FXMSS_SHAPE_BALANCED:
+    assert node_depth < tree_depth
+
   # Recursively derive the left/right child nodes
   lchild_index = 2 * node_index
   lchild_height = node_height - 1
@@ -1293,12 +1299,21 @@ This algorithm is used only by the signer.
 
 ```py
 def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:
+  leaf_depth = FXMSS_HEIGHT - leaf_height
+
+  # Validate the leaf is positioned correctly for the specified tree structure.
+  tree_shape, tree_depth = structure[0], structure[1]
+  if tree_shape == FXMSS_SHAPE_UNBALANCED:
+    assert leaf_index == 1 or leaf_depth == tree_depth
+  if tree_shape == FXMSS_SHAPE_BALANCED:
+    assert leaf_depth == tree_depth
+
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
 
   # Append the Merkle authentication path
-  for j in range(FXMSS_HEIGHT - leaf_height):
+  for j in range(leaf_depth):
     sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
     sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, structure, ADRS)
