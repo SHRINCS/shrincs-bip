@@ -1010,8 +1010,8 @@ in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an 
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the BMXSS layer.
-  - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the BMXSS layer.
+  - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the XMSS layer.
+  - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the XMSS layer.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Outputs:
