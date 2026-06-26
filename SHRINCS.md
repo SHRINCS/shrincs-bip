@@ -1027,9 +1027,9 @@ def xmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
 
   # Recursively derive the left/right child nodes
   lchild_index = 2 * node_index
-  lchild_height = node_height - 1
-  lchild = xmss_node(sk_seed, lchild_index, lchild_height, pk_seed, ADRS)
-  rchild = xmss_node(sk_seed, lchild_index + 1, lchild_height, pk_seed, ADRS)
+  child_height = node_height - 1
+  lchild = xmss_node(sk_seed, lchild_index, child_height, pk_seed, ADRS)
+  rchild = xmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, ADRS)
 
   # Compute & return the parent node.
   ADRS[9] = SL_XMSS_TREE
@@ -1262,9 +1262,9 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
 
   # Recursively derive the left/right child nodes
   lchild_index = 2 * node_index
-  lchild_height = node_height - 1
-  lchild = fxmss_node(sk_seed, lchild_index, lchild_height, pk_seed, structure, ADRS)
-  rchild = fxmss_node(sk_seed, lchild_index + 1, lchild_height, pk_seed, structure, ADRS)
+  child_height = node_height - 1
+  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, structure, ADRS)
+  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, structure, ADRS)
 
   # Compute & return the parent node.
   ADRS[0] = node_height
