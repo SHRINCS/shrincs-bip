@@ -31,7 +31,7 @@ The stateless component is an implementation of SLH-DSA[^slhdsa] with algorithms
 Each of these components individually produces a 16-byte hash as its public key. Both pubkeys, together with a 16-byte seed value, form a 48 byte SHRINCS public key.
 
 ```py
-PK = PK.seed || PK.sf_root || PK.sl_root
+PK = PK.seed || PK.sl_root || PK.sf_root
 ```
 
 A signature from either one of these two keypairs is sufficient to pass verification, so the signer has a choice of which algorithm to use depending on their needs.
