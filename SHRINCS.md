@@ -499,11 +499,12 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 The tweaked hash function `PRF_msg_sf`.
 
 <!-- DOC START PRF_msg_sf -->
-Uses HMAC-SHA256 to hash `sk_prf`, an `ADRS`, and an arbitrary-length message `M`. This function
+Uses HMAC-SHA256 to hash `sk_prf`, the `pk_seed`, an `ADRS`, and an arbitrary-length message `M`. This function
 will be used to derive a _randomizer_ (salt) for the given message in the stateful path.
 
 - Inputs:
   - `sk_prf`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
   - `M`: an arbitrary-length bytestring (TODO).
 - Output:
@@ -512,8 +513,8 @@ will be used to derive a _randomizer_ (salt) for the given message in the statef
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def PRF_msg_sf(sk_prf: bytes, ADRS: bytearray, M: bytes) -> bytes:
-  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), msg=ADRS[:9] + M)[:16]
+def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
+  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), msg=pk_seed + ADRS[:9] + M)[:16]
 ```
 <!-- DOC END PRF_msg_sf -->
 
