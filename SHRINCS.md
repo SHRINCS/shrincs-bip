@@ -1422,7 +1422,7 @@ in the forest.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `tree_index`: a `SPHX_FORS_HEIGHT`-bit unsigned integer.
+  - `tree_index`: a 32-bit unsigned integer.
 - Output:
   - A 16-byte preimage.
 
@@ -1452,14 +1452,15 @@ describe the position of the FORS node in the forest of merkle trees.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `tree_index`: a `SPHX_FORS_HEIGHT`-bit unsigned integer.
+  - `node_index`: a 32-bit unsigned integer.
+  - `node_height`: a 32-bit unsigned integer.
 - Output:
   - A 16-byte FORS node hash.
 
 This function is used only by the signer.
 
-Note the `tree_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
+Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
+within a single tree. The index of node `l` in tree `t` at height `h` is `t * 2**h + l`.
 
 ```py
 def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:

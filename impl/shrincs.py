@@ -804,7 +804,7 @@ def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, tree_index: int
     - `sk_seed`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
-    - `tree_index`: a `SPHX_FORS_HEIGHT`-bit unsigned integer.
+    - `tree_index`: a 32-bit unsigned integer.
   - Output:
     - A 16-byte preimage.
 
@@ -828,14 +828,15 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
     - `sk_seed`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
-    - `tree_index`: a `SPHX_FORS_HEIGHT`-bit unsigned integer.
+    - `node_index`: a 32-bit unsigned integer.
+    - `node_height`: a 32-bit unsigned integer.
   - Output:
     - A 16-byte FORS node hash.
 
   This function is used only by the signer.
 
-  Note the `tree_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-  within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
+  Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
+  within a single tree. The index of node `l` in tree `t` at height `h` is `t * 2**h + l`.
   """
   if node_height == 0:
     preimage = fors_sk_gen(sk_seed, pk_seed, ADRS, node_index)
