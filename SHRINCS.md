@@ -465,13 +465,14 @@ Unlike `H_msg_sl`, this function is a SHRINCS-specific construction and is **not
 - The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs. This domain-separates the stateful digest by the leaf used to sign it.
 
 
-### `PRF_msg(...)`
+### `PRF_msg_sl(...)`
 
-The tweaked hash function `PRF_msg`.
+The tweaked hash function `PRF_msg_sl`.
 
-<!-- DOC START PRF_msg -->
+<!-- DOC START PRF_msg_sl -->
 Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
-This function will be used to derive a _randomizer_ (salt) for the given message.
+This function will be used to derive a _randomizer_ (salt) for the given message in
+the stateless path.
 
 - Inputs:
   - `sk_prf`: a 16-byte secret.
@@ -480,17 +481,46 @@ This function will be used to derive a _randomizer_ (salt) for the given message
 - Output:
   - A 16-byte hash.
 
-This function is used in both stateful and stateless paths, but only by the signing algorithm.
+This function is only used in the stateless path, and only by the signer.
 
-If deterministic signing is required and an RNG is not available, `opt_rand` will be set to `pk_seed`.
-
-TODO: domain separate between stateful/stateless.
+`opt_rand` is set to either `pk_seed` (giving the "deterministic variant" of SLH-DSA[^slhdsa]),
+or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, resistant to
+side-channel attacks).
 
 ```py
-def PRF_msg(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
+def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
 ```
-<!-- DOC END PRF_msg -->
+<!-- DOC END PRF_msg_sl -->
+
+
+### `PRF_msg_sf(...)`
+
+The tweaked hash function `PRF_msg_sf`.
+
+<!-- DOC START PRF_msg_sf -->
+Uses HMAC-SHA256 to hash `sk_prf`, the `pk_seed`, an `ADRS`, and an arbitrary-length message `M`. This function
+will be used to derive a _randomizer_ (salt) for the given message in the stateful path.
+
+- Inputs:
+  - `sk_prf`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `M`: an arbitrary-length bytestring (TODO).
+- Output:
+  - A 16-byte hash.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
+  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), msg=pk_seed + ADRS[:9] + M)[:16]
+```
+<!-- DOC END PRF_msg_sf -->
+
+The `sk_prf` is padded with `0xFF` up until it is 64 bytes long. This ensures domain separation between stateful and stateless paths.
+
+We only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
 
 
 ### Implementation Notes
