@@ -1487,7 +1487,7 @@ describe the position of the FORS node in the forest of merkle trees.
 - Output:
   - A 16-byte FORS node hash.
 
-This function is used only by the signer.
+This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
 within a single tree. The index of node `l` in tree `t` at height `h` is `t * 2**h + l`.
@@ -1517,11 +1517,31 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
 ### `fors_sign(...)`
 
 <!-- DOC START fors_sign -->
-TODO
+The FORS signing function. Signs a `message_digest`, using `sk_seed` and `pk_seed`, with the
+location of the FORS leaf specified in `ADRS`.
+
+- Inputs:
+  - `message_digest`: a digest of a message to sign.
+    - Must be exactly `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)` bytes long.
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A FORS signature, a byte string of length `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`.
+
+This function is only used in the stateless path, and only by the signer.
 
 ```py
-def fors_sign():
-  ...
+def fors_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  sig = b""
+  index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
+  for i in range(SPHX_FORS_COUNT):
+    leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+    sig += fors_sk_gen(sk_seed, pk_seed, ADRS, leaf_index)
+    for j in range(SPHX_FORS_HEIGHT):
+      sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + ((index_set[i] >> j) ^ 1)
+      sig += fors_node(sk_seed, sibling_index, j, pk_seed, ADRS)
+  return sig
 ```
 <!-- DOC END fors_sign -->
 
