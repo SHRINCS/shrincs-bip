@@ -525,7 +525,7 @@ We only use the first 9 bytes of `ADRS`, because these bytes encode the position
 
 ### Implementation Notes
 
-- The only difference between `T_sf`, `T_sl`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
+- The only difference between `T_sf`, `T_sl`, `T_k`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
 - `PRF_msg` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
@@ -1549,11 +1549,51 @@ def fors_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytea
 ### `fors_pubkey_from_sig(...)`
 
 <!-- DOC START fors_pubkey_from_sig -->
-TODO
+The FORS verification procedure. Recovers a FORS public key hash from the given `signature` on a
+`message_digest`. Takes in a `pk_seed` and `ADRS`.
+
+- Inputs:
+  - `signature`: a byte string of length `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`.
+  - `message_digest`: a digest of a message to sign.
+    - Must be exactly `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)` bytes long.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - A 16-byte hash of the FORS public key.
+
+This function is only used in the stateless path.
 
 ```py
-def fors_pubkey_from_sig():
-  ...
+def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
+
+  offset = 0
+  roots = b""
+  for i in range(SPHX_FORS_COUNT):
+    preimage = signature[offset : offset+16]
+    offset += 16
+    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+
+    ADRS[9] = SL_FORS_TREE
+    ADRS[14:18] = zeros(4)
+    ADRS[18:22] = tree_index.to_bytes(4)
+    node = F(pk_seed, ADRS, preimage)
+    for j in range(SPHX_FORS_HEIGHT):
+      ADRS[14:18] = (j + 1).to_bytes(4)
+      ADRS[18:22] = (tree_index >> (j+1)).to_bytes(4)
+
+      sibling = signature[offset : offset+16]
+      offset += 16
+
+      if (index_set[i] >> j) & 1 == 1:
+        node = H(pk_seed, ADRS, sibling + node)
+      else:
+        node = H(pk_seed, ADRS, node + sibling)
+    roots += node
+
+  ADRS[9] = SL_FORS_ROOTS
+  ADRS[14:22] = zeros(8)
+  return T_k(pk_seed, ADRS, roots)
 ```
 <!-- DOC END fors_pubkey_from_sig -->
 
