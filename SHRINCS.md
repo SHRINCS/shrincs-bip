@@ -292,6 +292,31 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 <!-- DOC END T_sf -->
 
 
+### `T_k(...)`
+
+The tweaked hash function `T_k`.
+
+<!-- DOC START T_k -->
+Hashes an input `M_k`, which is a sequence of `SPHX_FORS_COUNT` hashes, each 16 bytes long,
+concatenated together. This function will be used to compress FORS tree roots to a single
+hash in the stateless path.
+
+- Inputs:
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `M_k`: an array of `SPHX_FORS_COUNT * 16` bytes.
+- Output:
+  - A 16-byte hash.
+
+This function is only used in the stateless path.
+
+```py
+def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
+  return sha256(pk_seed + zeros(48) + ADRS + M_k)[:16]
+```
+<!-- DOC END T_k -->
+
+
 ### `F(...)`
 
 The tweaked hash function `F`.
