@@ -1,10 +1,10 @@
 # SHRINCS
 
-This document fully specifies SHRINCS: _Shrunken SPHINCS._
+This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based signature scheme designed for transaction authorization in the Bitcoin protocol.
 
-SHRINCS is a hybrid stateful/stateless signature scheme built using only hash functions. The security of SHRINCS rests on the multi-target target collision resistance of the underlying base hash function, for which we use SHA256. A detailed proof of security is not provided here.
+SHRINCS combines compact stateful hash-based signatures with a stateless fallback. It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security. A security proof is TODO.
 
-This spec serves to describe the keygen, signing, and verification algorithms of SHRINCS.
+This specification describes the key generation, signing, and verification algorithms of SHRINCS.
 
 
 ## Templating
