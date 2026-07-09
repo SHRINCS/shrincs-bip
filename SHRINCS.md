@@ -41,6 +41,7 @@ A signature from either one of these two keypairs is sufficient to pass verifica
 
 Here follows a table of parameters.
 <!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
+
 | Parameter | Value | Description |
 |:-:|:-:|:-:|
 | `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
@@ -193,6 +194,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 ### ADRS Payloads
 
 Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field. The following table describes how they are used under each ADRS type flag.
+
 | `ADRS` Type | Payload Format |
 |:-:|-|
 | `SL_WOTS_TW_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index |
