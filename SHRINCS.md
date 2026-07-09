@@ -21,20 +21,34 @@ This SHRINCS specification includes Python reference code and documentation defi
 
 ## Overview
 
-At a high-level, a SHRINCS instance consists of two distinct keypairs joined together into one.
+At a high level, a SHRINCS instance combines two hash-based signature schemes:
 
-1. The first is a stateful XMSS[^xmss] keypair.
-2. The other is a fully stateless SLH-DSA (SPHINCS+) keypair.
+1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^wotsc] one-time signatures.
+2. A **stateless** component — a variant of SLH-DSA, with algorithms as defined in NIST FIPS-205[^slhdsa] but using a non-standard parameter set.
 
-The stateless component is an implementation of SLH-DSA[^slhdsa] with algorithms defined as in FIPS-205, but using a non-standard parameter set. The stateful component is a customized implementation of XMSS adapted to suit Bitcoin's use-cases.
+A signature from either component is sufficient to pass verification. The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable.
 
-Each of these components individually produces a 16-byte hash as its public key. Both pubkeys, together with a 16-byte seed value, form a 48 byte SHRINCS public key.
+The **stateful** component, FXMSS, generates small signatures. It is a variant of XMSS[^xmss]. In XMSS, the public key is the root of a Merkle tree whose leaves are one-time-signature public keys, and each signature is a single one-time signature together with the Merkle authentication path from its leaf to the root. The signer must maintain state so that no leaf is used to sign more than once.
+
+FXMSS is _flexible_ in that the signer chooses the shape of the tree. An _unbalanced_ tree minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures; a _balanced_ tree instead produces constant-size signatures.
+
+The **stateless** component, a variant of SLH-DSA, generates larger signatures. SLH-DSA has a _signature budget_ — the maximum number of signatures it can produce before its security begins to degrade. Standard SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
+
+Each component produces a 16-byte root as part of its public key. These two roots, together with a 16-byte seed value, form the 48-byte SHRINCS public key:
 
 ```py
 PK = PK.seed || PK.sl_root || PK.sf_root
 ```
 
-A signature from either one of these two keypairs is sufficient to pass verification, so the signer has a choice of which algorithm to use depending on their needs.
+Verification recomputes the relevant component's root from the signature and checks it against the corresponding root in `PK`: a stateful signature against `PK.sf_root`, a stateless signature against `PK.sl_root`.
+
+Public key and signature sizes are summarized below:
+
+| Item | Size |
+|:--|:--|
+| Public key | 48 bytes |
+| Stateful signature | ≥ XXX bytes |
+| Stateless signature | XXX bytes |
 
 
 ## Parameters
@@ -2191,6 +2205,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
 [^slhdsa]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
 [^xmss]: https://www.rfc-editor.org/rfc/rfc8391.html
+[^wotsc]: https://eprint.iacr.org/2022/778.pdf
 [^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
 [^hmac]: https://datatracker.ietf.org/doc/html/rfc2104
 [^simd_x86]: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
