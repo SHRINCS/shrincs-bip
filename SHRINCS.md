@@ -24,7 +24,7 @@ This SHRINCS specification includes Python reference code and documentation defi
 At a high-level, a SHRINCS instance consists of two distinct keypairs joined together into one.
 
 1. The first is a stateful XMSS[^xmss] keypair.
-2. The other is a fully stateless SPHINCS+ keypair.
+2. The other is a fully stateless SLH-DSA (SPHINCS+) keypair.
 
 The stateless component is an implementation of SLH-DSA[^slhdsa] with algorithms defined as in FIPS-205, but using a non-standard parameter set. The stateful component is a customized implementation of XMSS adapted to suit Bitcoin's use-cases.
 
@@ -45,17 +45,17 @@ Here follows a table of parameters.
 | Parameter | Value | Description |
 |:-:|:-:|:-:|
 | `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
-| `WOTS_TW_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SPHINCS keypair. |
+| `WOTS_TW_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SLH-DSA keypair. |
 | `WOTS_C_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
-| `WOTS_TW_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS keypair. |
-| `WOTS_TW_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
-| `WOTS_TW_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
-| `WOTS_TW_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SPHINCS keypair. |
+| `WOTS_TW_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SLH-DSA keypair. |
+| `WOTS_TW_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SLH-DSA keypair. |
+| `WOTS_TW_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SLH-DSA keypair. |
+| `WOTS_TW_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SLH-DSA keypair. |
 | `WOTS_C_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
-| `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS hypertree. |
-| `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS hypertree. |
-| `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
-| `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS signature. |
+| `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SLH-DSA hypertree. |
+| `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SLH-DSA hypertree. |
+| `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SLH-DSA signature. |
+| `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SLH-DSA signature. |
 | `FXMSS_HEIGHT` | 255 | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
 
 
@@ -124,7 +124,7 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
 
 # Building Blocks
 
-SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and _tweakable hash functions_ - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SPHINCS, which together form SHRINCS.
+SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and _tweakable hash functions_ - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SLH-DSA, which together form SHRINCS.
 
 ```
      ADRS
@@ -137,7 +137,7 @@ SHRINCS is a high-level construction built out of many smaller sub-schemes. To f
    WOTS+C   WOTS-TW   FORS
     /           \      /
    /             \    /
- FXMSS    SPHINCS+ (SLH-DSA)
+ FXMSS           SLH-DSA
     \      (contains XMSS)
      \           /
       \         /
@@ -157,8 +157,8 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
-| `layer` | 1 byte | Specifies the layer in the SPHINCS hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT`. |
-| `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the index of an XMSS tree within a layer of the SPHINCS hypertree. |
+| `layer` | 1 byte | Specifies the layer in the SLH-DSA hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT`. |
+| `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the index of an XMSS tree within a layer of the SLH-DSA hypertree. |
 | `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
@@ -179,7 +179,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 |:-:|:-:|:-:|:-:|
 | `SL_WOTS_TW_HASH` | 0 | Used when iterating WOTS-TW hash chains. | Stateless |
 | `SL_WOTS_TW_PK`  | 1 | Used when compressing WOTS-TW public keys. | Stateless |
-| `SL_XMSS_TREE` | 2 | Used when combining merkle nodes in the SPHINCS hypertree. | Stateless |
+| `SL_XMSS_TREE` | 2 | Used when combining merkle nodes in the SLH-DSA hypertree. | Stateless |
 | `SL_FORS_TREE` | 3 | Used when combining merkle nodes in FORS trees. | Stateless |
 | `SL_FORS_ROOTS` | 4 | Used when compressing FORS merkle roots together. | Stateless |
 | `SL_WOTS_TW_PRF` | 5 | Used when generating WOTS-TW secret preimages. | Stateless |
@@ -214,7 +214,7 @@ The following figures show, for each `ADRS` type, how the 22-byte address is lai
 
 <img src="img/adrs-stateless.svg">
 
-<sup>Stateless (`SL_*`) `ADRS` types, used along the SPHINCS hypertree signing path.</sup>
+<sup>Stateless (`SL_*`) `ADRS` types, used along the SLH-DSA hypertree signing path.</sup>
 
 <img src="img/adrs-stateful.svg">
 
@@ -223,7 +223,7 @@ The following figures show, for each `ADRS` type, how the 22-byte address is lai
 
 ## Tweakable Hash Functions
 
-At the core of both SPHINCS and XMSS is the concept of _tweakable hash functions._ A tweakable hash function can be thought of as a hash function which supports additional independent parameters that can be used to scope the hash function to a specific role. This makes security easier to prove.
+At the core of both SLH-DSA and XMSS is the concept of _tweakable hash functions._ A tweakable hash function can be thought of as a hash function which supports additional independent parameters that can be used to scope the hash function to a specific role. This makes security easier to prove.
 
 In SHRINCS, we construct tweakable hash functions using SHA256 as the base hash function. This we invoke as the primitive function `sha256(x)` which returns a 32-byte array.
 
@@ -251,7 +251,7 @@ The tweaked hash function `T_sl`.
 <!-- DOC START T_sl -->
 Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
 concatenated together. This function will be used to compress Winternitz chain tips to a single
-hash in SPHINCS.
+hash in SLH-DSA.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
@@ -1042,14 +1042,14 @@ In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful a
 
 Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key. They differ only in shape: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
 
-- In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SPHINCS hypertree, and to certify FORS public keys.
+- In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SLH-DSA hypertree, and to certify FORS public keys.
 - In the stateful component, Flexible XMSS (FXMSS) is used with WOTS+C to sign messages directly.
 
 In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `SPHX_XMSS_HEIGHT`. This aligns with FIPS-205 standards.
 
 In FXMSS (stateful path), merkle trees can be balanced or unbalanced, and the WOTS+C leaf keys may be placed up to `FXMSS_HEIGHT` layers deep. This permits more flexible constructions.
 
-Notably for security, XMSS is always used as part of the SPHINCS framework to sign trusted messages generated by the signer, while FXMSS is used as a standalone scheme and so may sign untrusted messages. This means the interfaces of both XMSS and FXMSS are slightly different, and this is a crucial security requirement.
+Notably for security, XMSS is always used as part of the SPHINCS (SLH-DSA) framework to sign trusted messages generated by the signer, while FXMSS is used as a standalone scheme and so may sign untrusted messages. This means the interfaces of both XMSS and FXMSS are slightly different, and this is a crucial security requirement.
 
 The following sections describe the XMSS and FXMSS algorithms.
 

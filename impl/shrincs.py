@@ -98,7 +98,7 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
   """
   Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
   concatenated together. This function will be used to compress Winternitz chain tips to a single
-  hash in SPHINCS.
+  hash in SLH-DSA.
 
   - Inputs:
     - `pk_seed`: a 16-byte salt.
