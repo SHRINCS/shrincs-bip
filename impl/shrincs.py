@@ -1028,3 +1028,114 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
   ADRS[9] = SL_FORS_ROOTS
   ADRS[14:22] = zeros(8)
   return T_k(pk_seed, ADRS, roots)
+
+
+#  SLH-DSA algorithms
+
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> (bytes, int, int):
+  """
+  The SLH-DSA message hashing function. Derives a FORS message digest, tree index, and FORS leaf index
+  by hashing a randomizer `R`, `pk_seed`, `sl_root`, and `message`. This is an internal helper
+  function which partitions and parses the output of `H_msg_sl` into the pseudorandom digest outputs
+  needed for SLH-DSA signing and verification.
+
+  - Inputs:
+    - `R`: a 16-byte randomizer.
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+    - `message`: an arbitrary-length byte string.
+  - Outputs:
+    - a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest, ready for use by FORS.
+    - a pseudorandomly selected index of a bottom-layer XMSS tree (less than `2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1))`).
+    - a pseudorandomly selected index of a FORS key within an XMSS tree (less than `2**SPHX_XMSS_HEIGHT`).
+
+  This function is used only in the stateless path, by both signer and verifier.
+  """
+  digest = H_msg_sl(R, pk_seed, sl_root, message)
+
+  fors_digest = digest[:ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8)]
+  offset = len(fors_digest)
+
+  tree_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8)]
+  offset += len(tree_index_digest)
+
+  leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
+
+  tree_index = int.from_bytes(tree_index_digest) % (2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))
+  leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
+  return (fors_digest, tree_index, leaf_index)
+
+
+def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
+  """
+  The SLH-DSA internal signing function. Signs a given `message` with `sk_seed`, using `pk_seed` to
+  salt all hash function invocations, using `sk_prf` and `opt_rand` to generate an unpredictable
+  randomizer, and bind the signature to the given `sl_root`.
+
+  The optional additional data `opt_rand` is used to further salt the randomizer. If omitted,
+  the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
+
+  The resulting signature is composed of (1) a randomizer, (2) a FORS signature, and (3) a
+  hypertree signature, all concatenated together.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `sk_seed`: a 16-byte secret.
+    - `sk_prf`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+    - `opt_rand`: (optional) a 16-byte string used to salt the randomizer.
+  - Output:
+    - An SLH-DSA signature, of length
+    `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+
+  This function is only used in the stateless path, and only by the signer.
+  """
+  if opt_rand is None:
+    opt_rand = pk_seed # deterministic mode
+
+  R = PRF_msg_sl(sk_prf, opt_rand, message)
+  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
+
+  ADRS = bytearray(22)
+  ADRS[1:9] = tree_index.to_bytes(8)
+  ADRS[10:14] = leaf_index.to_bytes(4)
+
+  fors_signature = fors_sign(fors_digest, sk_seed, pk_seed, ADRS)
+  fors_pubkey = fors_pubkey_from_sig(fors_signature, fors_digest, pk_seed, ADRS)
+  hypertree_signature = hypertree_sign(fors_pubkey, sk_seed, pk_seed, tree_index, leaf_index)
+
+  return R + fors_signature + hypertree_signature
+
+def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
+  """
+  The SLH-DSA internal verification procedure. Recovers the root hash of the root tree from a
+  `signature` on a given `message`, and checks it against `sl_root`.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `signature`: an SLH-DSA signature of length
+      `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+  - Output:
+    - A boolean indicating if the signature is valid.
+
+  This function is only used in the stateless path, and only by the verifier.
+  """
+  if len(signature) != 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+    return False
+
+  R = signature[0:16]
+  fors_signature = signature[16 : 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1))]
+  offset = 16 + len(fors_signature)
+  hypertree_signature = signature[offset : offset + 16 * SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)]
+
+  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
+
+  ADRS = bytearray(22)
+  ADRS[1:9] = tree_index.to_bytes(8)
+  ADRS[10:14] = leaf_index.to_bytes(4)
+
+  fors_pubkey = fors_pubkey_from_sig(fors_signature, fors_digest, pk_seed, ADRS)
+  return hypertree_verify(fors_pubkey, hypertree_signature, pk_seed, tree_index, leaf_index, sl_root)
