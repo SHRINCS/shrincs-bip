@@ -1859,6 +1859,71 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
 <!-- DOC END slh_dsa_verify_internal -->
 
 
+### `slh_dsa_sign(...)`
+
+<!-- DOC START slh_dsa_sign -->
+The SLH-DSA external signing function. Signs a given `message` with `sk_seed`, using `pk_seed` to
+salt all hash function invocations, using `sk_prf` and `opt_rand` to generate an unpredictable
+randomizer, and binds the signature to the given `sl_root`.
+
+- Inputs:
+  - `message`: an arbitrary-length byte string.
+  - `ctx`: a variable-length context byte string.
+    - Must be at most 255 bytes long.
+  - `sk_seed`: a 16-byte secret.
+  - `sk_prf`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `sl_root`: the 16-byte root hash of the stateless root tree.
+  - `opt_rand`: (optional) a 16-byte string used to salt the randomizer.
+- Output:
+  - An SLH-DSA signature, of length
+  `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+
+This function is only used in the stateless path, and only by the signer.
+
+This is a simple wrapper around `slh_dsa_sign_internal` which prepends an optional context string
+`ctx` to every message. Verifiers must use `slh_dsa_verify` with the same `ctx` string.
+
+```py
+def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
+  assert len(ctx) < 256
+  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
+  return slh_dsa_sign_internal(contextualized_msg, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+```
+<!-- DOC END slh_dsa_sign -->
+
+
+### `slh_dsa_verify(...)`
+
+<!-- DOC START slh_dsa_verify -->
+The SLH-DSA verification procedure. Recovers the root hash of the root tree from a `signature`
+on a given `message`, and checks it against `sl_root`.
+
+- Inputs:
+  - `message`: an arbitrary-length byte string.
+  - `signature`: an SLH-DSA signature of length
+    `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+  - `ctx`: a variable-length context byte string.
+    - Must be at most 255 bytes long.
+  - `pk_seed`: a 16-byte salt.
+  - `sl_root`: the 16-byte root hash of the stateless root tree.
+- Output:
+  - A boolean indicating if the signature is valid.
+
+This function is only used in the stateless path, and only by the verifier.
+
+This is a simple wrapper around `slh_dsa_verify_internal` which prepends an optional context string
+`ctx` to every message. Signatures must use be produced via `slh_dsa_sign` with the same `ctx` string.
+
+```py
+def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
+  assert len(ctx) < 256
+  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
+  return slh_dsa_verify_internal(contextualized_msg, signature, pk_seed, sl_root)
+```
+<!-- DOC END slh_dsa_verify -->
+
+
 ## TODO
 
 - Because SLH-DSA and XMSS have different signature sizes, this means the SHRINCS signature size is variable.
