@@ -697,7 +697,7 @@ def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: i
     - `sk_seed`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
     - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
-    - `leaf_index`: the index (from the left) of the WOTS-TW key in the XMSS tree to sign with.
+    - `leaf_index`: the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
   - Output:
     - A hypertree signature, a byte string of length
       `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`
@@ -729,7 +729,7 @@ def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_inde
     - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` hypertree signature.
     - `pk_seed`: a 16-byte salt.
     - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
-    - `leaf_index`: the index (from the left) of the WOTS-TW key in the XMSS tree to sign with.
+    - `leaf_index`: the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
     - `sl_root`: the 16-byte stateless root hash from the SHRINCS public key.
 
   This function is only used in the stateless path, and only by the verifier.
