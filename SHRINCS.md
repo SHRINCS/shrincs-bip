@@ -1427,7 +1427,7 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
 The FXMSS signing procedure. This function produces a deterministic WOTS+C signature using a
 specific leaf of an FXMSS tree, and appends a merkle authentication path to form an FXMSS
 signature. Takes in a `message_digest` to sign, the `sk_seed`, the WOTS+C leaf position
-described by `leaf_index` and `leaf_height`, the `pk_seed`, the tree `structure`, and an `ADRS`.
+described by `leaf_index` and `leaf_height`, the `pk_seed`, and the tree `structure`.
 
 - Inputs:
   - `message_digest`: a 32-byte message digest.
@@ -1436,14 +1436,13 @@ described by `leaf_index` and `leaf_height`, the `pk_seed`, the tree `structure`
   - `leaf_height`: An 8-bit unsigned integer indicating the height (from the bottom) of the signing leaf in the FXMSS tree.
   - `pk_seed`: a 16-byte salt.
   - `structure`: a 2-byte identifier describing the FXMSS tree structure.
-  - `ADRS`: a 22-byte address.
 - Outputs:
   - An FXMSS signature, a byte string with length `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`
 
 This algorithm is used only by the signer.
 
 ```py
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
@@ -1453,6 +1452,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   if tree_shape == FXMSS_SHAPE_BALANCED:
     assert leaf_depth == tree_depth
 
+  ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
@@ -1472,7 +1472,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
 
 <!-- DOC START fxmss_pubkey_from_sig -->
 The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given
-32-byte `message_digest`. Takes in the `pk_seed`, and an `ADRS`.
+32-byte `message_digest`. Takes in the `pk_seed`.
 
 The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact
 left/right position of the WOTS+C signing leaf within its layer is given explicitly by the
@@ -1486,12 +1486,11 @@ left/right position of the WOTS+C signing leaf within its layer is given explici
     - Byte length must be 2 more than a multiple of 16.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
-  - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte FXMSS root node hash, or null
 
 ```py
-def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
   wots_sig = signature[0 : 2+WOTS_C_CHAIN_COUNT*16]
   xmss_auth = signature[2+WOTS_C_CHAIN_COUNT*16 : len(signature)]
 
@@ -1502,6 +1501,7 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
 
   node_height = FXMSS_HEIGHT - node_depth
 
+  ADRS = bytearray(22)
   ADRS[0] = node_height
   ADRS[1:9] = node_index.to_bytes(8)
   node = wots_c_pubkey_from_sig(wots_sig, message_digest, pk_seed, ADRS)
