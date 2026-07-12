@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1160 640" font-family="sans-serif">
+  <style>
+    .bg      { fill:#262626; }
+    .tree-off{ fill:none; stroke:#565656; stroke-width:1; stroke-dasharray:4 3; }
+    .tree-on { fill:rgba(245,180,20,0.12); stroke:#f5b301; stroke-width:2.5; }
+    .leaf-off{ fill:#8a8a8a; }
+    .leaf-on { fill:#33d6ff; stroke:#0b6f8f; stroke-width:0.5; }
+    .apex-off{ fill:#6a6a6a; }
+    .apex-on { fill:#f5b301; }
+    .path-off{ stroke:#474747; stroke-width:1; stroke-dasharray:5 4; fill:none; }
+    .path-on { stroke:#f5b301; stroke-width:2.5; fill:none; }
+    .lbl     { fill:#dcdcdc; font-size:13px; }
+    .lbl-s   { fill:#a8a8a8; font-size:11px; }
+    .row     { fill:#c9c9c9; font-size:14px; font-weight:bold; }
+    .title   { fill:#f2f2f2; font-size:20px; font-weight:bold; }
+  </style>
+
+  <!-- background -->
+  <rect class="bg" x="0" y="0" width="1160" height="640"/>
+
+  <!-- title -->
+  <text class="title" x="580" y="30" text-anchor="middle">SPHINCS Hypertree (HT): 3 layers, XMSS height h = 2</text>
+
+  <!-- row labels (rotated) -->
+  <text class="row" x="20" y="105" transform="rotate(-90 20 105)" text-anchor="middle">LAYER 2</text>
+  <text class="row" x="20" y="285" transform="rotate(-90 20 285)" text-anchor="middle">LAYER 1</text>
+  <text class="row" x="20" y="485" transform="rotate(-90 20 485)" text-anchor="middle">LAYER 0</text>
+
+  <!-- ================= CONNECTION LINES (drawn first) ================= -->
+  <!-- top tree leaves -> layer1 apexes (virtual) -->
+  <path class="path-off" d="M577,140 L175,250"/>
+  <path class="path-off" d="M601,140 L735,250"/>
+  <path class="path-off" d="M613,140 L1015,250"/>
+  <!-- selected top->layer1 -->
+  <path class="path-on"  d="M589,140 L455,250"/>
+
+  <!-- layer1 -> layer0 (virtual) -->
+  <!-- j0 (cx175) -> trees 0..3 -->
+  <path class="path-off" d="M157,320 L70,450"/>
+  <path class="path-off" d="M169,320 L140,450"/>
+  <path class="path-off" d="M181,320 L210,450"/>
+  <path class="path-off" d="M193,320 L280,450"/>
+  <!-- j1 (cx455) -> trees 4..7 -->
+  <path class="path-off" d="M437,320 L350,450"/>
+  <path class="path-off" d="M449,320 L420,450"/>
+  <path class="path-off" d="M473,320 L560,450"/>
+  <!-- j2 (cx735) -> trees 8..11 -->
+  <path class="path-off" d="M717,320 L630,450"/>
+  <path class="path-off" d="M729,320 L700,450"/>
+  <path class="path-off" d="M741,320 L770,450"/>
+  <path class="path-off" d="M753,320 L840,450"/>
+  <!-- j3 (cx1015) -> trees 12..15 -->
+  <path class="path-off" d="M997,320 L910,450"/>
+  <path class="path-off" d="M1009,320 L980,450"/>
+  <path class="path-off" d="M1021,320 L1050,450"/>
+  <path class="path-off" d="M1033,320 L1120,450"/>
+  <!-- selected layer1->layer0 (leaf2 of j1 -> tree 6) -->
+  <path class="path-on"  d="M461,320 L490,450"/>
+
+  <!-- ================= LAYER 2 (top tree) ================= -->
+  <polygon class="tree-on" points="595,70 570,140 620,140"/>
+  <circle class="apex-on" cx="595" cy="70" r="3.5"/>
+  <rect class="leaf-off" x="574" y="137" width="6" height="6"/>
+  <rect class="leaf-on"  x="586" y="137" width="6" height="6"/>
+  <rect class="leaf-off" x="598" y="137" width="6" height="6"/>
+  <rect class="leaf-off" x="610" y="137" width="6" height="6"/>
+  <text class="lbl-s" x="700" y="74">HT root = public key</text>
+  <line class="path-off" x1="595" y1="70" x2="695" y2="70"/>
+
+  <!-- ================= LAYER 1 (4 trees) ================= -->
+  <!-- j0 off -->
+  <polygon class="tree-off" points="175,250 150,320 200,320"/>
+  <circle class="apex-off" cx="175" cy="250" r="3"/>
+  <!-- j1 on -->
+  <polygon class="tree-on" points="455,250 430,320 480,320"/>
+  <circle class="apex-on" cx="455" cy="250" r="3.5"/>
+  <rect class="leaf-off" x="434" y="317" width="6" height="6"/>
+  <rect class="leaf-off" x="446" y="317" width="6" height="6"/>
+  <rect class="leaf-on"  x="458" y="317" width="6" height="6"/>
+  <rect class="leaf-off" x="470" y="317" width="6" height="6"/>
+  <!-- j2 off -->
+  <polygon class="tree-off" points="735,250 710,320 760,320"/>
+  <circle class="apex-off" cx="735" cy="250" r="3"/>
+  <!-- j3 off -->
+  <polygon class="tree-off" points="1015,250 990,320 1040,320"/>
+  <circle class="apex-off" cx="1015" cy="250" r="3"/>
+
+  <!-- ================= LAYER 0 (16 trees) ================= -->
+  <!-- off trees -->
+  <polygon class="tree-off" points="70,450 45,520 95,520"/><circle class="apex-off" cx="70" cy="450" r="3"/>
+  <polygon class="tree-off" points="140,450 115,520 165,520"/><circle class="apex-off" cx="140" cy="450" r="3"/>
+  <polygon class="tree-off" points="210,450 185,520 235,520"/><circle class="apex-off" cx="210" cy="450" r="3"/>
+  <polygon class="tree-off" points="280,450 255,520 305,520"/><circle class="apex-off" cx="280" cy="450" r="3"/>
+  <polygon class="tree-off" points="350,450 325,520 375,520"/><circle class="apex-off" cx="350" cy="450" r="3"/>
+  <polygon class="tree-off" points="420,450 395,520 445,520"/><circle class="apex-off" cx="420" cy="450" r="3"/>
+  <!-- selected tree 6 (cx490) -->
+  <polygon class="tree-on" points="490,450 465,520 515,520"/>
+  <circle class="apex-on" cx="490" cy="450" r="3.5"/>
+  <rect class="leaf-off" x="469" y="517" width="6" height="6"/>
+  <rect class="leaf-off" x="481" y="517" width="6" height="6"/>
+  <rect class="leaf-off" x="493" y="517" width="6" height="6"/>
+  <rect class="leaf-off" x="505" y="517" width="6" height="6"/>
+  <!-- continue off trees -->
+  <polygon class="tree-off" points="560,450 535,520 585,520"/><circle class="apex-off" cx="560" cy="450" r="3"/>
+  <polygon class="tree-off" points="630,450 605,520 655,520"/><circle class="apex-off" cx="630" cy="450" r="3"/>
+  <polygon class="tree-off" points="700,450 675,520 725,520"/><circle class="apex-off" cx="700" cy="450" r="3"/>
+  <polygon class="tree-off" points="770,450 745,520 795,520"/><circle class="apex-off" cx="770" cy="450" r="3"/>
+  <polygon class="tree-off" points="840,450 815,520 865,520"/><circle class="apex-off" cx="840" cy="450" r="3"/>
+  <polygon class="tree-off" points="910,450 885,520 935,520"/><circle class="apex-off" cx="910" cy="450" r="3"/>
+  <polygon class="tree-off" points="980,450 955,520 1005,520"/><circle class="apex-off" cx="980" cy="450" r="3"/>
+  <polygon class="tree-off" points="1050,450 1025,520 1075,520"/><circle class="apex-off" cx="1050" cy="450" r="3"/>
+  <polygon class="tree-off" points="1120,450 1095,520 1145,520"/><circle class="apex-off" cx="1120" cy="450" r="3"/>
+
+  <text class="lbl-s" x="530" y="510">this tree signs the FORS / message hash</text>
+
+  <!-- ================= LEGEND ================= -->
+  <rect class="tree-on" x="40" y="558" width="22" height="15"/>
+  <text class="lbl" x="72" y="570">Generated for THIS signature</text>
+
+  <rect class="tree-off" x="40" y="585" width="22" height="15"/>
+  <text class="lbl" x="72" y="597">Not generated, computed only when needed</text>
+
+  <rect class="leaf-on" x="560" y="559" width="13" height="13"/>
+  <text class="lbl" x="580" y="570">Selected leaf: signs the root of the tree in the layer below</text>
+
+  <path class="path-on" d="M560,592 L580,592"/>
+  <text class="lbl" x="588" y="597">Active signing chain (gold) vs. unused (dashed)</text>
+</svg>

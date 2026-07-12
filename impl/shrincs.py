@@ -684,6 +684,71 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   return node
 
 
+#  Hypertree Algorithms
+
+def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: int, leaf_index: int) -> bytes:
+  """
+  The hypertree signing function. Signs a 16-byte `message`, using a hypertree of XMSS trees. Takes
+  in the `sk_seed`, `pk_seed`, the index of the bottom-layer XMSS tree `tree_index`, and the index
+  of the WOTS-TW leaf key within that tree `leaf_index`.
+
+  - Inputs:
+    - `message`: a 16-byte message to sign.
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
+    - `leaf_index`: the index (from the left) of the WOTS-TW key in the XMSS tree to sign with.
+  - Output:
+    - A hypertree signature, a byte string of length
+      `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`
+
+  This function is only used in the stateless path, and only by the signer.
+  """
+  ADRS = bytearray(22)
+
+  sig = b""
+  for j in range(SPHX_LAYER_COUNT):
+    ADRS[0] = j
+    ADRS[1:9] = tree_index.to_bytes(8)
+    layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, ADRS)
+    if j < SPHX_LAYER_COUNT - 1:
+      message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+      leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
+      tree_index >>= SPHX_XMSS_HEIGHT
+    sig += layer_sig
+
+  return sig
+
+def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_index: int, leaf_index: int, sl_root: bytes) -> bool:
+  """
+  The hypertree verification procedure. Recovers the root of a hypertree from a hypertree
+  `signature`, and compares it against the given `sl_root` hash.
+
+  - Inputs:
+    - `message`: a 16-byte message to sign.
+    - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` hypertree signature.
+    - `pk_seed`: a 16-byte salt.
+    - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
+    - `leaf_index`: the index (from the left) of the WOTS-TW key in the XMSS tree to sign with.
+    - `sl_root`: the 16-byte stateless root hash from the SHRINCS public key.
+
+  This function is only used in the stateless path, and only by the verifier.
+  """
+  ADRS = bytearray(22)
+
+  offset = 0
+  for j in range(SPHX_LAYER_COUNT):
+    ADRS[0] = j
+    ADRS[1:9] = tree_index.to_bytes(8)
+    layer_sig = signature[offset : offset+16*(SPHX_XMSS_HEIGHT+WOTS_TW_CHAIN_COUNT)]
+    message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+    if j < SPHX_LAYER_COUNT - 1:
+      leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
+      tree_index >>= SPHX_XMSS_HEIGHT
+      offset += len(layer_sig)
+  return message == sl_root
+
+
 #  FXMSS algorithms
 
 def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:

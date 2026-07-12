@@ -1175,6 +1175,94 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
 <!-- DOC END xmss_pubkey_from_sig -->
 
 
+## Hypertree Signing
+
+The SHRINCS stateless path utilizes the design strategy of a _hypertree,_ first introduced by the original SPHINCS paper[^sphincs]. A hypertree is a tree of XMSS trees arranged into _layers_, where each OTS leaf signs the root hash of a child XMSS tree on the next layer down to certify the child tree's authenticity. Every child tree is thus verifiably connected to the root tree, in a similar fashion to TLS certificate chains. Each tree has `2**SPHX_XMSS_HEIGHT` such certified children.
+
+Because each XMSS tree is generated deterministically from a seed, the signer does not need to worry about OTS key reuse when certifying child XMSS trees, and so she can avoid caching every XMSS tree in the hypertree. The signer can _just-in-time_ generate the XMSS trees that will be used for a specific signature, and thereafter those trees can be discarded from memory. This diagram shows a simplified example with three layers of XMSS trees with height 2.
+
+<img src="img/hypertree.svg">
+
+A hypertree signature is simply a chain of `SPHX_LAYER_COUNT` XMSS signatures, starting from the bottom-layer which signs a given 16-byte message.
+
+<img src="img/hypertree-signature.svg">
+
+The following algorithms are used only for stateless hypertree signing and verification.
+
+### `hypertree_sign(...)`
+
+<!-- DOC START hypertree_sign -->
+The hypertree signing function. Signs a 16-byte `message`, using a hypertree of XMSS trees. Takes
+in the `sk_seed`, `pk_seed`, the index of the bottom-layer XMSS tree `tree_index`, and the index
+of the WOTS-TW leaf key within that tree `leaf_index`.
+
+- Inputs:
+  - `message`: a 16-byte message to sign.
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
+  - `leaf_index`: the index (from the left) of the WOTS-TW key in the XMSS tree to sign with.
+- Output:
+  - A hypertree signature, a byte string of length
+    `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`
+
+This function is only used in the stateless path, and only by the signer.
+
+```py
+def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: int, leaf_index: int) -> bytes:
+  ADRS = bytearray(22)
+
+  sig = b""
+  for j in range(SPHX_LAYER_COUNT):
+    ADRS[0] = j
+    ADRS[1:9] = tree_index.to_bytes(8)
+    layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, ADRS)
+    if j < SPHX_LAYER_COUNT - 1:
+      message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+      leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
+      tree_index >>= SPHX_XMSS_HEIGHT
+    sig += layer_sig
+
+  return sig
+```
+<!-- DOC END hypertree_sign -->
+
+
+### `hypertree_verify(...)`
+
+<!-- DOC START hypertree_verify -->
+The hypertree verification procedure. Recovers the root of a hypertree from a hypertree
+`signature`, and compares it against the given `sl_root` hash.
+
+- Inputs:
+  - `message`: a 16-byte message to sign.
+  - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` hypertree signature.
+  - `pk_seed`: a 16-byte salt.
+  - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
+  - `leaf_index`: the index (from the left) of the WOTS-TW key in the XMSS tree to sign with.
+  - `sl_root`: the 16-byte stateless root hash from the SHRINCS public key.
+
+This function is only used in the stateless path, and only by the verifier.
+
+```py
+def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_index: int, leaf_index: int, sl_root: bytes) -> bool:
+  ADRS = bytearray(22)
+
+  offset = 0
+  for j in range(SPHX_LAYER_COUNT):
+    ADRS[0] = j
+    ADRS[1:9] = tree_index.to_bytes(8)
+    layer_sig = signature[offset : offset+16*(SPHX_XMSS_HEIGHT+WOTS_TW_CHAIN_COUNT)]
+    message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+    if j < SPHX_LAYER_COUNT - 1:
+      leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
+      tree_index >>= SPHX_XMSS_HEIGHT
+      offset += len(layer_sig)
+  return message == sl_root
+```
+<!-- DOC END hypertree_verify -->
+
+
 ## FXMSS
 
 FXMSS is the stateful signing path of SHRINCS. FXMSS offers a unique paradigm in the genre of XMSS: Unlike most related schemes, FXMSS allows the signer to pick (almost[^fxmss_node_index]) any arbitrary tree structure. By tree structure, we mean the choice of which positions in the FXMSS tree are used by the signer as WOTS+C leaf nodes.
@@ -1647,6 +1735,7 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
 [^vulkan]: https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
 [^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
+[^sphincs]: https://eprint.iacr.org/2014/795.pdf
 [^sphincs+]: https://sphincs.org/data/sphincs+-paper.pdf
 [^sphincs+c]: https://eprint.iacr.org/2022/778
 [^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
