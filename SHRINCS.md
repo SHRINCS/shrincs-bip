@@ -1778,7 +1778,7 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
 <!-- DOC START slh_dsa_sign_internal -->
 The SLH-DSA internal signing function. Signs a given `message` with `sk_seed`, using `pk_seed` to
 salt all hash function invocations, using `sk_prf` and `opt_rand` to generate an unpredictable
-randomizer, and bind the signature to the given `sl_root`.
+randomizer, and binds the signature to the given `sl_root`.
 
 The optional additional data `opt_rand` is used to further salt the randomizer. If omitted,
 the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
