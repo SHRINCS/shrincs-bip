@@ -731,6 +731,8 @@ def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_inde
     - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
     - `leaf_index`: the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
     - `sl_root`: the 16-byte stateless root hash from the SHRINCS public key.
+  - Output:
+    - A boolean indicating if the signature is valid.
 
   This function is only used in the stateless path, and only by the verifier.
   """
