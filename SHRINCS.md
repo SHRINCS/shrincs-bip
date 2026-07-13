@@ -721,7 +721,9 @@ def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
 ```
 <!-- DOC END wots_tw_message_to_indexes_alt -->
 
-This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.** Note especially how the bits of the checksum are sliced off and appended to the very end of the final encoding; The checksum bits are NOT appended directly to the message indexes.
+This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.**
+
+Note especially how the _low-order_ bits of the checksum are shifted off first, and they are inserted snugly at the very end of the checksum indexes, with some padding bits which are always zero in between them and the message indexes. The checksum bits are NOT appended directly to the message indexes.
 
 
 #### Example
