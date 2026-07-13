@@ -40,22 +40,22 @@ A signature from either one of these two keypairs is sufficient to pass verifica
 ## Parameters
 
 Here follows a table of parameters.
-<!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
+<!--Mike: Should we add the parameters for  maximum width of the stateful XMSS (2^32)? -->
 
 | Parameter | Value | Description |
 |:-:|:-:|:-:|
 | `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
-| `WOTS_TW_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SPHINCS keypair. |
+| `WOTS_TW_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SPHINCS+ keypair. |
 | `WOTS_C_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
-| `WOTS_TW_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS keypair. |
-| `WOTS_TW_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS keypair. |
-| `WOTS_TW_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS keypair. |
-| `WOTS_TW_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SPHINCS keypair. |
+| `WOTS_TW_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SPHINCS+ keypair. |
+| `WOTS_TW_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SPHINCS+ keypair. |
+| `WOTS_TW_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SPHINCS+ keypair. |
+| `WOTS_TW_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SPHINCS+ keypair. |
 | `WOTS_C_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
-| `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS hypertree. |
-| `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS hypertree. |
-| `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS signature. |
-| `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS signature. |
+| `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SPHINCS+ hypertree. |
+| `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SPHINCS+ hypertree. |
+| `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SPHINCS+ signature. |
+| `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SPHINCS+ signature. |
 | `FXMSS_HEIGHT` | 255 | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
 
 
@@ -124,7 +124,7 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
 
 # Building Blocks
 
-SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and _tweakable hash functions_ - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SPHINCS, which together form SHRINCS.
+SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and _tweakable hash functions_ - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SPHINCS+, which together form SHRINCS.
 
 ```
      ADRS
@@ -157,8 +157,8 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
-| `layer` | 1 byte | Specifies the layer in the SPHINCS hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT`. |
-| `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the index of an XMSS tree within a layer of the SPHINCS hypertree. |
+| `layer` | 1 byte | Specifies the layer in the SPHINCS+ hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT - 1`. |
+| `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the index of an XMSS tree within a layer of the SPHINCS+ hypertree. |
 | `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
@@ -179,7 +179,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 |:-:|:-:|:-:|:-:|
 | `SL_WOTS_TW_HASH` | 0 | Used when iterating WOTS-TW hash chains. | Stateless |
 | `SL_WOTS_TW_PK`  | 1 | Used when compressing WOTS-TW public keys. | Stateless |
-| `SL_XMSS_TREE` | 2 | Used when combining merkle nodes in the SPHINCS hypertree. | Stateless |
+| `SL_XMSS_TREE` | 2 | Used when combining merkle nodes in the SPHINCS+ hypertree. | Stateless |
 | `SL_FORS_TREE` | 3 | Used when combining merkle nodes in FORS trees. | Stateless |
 | `SL_FORS_ROOTS` | 4 | Used when compressing FORS merkle roots together. | Stateless |
 | `SL_WOTS_TW_PRF` | 5 | Used when generating WOTS-TW secret preimages. | Stateless |
@@ -195,26 +195,21 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 
 Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field. The following table describes how they are used under each ADRS type flag.
 
-| `ADRS` Type | Payload Format |
-|:-:|-|
-| `SL_WOTS_TW_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index |
-| `SL_WOTS_TW_PK` | 4 bytes: key pair index <br> 8 bytes: zero padding |
-| `SL_XMSS_TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index |
-| `SL_FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index |
-| `SL_FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding |
-| `SL_WOTS_TW_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding |
-| `SL_FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index |
-| `SF_WOTS_C_HASH` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: hash index |
-| `SF_WOTS_C_PK` | 12 bytes: zero padding |
-| `SF_FXMSS_TREE` | 12 bytes: zero padding |
-| `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
-| `SF_WOTS_C_GRIND` | 12 bytes: zero padding |
+| Stateless `ADRS` Type | Payload Format | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Stateful `ADRS` Type | Payload Format |
+|:-:|-|:-:|:-:|-|
+| `SL_WOTS_TW_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index | | `SF_WOTS_C_HASH` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: hash index |
+| `SL_WOTS_TW_PK` | 4 bytes: key pair index <br> 8 bytes: zero padding | | `SF_WOTS_C_PK` | 12 bytes: zero padding |
+| `SL_XMSS_TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index | | `SF_FXMSS_TREE` | 12 bytes: zero padding |
+| `SL_FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index | | `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
+| `SL_FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding | | `SF_WOTS_C_GRIND` | 12 bytes: zero padding |
+| `SL_WOTS_TW_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding | | | |
+| `SL_FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index | | | |
 
-The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common `layer`, `tree_address`, and `type` fields, followed by the type-specific interpretation of the 12-byte `payload`. Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
+The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common leading fields (`layer` and `tree_address` for stateless types, `node_height` and `node_index` for stateful types) and the `type` field, followed by the type-specific interpretation of the 12-byte `payload`. Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
 
 <img src="img/adrs-stateless.svg">
 
-<sup>Stateless (`SL_*`) `ADRS` types, used along the SPHINCS hypertree signing path.</sup>
+<sup>Stateless (`SL_*`) `ADRS` types, used along the SPHINCS+ hypertree signing path.</sup>
 
 <img src="img/adrs-stateful.svg">
 
@@ -223,7 +218,7 @@ The following figures show, for each `ADRS` type, how the 22-byte address is lai
 
 ## Tweakable Hash Functions
 
-At the core of both SPHINCS and XMSS is the concept of _tweakable hash functions._ A tweakable hash function can be thought of as a hash function which supports additional independent parameters that can be used to scope the hash function to a specific role. This makes security easier to prove.
+At the core of both SPHINCS+ and XMSS is the concept of _tweakable hash functions._ A tweakable hash function can be thought of as a hash function which supports additional independent parameters that can be used to scope the hash function to a specific role. This makes security easier to prove.
 
 In SHRINCS, we construct tweakable hash functions using SHA256 as the base hash function. This we invoke as the primitive function `sha256(x)` which returns a 32-byte array.
 
@@ -241,17 +236,17 @@ def hmac_sha256(key: bytes, msg: bytes) -> bytes:
 
 SHA256 and HMAC outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`
 
-The following sections describe tweaked hash functions to fill different roles.
+The following sections describe tweakable hash functions to fill different roles.
 
 
 ### `T_sl(...)`
 
-The tweaked hash function `T_sl`.
+The tweakable hash function `T_sl`.
 
 <!-- DOC START T_sl -->
 Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
 concatenated together. This function will be used to compress Winternitz chain tips to a single
-hash in SPHINCS.
+hash in SPHINCS+.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
@@ -271,7 +266,7 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 
 ### `T_sf(...)`
 
-The tweaked hash function `T_sf`.
+The tweakable hash function `T_sf`.
 
 <!-- DOC START T_sf -->
 Hashes an input `M_l`, which is a sequence of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long,
@@ -296,7 +291,7 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 
 ### `T_k(...)`
 
-The tweaked hash function `T_k`.
+The tweakable hash function `T_k`.
 
 <!-- DOC START T_k -->
 Hashes an input `M_k`, which is a sequence of `SPHX_FORS_COUNT` hashes, each 16 bytes long,
@@ -321,7 +316,7 @@ def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
 
 ### `F(...)`
 
-The tweaked hash function `F`.
+The tweakable hash function `F`.
 
 <!-- DOC START F -->
 Hashes an input `M_1`, which is a single 16-byte hash. This function will be used to generate
@@ -345,7 +340,7 @@ def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
 
 ### `H(...)`
 
-The tweaked hash function `H`.
+The tweakable hash function `H`.
 
 <!-- DOC START H -->
 Hashes an input `M_2`, which is a pair of 16-byte hashes, concatenated together. This function
@@ -369,7 +364,7 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
 
 ### `H_grind(...)`
 
-The tweaked hash function `H_grind`.
+The tweakable hash function `H_grind`.
 
 <!-- DOC START H_grind -->
 Hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to
@@ -394,14 +389,16 @@ def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> byt
 ```
 <!-- DOC END H_grind -->
 
+<!--Mike:  Why not this way: sha256(pk_seed + zeros(48) + ADRS[:10] + counter.to_bytes(2) + digest )[:16] ?-->
 The extra 4 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
 
 Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash input fits inside a single SHA256 compression call. The remaining 12 bytes are always zero padding.
+<!-- This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `PK.seed` input. -->
 
 
 ### `PRF(...)`
 
-The tweaked hash function `PRF`.
+The tweakable hash function `PRF`.
 
 <!-- DOC START PRF -->
 Hashes `sk_seed` with an `ADRS` to derive secret preimage values needed for signing and key
@@ -427,7 +424,7 @@ Note the order of the arguments passed to `PRF` is _not_ the same order in which
 
 ### `H_msg_sl(...)`
 
-The tweaked hash function `H_msg_sl`.
+The tweakable hash function `H_msg_sl`.
 
 <!-- DOC START H_msg_sl -->
 Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
@@ -443,7 +440,7 @@ bytestring `M`. It will be used to produce a digest for signing in the stateless
 
 This function is only used in the stateless path.
 
-Note that `pk_seed` is not padded in this tweaked hash function.
+Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
 def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
@@ -456,8 +453,11 @@ The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` sa
 
 ### `H_msg_sf(...)`
 
-The tweaked hash function `H_msg_sf`.
-
+The tweakable hash function `H_msg_sf`.
+<!--Mike: inner_sf(R, pk, root, ADRS, M) = sha256(R ‖ pk ‖ root ‖ ADRS[:9] ‖ M) = inner_sl(R, pk, root, M')  where M' = ADRS[:9] ‖ M 
+This is not a problem in our construction, but maybe we should put ADRS[:9] at the start of the internal hashing, which on the other hand does not match the XMSS RFC hashing:  
+byte[n] M' = H_msg(r || getRoot(SK_MT) || (toByte(idx_sig, n)), M);
+-->
 <!-- DOC START H_msg_sf -->
 Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `ADRS`, a merkle root `root`,
 and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
@@ -476,7 +476,7 @@ TODO: can `position` be used only once?
 
 This function is only used in the stateful path.
 
-Note that `pk_seed` is not padded in this tweaked hash function.
+Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
 def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -> bytes:
@@ -494,7 +494,7 @@ Unlike `H_msg_sl`, this function is a SHRINCS-specific construction and is **not
 
 ### `PRF_msg_sl(...)`
 
-The tweaked hash function `PRF_msg_sl`.
+The tweakable hash function `PRF_msg_sl`.
 
 <!-- DOC START PRF_msg_sl -->
 Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
@@ -511,7 +511,7 @@ the stateless path.
 This function is only used in the stateless path, and only by the signer.
 
 `opt_rand` is set to either `pk_seed` (giving the "deterministic variant" of SLH-DSA[^slhdsa]),
-or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, resistant to
+or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases the resistance to
 side-channel attacks).
 
 ```py
@@ -523,7 +523,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 
 ### `PRF_msg_sf(...)`
 
-The tweaked hash function `PRF_msg_sf`.
+The tweakable hash function `PRF_msg_sf`.
 
 <!-- DOC START PRF_msg_sf -->
 Uses HMAC-SHA256 to hash `sk_prf`, the `pk_seed`, an `ADRS`, and an arbitrary-length message `M`. This function
@@ -546,7 +546,7 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
 <!-- DOC END PRF_msg_sf -->
 
 The `sk_prf` is padded with `0xFF` up until it is 64 bytes long. This ensures domain separation between stateful and stateless paths.
-
+<!--Mike: Should we explicitly state the deterministic-only design of `PRF_msg_sf`? We remove the randomisation input option for the stateful path as the same WOTS+C instance signs the message only once, and in the misuse scenario where the same message queried under the same state, prodcing exactly the same signature will not constitute a forgery. -->
 We only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
 
 
@@ -556,7 +556,7 @@ We only use the first 9 bytes of `ADRS`, because these bytes encode the position
 - `PRF_msg` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
-- These tweaked hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data. Inputs should not be copied in memory unless securely erased afterwards.
+- These tweakable hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data. Inputs should not be copied in memory unless securely erased afterwards.
 - Many of these hash functions are invoked on independent data, and so can be run in parallel. Platforms with access to vectorized (SIMD) instruction sets on x86[^simd_x86] or ARM[^simd_arm] CPUs may utilize them to parallelize SHA256[^sha256x8] to improve performance significantly: a factor of 4 or more in some cases.
 - Implementors can use SHA2 hardware acceleration[^sha_ni], though this is best used to accelerate verification, not signing or keygen[^sha_ni_bench].
 
@@ -572,7 +572,7 @@ The following two sections describe a pair of related one-time signature schemes
 
 Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signature scheme_ (WOTS).[^merkle]
 
-
+<!--Mike: We can add here the explanation (we describe it later, but i think it might be nice to drop an insight here). WOTS+C allows to have shorter one-time signatures, while WOTS-TW preserves the compatiability with the standard SLH-DSA cinstruction.-->
 ### Informal Description
 
 Here follows an intuitive description of Winternitz OTS (WOTS) schemes in general.
@@ -582,7 +582,7 @@ A WOTS private key is an array of secret preimages. Each preimage is hashed, and
 To sign, the key holder maps an approved message to a set of integers which each index a node in a hash chain, and reveals the hashes at those indexes as the Winternitz signature.
 
 The verifier maps the message to those same integers as the signer did, and finishes computing the hash chains. If the signer revealed the correct nodes, then the verifier will have recomputed the same hash chain tips that compose the signer's public key.
-
+<!--Mike: Should we add a public key compression hash to the image?-->
 <img src="img/wots-diagram-generic.svg">
 
 <sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
@@ -688,7 +688,7 @@ def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
 <!-- DOC END wots_tw_message_to_indexes_alt -->
 
 This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.** Note especially how the bits of the checksum are sliced off and appended to the very end of the final encoding; The checksum bits are NOT appended directly to the message indexes.
-
+<!--Mike: I am not shure what did you try to say here. What do you mean "the checksum bits are not appended"?-->
 
 #### Example
 
@@ -827,7 +827,7 @@ def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, AD
 
 WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in compactness & performance, but we nonetheless use WOTS-TW for the stateless path to retain compatibility with SLH-DSA[^slhdsa], while WOTS+C is used in the custom stateful component of SHRINCS to reduce signature size.
 
-WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any message must be mapped to a set of indexes that sum to a fixed constant. This prevents WOTS forgeries because an incremental increase in any index of a hash chain must be balanced out by decrementing a different index. It also ensures a constant-time verifier because the number of hash operations needed to complete every WOTS hash chain is fixed.
+WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any message must be mapped to a set of indexes that sum to a fixed constant. This prevents WOTS forgeries because an incremental increase in any index of a hash chain must be balanced out by decrementing a different index. It also ensures a constant-time verifier because the total number of hash operations needed to complete every WOTS hash chain is fixed.
 
 The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
 
@@ -835,7 +835,7 @@ The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the proba
 WOTS_C_CONSTANT_SUM = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
 ```
 
-Only a subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
+Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
 Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
 
@@ -873,7 +873,10 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
 We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
-<!-- Mike: This estimation is only for this parameter sets. For different parameter sets this can be a worse bound.-->
+<!-- Mike: This estimation is only for this parameter sets. For different parameter sets this can be a worse bound.
+
+however, for the parameters chosen here, this probability is less
+-->
 
 
 ### `wots_c_map_digest(...)`
@@ -991,7 +994,9 @@ should be prefilled with the location of the WOTS keypair being used.
 - Output:
   - A 16-byte hash representing the WOTS+C public key, or null.
 
-This algorithm is used by both signers and verifiers.
+This algorithm is used only by the verifier.
+<!--Mike:I changed to by the verifier only, because wots_c public key is not needed for signing, because we dont need to recompute the root of the stateful tree (because we dont have hyertrees)-->
+
 
 ```py
 def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
@@ -1018,9 +1023,22 @@ def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: byt
 <!-- DOC END wots_c_pubkey_from_sig -->
 
 
-## XMSS
+## Merkle Trees
 
 The _eXtended Merkle Signature Scheme_ (XMSS) is a stateful hash-based signature scheme which can produce signatures on up to a fixed number of messages.
+<!--Mike: Should we add a description of how node numbering works? I often mess it up myself, and the doc never states it explicitly. Proposed text:
+
+Every node in an XMSS or FXMSS merkle tree is identified by a pair of coordinates: a height and an index.
+
+The index counts nodes from the left within a layer, starting at zero. The node at height h and index i has child nodes at indexes 2*i (left) and 2*i + 1 (right) at height h - 1. Conversely, the ancestor of that node j layers above it has index i >> j, and the sibling of that ancestor has index (i >> j) ^ 1.
+
+The *height* scales of XMSS and FXMSS:
+
+- The WOTS-TW leaves sit at height 0, and the root sits at height SPHX_XMSS_HEIGHT. All leaves share a common layer. FORS trees follow the same bottom-anchored convention (though their node indexes count across the entire forest) (maybe delay this description to the FORS section).
+- FXMSS trees are anchored at the top: the root always sits at height FXMSS_HEIGHT = 255, and a node's depth is its distance below the root: depth = FXMSS_HEIGHT - height. Because WOTS+C leaves may be placed at different depths, there is no common leaf layer to anchor to. A leaf sits at height 0 only at the maximum depth of 255; in this sense FXMSS_HEIGHT is an "imaginary" height which no real tree have to reach.
+
+When merkle nodes are combined with H, the coordinates written into the ADRS are those of the node being computed (the parent), not of its children. In XMSS, the tree height field of an SL_XMSS_TREE address therefore only takes values 1 through SPHX_XMSS_HEIGHT; leaf nodes are not addressed by tree coordinates at all, but through the WOTS-TW keypair index, which equals the leaf's index at height 0. In FXMSS, a WOTS+C leaf's coordinates are carried in the node_height and node_index fields of its own address.
+-->
 
 Conceptually, an XMSS keypair is a merkle tree whose leaves are one-time signature (OTS) keypairs. The XMSS public key is the root hash of the merkle tree. An XMSS signature is an OTS signature alongside a merkle tree authentication proof which links the OTS public key to the merkle root hash. The verifier recomputes the OTS public key, and follows the merkle proof to recompute the XMSS public key.
 
@@ -1042,14 +1060,14 @@ In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful a
 
 Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key. They differ only in shape: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
 
-- In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SPHINCS hypertree, and to certify FORS public keys.
+- In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SPHINCS+ hypertree, and to certify FORS public keys.
 - In the stateful component, Flexible XMSS (FXMSS) is used with WOTS+C to sign messages directly.
 
 In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `SPHX_XMSS_HEIGHT`. This aligns with FIPS-205 standards.
 
 In FXMSS (stateful path), merkle trees can be balanced or unbalanced, and the WOTS+C leaf keys may be placed up to `FXMSS_HEIGHT` layers deep. This permits more flexible constructions.
 
-Notably for security, XMSS is always used as part of the SPHINCS framework to sign trusted messages generated by the signer, while FXMSS is used as a standalone scheme and so may sign untrusted messages. This means the interfaces of both XMSS and FXMSS are slightly different, and this is a crucial security requirement.
+Notably for security, XMSS is always used as part of the SPHINCS+ framework to sign trusted messages generated by the signer, while FXMSS is used as a standalone scheme and so may sign untrusted messages. This means the interfaces of both XMSS and FXMSS are slightly different, and this is a crucial security requirement.
 
 The following sections describe the XMSS and FXMSS algorithms.
 
@@ -1148,7 +1166,7 @@ signing leaf is given by the `keypair_index` argument.
 - Output:
   - a 16-byte XMSS root node hash
 
-This algorithm is used only by the signer.
+This algorithm is used both by the signer and the verifier.
 
 ```py
 def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -1402,6 +1420,13 @@ left/right position of the WOTS+C signing leaf within its layer is given explici
 - Output:
   - a 16-byte FXMSS root node hash, or null
 
+<!--Mike: Should we add a check  
+`2 + 16*WOTS_C_CHAIN_COUNT <= len(signature) <= 2 + 16*(WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)`
+ and 
+ `(len(signature) - 2) % 16 == 0`
+ ?
+ -->
+
 ```py
 def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
   wots_sig = signature[0 : 2+WOTS_C_CHAIN_COUNT*16]
@@ -1450,8 +1475,11 @@ Here follows an informal description of the FORS FTS scheme as it is defined in 
 
 A FORS keypair consists of a _forest_ of merkle trees of a fixed size, where each leaf is a hash of a preimage derived by a PRF. We parameterize the number of merkle trees as `SPHX_FORS_COUNT`, and the height of each tree as `SPHX_FORS_HEIGHT`. The FORS public key is a hash of the merkle roots of the entire forest.
 
-When signing, a message is mapped - via a salted hash - to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each. Each index identifies a specific preimage from each merkle tree which the signer must reveal, along a merkle authentication path. The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
+When signing, a message is mapped - via a salted hash - to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each. 
+<!--Mike: The digest is maped to the id of a FORS instance in the SPHINCS+ structure, and the to the set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each for that instance. Or we want to keep things simple here? -->
+Each index identifies a specific preimage from each merkle tree which the signer must reveal, along a merkle authentication path. The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
 
+<!--Mike: I think the image might be a bit more specific. The leaves of the FORS trees are hashes of secret values. I think this details also often slips away. Because if we reaveal the authentication path (blue nodes) and those are secret values - we degrade security. So we need an extra hash between the secret key elements and Merkle leaves.-->
 <img src="img/fors.svg">
 
 <sup>This diagram illustrates a toy FORS keypair, with merkle trees of height 2. Messages are mapped to a set of `k` 2-bit integers which select an index from each tree.</sup>
@@ -1461,13 +1489,14 @@ Each signature reveals one of the preimages in each merkle tree in the forest. O
 Unless he has an efficient way to find preimages, an adversary must hope the signer publishes signatures which admits a forgery by mixing and matching preimages from prior signatures. The adversary _cannot_ control which index-sets the victim signs (because of the salt), and so he cannot trick the signer into exposing specific preimages, even if the adversary can query the signer for arbitrary signatures.
 
 However, the adversary _may_ grind to find a message and salt which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery. The probability that this occurs with a randomly sampled index-set can be reduced arbitrarily low by using more and taller trees, or by reducing the limit on the number of signatures the signer is expected to produce. This is formalized as the security notion of _interleaved target-subset resilience._[^sphincs+]
-
+<!--Mike The other security parameter here is the number of instances, i can have small number of small trees in a single instance, but have a huge number of instances, so one is rarely reused.-->
 
 ## FORS Algorithms
 
 The following sections describe the algorithms needed for FORS key-generation, signing, and verification.
 
-
+<!-- Mike: The `ADRS` should be prefilled with the location of the FORS keypair being used.
+(similar warning as for WOTS part)-->
 ### `fors_sk_gen(...)`
 
 <!-- DOC START fors_sk_gen -->
@@ -1483,7 +1512,7 @@ in the forest.
 - Output:
   - A 16-byte preimage.
 
-This algorithm is used only by the signer.
+This function is only used in the stateless path, and only by the signer.
 
 Note the `tree_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
 within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
@@ -1518,6 +1547,7 @@ This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
 within a single tree. The index of node `l` in tree `t` at height `h` is `t * 2**h + l`.
+<!--Mike: At height h each tree has 2**(SPHX_FORS_HEIGHT - h) nodes, so the index of node l in tree t at height h should be t * 2**(SPHX_FORS_HEIGHT - h) + l.  -->
 
 ```py
 def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
