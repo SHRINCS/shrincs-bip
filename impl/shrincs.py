@@ -1032,7 +1032,7 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
 
 #  SLH-DSA algorithms
 
-def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> (bytes, int, int):
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
   """
   The SLH-DSA message hashing function. Derives a FORS message digest, tree index, and FORS leaf index
   by hashing a randomizer `R`, `pk_seed`, `sl_root`, and `message`. This is an internal helper
@@ -1196,7 +1196,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 
 #  SHRINCS algorithms
 
-def shrincs_keygen(seed: bytes, sf_structure: bytes) -> (bytes, bytes):
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
   """
   The SHRINCS key-generation procedure. Computes secret and public keys from a given 48-byte `seed`
   and the `sf_structure` of the stateful FXMSS tree.
@@ -1347,7 +1347,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   # Stateless verification path
   if len(signature) == 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
     # stateless signatures must be bound to the stateful keypair.
-    return slh_dsa_verify(sf_root + message, signature, pk_seed, sl_root)
+    return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
 
   # Stateful verification path
   if len(signature) < 24:

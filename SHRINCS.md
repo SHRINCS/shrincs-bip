@@ -1755,7 +1755,7 @@ needed for SLH-DSA signing and verification.
 This function is used only in the stateless path, by both signer and verifier.
 
 ```py
-def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> (bytes, int, int):
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8)]
@@ -1990,7 +1990,7 @@ and the `sf_structure` of the stateful FXMSS tree.
 > consuming compute resources by making the implementation generate a very large BXMSS tree.
 
 ```py
-def shrincs_keygen(seed: bytes, sf_structure: bytes) -> (bytes, bytes):
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
   assert len(seed) == 48
   assert len(sf_structure) == 2
 
@@ -2143,7 +2143,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   # Stateless verification path
   if len(signature) == 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
     # stateless signatures must be bound to the stateful keypair.
-    return slh_dsa_verify(sf_root + message, signature, pk_seed, sl_root)
+    return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
 
   # Stateful verification path
   if len(signature) < 24:
