@@ -463,7 +463,7 @@ Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `ADRS`, a merkle root `r
 and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
 signing in the stateful path.
 
-TODO: can `position` be used only once?
+TODO: can `ADRS[:9]` be used only once?
 
 - Inputs:
   - `R`: a 16-byte randomizer.
@@ -1923,12 +1923,267 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 ```
 <!-- DOC END slh_dsa_verify -->
 
+## SHRINCS
+
+Above we have defined all the prerequisite building blocks of the SHRINCS scheme, and we are ready to define the high-level stateful and stateless key-generation, signing, and verification algorithms of SHRINCS.
+
+As described earler in the [overview](#Overview), SHRINCS combines FXMSS (stateful) and SLH-DSA (stateless) into a single unified signature scheme. The stateful path admits very compact and efficient signatures, while the stateless path allows signers to retain signing capability even if state has been lost or corrupted.
+
+### SHRINCS Keys
+
+A SHRINCS key pair starts its life at key-generation, which the caller seeds with 48 random bytes. These 48 random bytes are partitioned into 3 x 16-byte chunks: `sk_seed`, `sk_prf`, and `pk_seed`.
+
+From `sk_seed` and `pk_seed`, the key-generation procedure derives the roots of two merkle trees: `sl_root` and `sf_root`. These represent the stateless and stateful keypairs respectively. No additional parameters are needed to derive `sl_root`, but to derive `sf_root` the caller needs to know which `structure` to apply in FXMSS (see [the section on FXMSS](#FXMSS) for more details).
+
+Once both roots are generated, the caller combines them with `pk_seed` to form the SHRINCS public key:
+
+```py
+shrincs_pubkey = pk_seed + sl_root + sf_root
+```
+
+This encoding is chosen such that by slicing off the last 16 bytes (`sf_root`), we may acquire a valid SLH-DSA public key.
+
+The SHRINCS secret key is encoded as:
+
+```py
+shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + structure + sf_root
+```
+
+This encoding is chosen such that by slicing off the last 18 bytes (`structure + sf_root`), we may acquire a valid SLH-DSA secret key.
+
+TODO: diagrams
+
+### On Managing State
+
+A SHRINCS secret key is not complete without its accompanying state. Every SHRINCS key has a fixed number of stateful signature slots which allow the signer to use compact WOTS+C signatures via the FXMSS (stateful) signing path. As previously discussed in [the section on WOTS](#wots-schemes), reusing a one-time signature keypair within FXMSS to sign distinct messages will break the security of the scheme and permit forgeries. To avoid using the same WOTS+C keypair more than once, signers using FXMSS must track a single integer, called the _state counter._ This counter tracks the number of signatures previously issued by the keypair. It increments once for every stateful FXMSS signature created, and _must never decrement._ When signing the SHRINCS stateful signing algorithm chooses which WOTS+C leaf to use based on the state counter, and the FXMSS tree structure.
+
+It is **absolutely critical for security that signers manage state counters extremely carefully.** Implementors must take note to avoid many dangerous state management practices which lead to state reuse:
+
+- State counters must not be backed up and restored by any mechanism.
+- State counters must not live in mutable storage (e.g. shared memory, a user-accessible folder, etc).
+- State counters must not be exported and imported into other software.
+- Signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
+
+If correct state is not available for any reason, such as when restoring from a static backup, then a SHRINCS implementation MUST refuse to sign with the stateful path, and utilize only the stateless signing path.
+
+### SHRINCS Algorithms
+
+The following sections describe algorithms used for SHRINCS.
+
+
+### `shrincs_keygen(...)`
+
+<!-- DOC START shrincs_keygen -->
+The SHRINCS key-generation procedure. Computes secret and public keys from a given 48-byte `seed`
+and the `sf_structure` of the stateful FXMSS tree.
+
+- Inputs:
+  - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
+  - `sf_structure`: a 2-byte identifier describing the shape and depth of the stateful FXMSS tree.
+- Outputs:
+  - the SHRINCS secret key, of length 82 bytes.
+  - the SHRINCS public key, of length 48 bytes.
+
+> [!WARNING]
+> The `sf_structure` argument must come from a trusted source or else be validated.
+> If an adversary can control `sf_structure` they may cause key-generation to fail, or hang
+> consuming compute resources by making the implementation generate a very large BXMSS tree.
+
+```py
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> (bytes, bytes):
+  assert len(seed) == 48
+  assert len(sf_structure) == 2
+
+  sk_seed = seed[0:16]
+  sk_prf  = seed[16:32]
+  pk_seed = seed[32:48]
+
+  ADRS = bytearray(22)
+  ADRS[0] = SPHX_LAYER_COUNT - 1
+  sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, ADRS)
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, sf_structure, bytearray(22))
+
+  shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
+  shrincs_pubkey = pk_seed + sl_root + sf_root
+  return (shrincs_seckey, shrincs_pubkey)
+```
+<!-- DOC END shrincs_keygen -->
+
+
+### `shrincs_sf_leaf_select(...)`
+
+<!-- DOC START shrincs_sf_leaf_select -->
+The SHRINCS stateful path leaf selection algorithm. Given an FXMSS tree `structure` and the
+current `state_ctr` counter, this function computes the position of the next WOTS+C leaf in
+the FXMSS tree, returned as a tuple of `(index, height)` integers.
+
+- Inputs:
+  - `structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `state_ctr`: an integer indicating how many stateful signatures the SHRINCS keypair has
+    previously issued.
+- Outputs:
+  - The left-to-right index of the next WOTS+C leaf in the FXMSS tree that should be used.
+  - The bottom-to-top height of the next WOTS+C leaf in the FXMSS tree that should be used.
+
+Returns `None` if `state_ctr` is set to any negative number, or if `state_ctr + 1` exceeds the
+number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[int, int]]:
+  tree_shape, tree_depth = structure[0], structure[1]
+  if tree_shape == FXMSS_SHAPE_UNBALANCED:
+    if state_ctr == tree_depth:
+      return (0, FXMSS_HEIGHT - tree_depth)
+    if state_ctr >= 0 and state_ctr < tree_depth + 1:
+      return (1, FXMSS_HEIGHT - 1 - state_ctr)
+
+  elif tree_shape == FXMSS_SHAPE_BALANCED:
+    if state_ctr >= 0 and state_ctr < 2**tree_depth:
+      return (state_ctr, FXMSS_HEIGHT - tree_depth)
+
+  # - unknown FXMSS tree shape
+  # - no more signatures left
+  # - state is negative (explicitly invalid)
+  return None
+```
+<!-- DOC END shrincs_sf_leaf_select -->
+
+
+### `shrincs_sign(...)`
+
+<!-- DOC START shrincs_sign -->
+The SHRINCS signing function. Signs `message` with the serialized SHRINCS secret key
+`shrincs_seckey`. If `state_ctr` is non-negative and valid for the stateful tree
+structure specified in the secret key, then this function will use the stateful path and
+will return a variable-length FXMSS signature. Otherwise it will fall back to the
+stateless signing path and use SLH-DSA to sign the message.
+
+- Inputs:
+  - `message`: an arbitrary-length byte string.
+  - `shrincs_seckey`: an 82-byte SHRINCS secret key.
+  - `state_ctr`: an integer indicating how many stateful signatures the SHRINCS keypair has
+    previously issued.
+  - `opt_rand`: (optional) a 16-byte string used to salt the randomizer in SLH-DSA. Not used
+    in the stateful signing path. If omitted, the stateless signing path will use the
+    deterministic variant of SLH-DSA.
+- Output:
+  - A variable-length SHRINCS signature (a byte string).
+
+This function is only used by the signer.
+
+> [!CAUTION]
+> Using the same key to sign different `message` values with the same `state_ctr` is
+> a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
+> which increments and saves the state counter as `state_ctr + 1` on a persistent,
+> non-recoverable storage medium before the signature is returned to the caller.
+>
+> The only exception is for invalid (i.e. negative) values of `state_ctr`, which
+> explicitly trigger use of the stateful path.
+
+```py
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
+  sk_seed      = shrincs_seckey[0:16]
+  sk_prf       = shrincs_seckey[16:32]
+  pk_seed      = shrincs_seckey[32:48]
+  sl_root      = shrincs_seckey[48:64]
+  sf_structure = shrincs_seckey[64:66]
+  sf_root      = shrincs_seckey[66:82]
+
+  leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
+
+  # Stateless signing path.
+  if leaf_position is None:
+    # bind the stateless signature to the stateful keypair.
+    return slh_dsa_sign(sf_root + message, b"", sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+
+  # Stateful signing path.
+  leaf_index, leaf_height = leaf_position
+  ADRS = bytearray(22)
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
+  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, message)
+
+  # bind the stateful signature to the stateless keypair.
+  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+  fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+
+  # TODO: compact encoding for leaf index
+  return R + leaf_index.to_bytes(8) + fxmss_signature
+```
+<!-- DOC END shrincs_sign -->
+
+
+### `shrincs_verify(...)`
+
+<!-- DOC START shrincs_verify -->
+The SHRINCS verification procedure. Returns true if `signature` is a valid stateful
+or stateless SHRINCS signature on `message`, issued by the given `shrincs_pubkey`.
+
+Based on the length of `signature`, the verifier either recomputes `sf_root`
+(stateful path) or recomputes `sl_root` (stateless path), and compares the result
+against the public key.
+
+- Inputs:
+  - `message`: an arbitrary-length byte string.
+  - `signature`: an arbitrary-length byte string, claimed to be a SHRINCS signature.
+  - `shrincs_pubkey`: an 48-byte SHRINCS public key.
+- Output:
+  - A boolean indicating if the signature is valid.
+
+This function is used only by the verifier.
+
+```py
+def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> bool:
+  pk_seed = shrincs_pubkey[0:16]
+  sl_root = shrincs_pubkey[16:32]
+  sf_root = shrincs_pubkey[32:48]
+
+  # Stateless verification path
+  if len(signature) == 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+    # stateless signatures must be bound to the stateful keypair.
+    return slh_dsa_verify(sf_root + message, signature, pk_seed, sl_root)
+
+  # Stateful verification path
+  if len(signature) < 24:
+    return False
+
+  R = signature[0:16]
+  leaf_index = int.from_bytes(signature[16:24])
+  fxmss_signature = signature[24:len(signature)]
+
+  # Signature must be at least `2 + 16 * WOTS_C_CHAIN_COUNT` bytes.
+  if len(fxmss_signature) < 2 + 16 * WOTS_C_CHAIN_COUNT:
+    return False
+  # Signature must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes.
+  elif len(fxmss_signature) > 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT):
+    return False
+  # Signature length must be 2 more than a multiple of 16.
+  elif (len(fxmss_signature) - 2) % 16 != 0:
+    return False
+
+  leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT
+  leaf_height = FXMSS_HEIGHT - leaf_depth
+
+  ADRS = bytearray(22)
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
+
+  # stateful signatures must be bound to the stateless keypair.
+  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+  root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
+  return root is not None and root == sf_root
+```
+<!-- DOC END shrincs_verify -->
+
 
 ## TODO
 
 - Because SLH-DSA and XMSS have different signature sizes, this means the SHRINCS signature size is variable.
 - Mention Vulkan[^vulkan] for signing/keygen.
 - Discuss XMSS tree caching
+- Should we permit depth zero script trees?
 - Consider future-proofing WOTS+C addressing scheme/layout for XMSS^MT.
 - Specify which `ADRS` fields should be prefilled and when.
 - Add note about how callers cannot accurately depend on tree structures of untrusted parties, due to collision attacks.
