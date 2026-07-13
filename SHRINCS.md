@@ -428,7 +428,7 @@ def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> byt
 
 The extra 4 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
 
-Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash input fits inside a single SHA256 compression call. The remaining 12 bytes are always zero padding.
+Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `PK.seed` input. The remaining 12 bytes are always zero padding.
 
 
 ### `PRF(...)`
