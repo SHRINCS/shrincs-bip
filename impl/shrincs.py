@@ -98,7 +98,7 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
   """
   Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
   concatenated together. This function will be used to compress Winternitz chain tips to a single
-  hash in SPHINCS.
+  hash in SPHINCS+.
 
   - Inputs:
     - `pk_seed`: a 16-byte salt.
@@ -228,7 +228,7 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
 
   This function is only used in the stateless path.
 
-  Note that `pk_seed` is not padded in this tweaked hash function.
+  Note that `pk_seed` is not padded in this tweakable hash function.
   """
   return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + zeros(4))
 
@@ -251,7 +251,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -
 
   This function is only used in the stateful path.
 
-  Note that `pk_seed` is not padded in this tweaked hash function.
+  Note that `pk_seed` is not padded in this tweakable hash function.
   """
   return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + root + ADRS[:9] + M))
 
@@ -559,7 +559,7 @@ def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: byt
   - Output:
     - A 16-byte hash representing the WOTS+C public key, or null.
 
-  This algorithm is used by both signers and verifiers.
+  This algorithm is used only by the verifier.
   """
   counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, ADRS, counter)
@@ -661,7 +661,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   - Output:
     - a 16-byte XMSS root node hash
 
-  This algorithm is used only by the signer.
+  This algorithm is used both by the signer and the verifier.
   """
   wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT*16]
   xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_XMSS_HEIGHT)*16]
