@@ -871,7 +871,7 @@ The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the proba
 WOTS_C_CONSTANT_SUM = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
 ```
 
-Only a subset of index-sets have this "constant-sum" property - about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
+Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
 Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
 
@@ -908,8 +908,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
 ```
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
-We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
-<!-- Mike: This estimation is only for this parameter sets. For different parameter sets this can be a worse bound.-->
+We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
 
 
 ### `wots_c_map_digest(...)`
