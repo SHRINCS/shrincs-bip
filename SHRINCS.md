@@ -193,7 +193,7 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
-| `layer` | 1 byte | Specifies the layer in the SLH-DSA hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT`. |
+| `layer` | 1 byte | Specifies the layer in the SLH-DSA hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT - 1`. |
 | `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the index of an XMSS tree within a layer of the SLH-DSA hypertree. |
 | `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
