@@ -23,7 +23,7 @@ This SHRINCS specification includes Python reference code and documentation defi
 
 At a high level, a SHRINCS instance combines two hash-based signature schemes:
 
-1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^wotsc] one-time signatures.
+1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^sphincs+c] one-time signatures.
 2. A **stateless** component — a variant of SLH-DSA, with algorithms as defined in NIST FIPS-205[^slhdsa] but using a non-standard parameter set.
 
 A signature from either component is sufficient to pass verification. The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable.
@@ -2205,7 +2205,6 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
 [^slhdsa]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
 [^xmss]: https://www.rfc-editor.org/rfc/rfc8391.html
-[^wotsc]: https://eprint.iacr.org/2022/778.pdf
 [^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
 [^hmac]: https://datatracker.ietf.org/doc/html/rfc2104
 [^simd_x86]: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
