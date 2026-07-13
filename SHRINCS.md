@@ -62,24 +62,37 @@ This document nonetheless respecifies these algorithms in full, rather than refe
 
 ## Parameters
 
-Here follows a table of parameters.
+Here follow the parameters of the stateful and the stateless component.
+
+### Stateful Parameters
+
 <!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
 
 | Parameter | Value | Description |
-|:-:|:-:|:-:|
-| `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateful XMSS keypair. |
-| `WOTS_TW_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain in the stateless SLH-DSA keypair. |
-| `WOTS_C_CHAIN_COUNT` | 32 | The number of Winternitz chains in the stateful XMSS keypair. |
-| `WOTS_TW_CHAIN_COUNT1` | 32 | The number of Winternitz message chains per WOTS key in the stateless SLH-DSA keypair. |
-| `WOTS_TW_CHAIN_COUNT2` | 3 | The number of Winternitz checksum chains per WOTS key in the stateless SLH-DSA keypair. |
-| `WOTS_TW_CHAIN_COUNT` | 35 | The overall number of Winternitz chains per WOTS key in the stateless SLH-DSA keypair. |
-| `WOTS_TW_CHECKSUM_MAX` | 480 | The maximum possible sum of Winternitz hash chain indexes in the stateless SLH-DSA keypair. |
-| `WOTS_C_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes in the stateful XMSS keypair. |
-| `SPHX_LAYER_COUNT` | 5 | The number of XMSS layers in the SLH-DSA hypertree. |
-| `SPHX_XMSS_HEIGHT` | 9 | The height of each XMSS layer within the SLH-DSA hypertree. |
-| `SPHX_FORS_HEIGHT` | 13 | The height of each FORS tree used in the SLH-DSA signature. |
-| `SPHX_FORS_COUNT` | 10 | The number of FORS trees used in the SLH-DSA signature. |
+|:-:|:-:|:--|
+| `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain. |
+| `WOTS_C_CHAIN_COUNT` | 32 | The number of Winternitz chains. |
+| `WOTS_C_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes. |
 | `FXMSS_HEIGHT` | 255 | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+
+### Stateless Parameters
+
+The FIPS-205 column gives the name of the parameter in FIPS-205.
+
+| Parameter | FIPS-205 | Value | Description |
+|:-:|:-:|:-:|:--|
+| — | `n` | 16 | The byte length of the hash outputs, i.e. the security parameter. It is not a named parameter in SHRINCS: every tweakable hash function truncates its output to 16 bytes. |
+| `WOTS_TW_CHAIN_BITS` | `lg_w` | 4 | The number of bits encoded by each Winternitz key chain. |
+| `WOTS_TW_CHAIN_COUNT1` | `len1` | 32 | The number of Winternitz message chains per WOTS key. |
+| `WOTS_TW_CHAIN_COUNT2` | `len2` | 3 | The number of Winternitz checksum chains per WOTS key. |
+| `WOTS_TW_CHAIN_COUNT` | `len` | 35 | The overall number of Winternitz chains per WOTS key. |
+| `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | 480 | The maximum possible sum of Winternitz hash chain indexes. |
+| `SPHX_LAYER_COUNT` | `d` | 5 | The number of XMSS layers in the SLH-DSA hypertree. |
+| `SPHX_XMSS_HEIGHT` | `h'` | 9 | The height of each XMSS layer within the SLH-DSA hypertree. |
+| — | `h` | 45 | The total height of the SLH-DSA hypertree. It is not a named parameter in SHRINCS, but is derived as `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT`. |
+| `SPHX_FORS_HEIGHT` | `a` | 13 | The height of each FORS tree used in the SLH-DSA signature. |
+| `SPHX_FORS_COUNT` | `k` | 10 | The number of FORS trees used in the SLH-DSA signature. |
+| — | `m` | 24 | The byte length of the message digest. It is not a named parameter in SHRINCS, but is derived in `slh_dsa_digest_message` as `ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8) + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8) + ceil(SPHX_XMSS_HEIGHT / 8)`. |
 
 
 ## Keygen Inputs
