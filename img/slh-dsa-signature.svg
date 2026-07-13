@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="620" viewBox="0 0 900 620" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <!-- Background -->
+  <rect x="0" y="0" width="900" height="620" fill="#2b2f33"/>
+
+  <!-- Title -->
+  <text x="450" y="42" text-anchor="middle" fill="#f2f2f2" font-size="26" font-weight="bold">SLH-DSA Signature Structure</text>
+  <text x="450" y="68" text-anchor="middle" fill="#9aa2a8" font-size="14">(lengths not to scale)</text>
+
+  <!-- Top-level container -->
+  <rect x="40" y="95" width="820" height="70" rx="8" fill="none" stroke="#5c646b" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="52" y="88" fill="#9aa2a8" font-size="13">SIG = ( R  ||  SIG_FORS  ||  SIG_HT )</text>
+
+  <!-- Randomizer block -->
+  <rect x="55" y="110" width="120" height="40" rx="6" fill="#3a4c63" stroke="#7fb3ff" stroke-width="2"/>
+  <text x="115" y="135" text-anchor="middle" fill="#dcecff" font-size="15" font-weight="bold">R</text>
+  <text x="115" y="182" text-anchor="middle" fill="#7fb3ff" font-size="12">Randomizer</text>
+
+  <!-- FORS block -->
+  <rect x="195" y="110" width="290" height="40" rx="6" fill="#4a3a5c" stroke="#c39bff" stroke-width="2"/>
+  <text x="340" y="135" text-anchor="middle" fill="#eaddff" font-size="15" font-weight="bold">SIG_FORS</text>
+
+  <!-- HT block -->
+  <rect x="505" y="110" width="340" height="40" rx="6" fill="#3a5c47" stroke="#7fe0a5" stroke-width="2"/>
+  <text x="675" y="135" text-anchor="middle" fill="#ddffe9" font-size="15" font-weight="bold">SIG_HT</text>
+
+  <!-- ================= FORS expansion ================= -->
+  <line x1="340" y1="150" x2="340" y2="220" stroke="#c39bff" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <rect x="55" y="225" width="430" height="130" rx="8" fill="#332b3d" stroke="#8b6fb0" stroke-width="1.5"/>
+  <text x="70" y="248" fill="#c39bff" font-size="14" font-weight="bold">FORS signature</text>
+  <text x="70" y="268" fill="#9aa2a8" font-size="12">k trees &#8594; k (private value + authentication path) pairs</text>
+
+  <!-- FORS pairs -->
+  <g>
+    <rect x="70" y="285" width="55" height="55" rx="5" fill="#4a3a5c" stroke="#c39bff" stroke-width="1.5"/>
+    <text x="97.5" y="308" text-anchor="middle" fill="#eaddff" font-size="11">sk[0]</text>
+    <text x="97.5" y="326" text-anchor="middle" fill="#c9b6e6" font-size="10">AUTH[0]</text>
+
+    <rect x="135" y="285" width="55" height="55" rx="5" fill="#4a3a5c" stroke="#c39bff" stroke-width="1.5"/>
+    <text x="162.5" y="308" text-anchor="middle" fill="#eaddff" font-size="11">sk[1]</text>
+    <text x="162.5" y="326" text-anchor="middle" fill="#c9b6e6" font-size="10">AUTH[1]</text>
+
+    <text x="230" y="320" text-anchor="middle" fill="#c39bff" font-size="18">&#8230;</text>
+
+    <rect x="270" y="285" width="55" height="55" rx="5" fill="#4a3a5c" stroke="#c39bff" stroke-width="1.5"/>
+    <text x="297.5" y="308" text-anchor="middle" fill="#eaddff" font-size="11">sk[k-1]</text>
+    <text x="297.5" y="326" text-anchor="middle" fill="#c9b6e6" font-size="10">AUTH[k-1]</text>
+  </g>
+
+  <!-- ================= HT expansion ================= -->
+  <line x1="675" y1="150" x2="675" y2="220" stroke="#7fe0a5" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <rect x="515" y="225" width="330" height="130" rx="8" fill="#2b3d31" stroke="#5c9c73" stroke-width="1.5"/>
+  <text x="530" y="248" fill="#7fe0a5" font-size="14" font-weight="bold">Hypertree signature (d layers)</text>
+  <text x="530" y="268" fill="#9aa2a8" font-size="12">sequence of d XMSS signatures</text>
+
+  <g>
+    <rect x="530" y="285" width="60" height="55" rx="5" fill="#3a5c47" stroke="#7fe0a5" stroke-width="1.5"/>
+    <text x="560" y="317" text-anchor="middle" fill="#ddffe9" font-size="11">XMSS[0]</text>
+
+    <rect x="600" y="285" width="60" height="55" rx="5" fill="#3a5c47" stroke="#7fe0a5" stroke-width="1.5"/>
+    <text x="630" y="317" text-anchor="middle" fill="#ddffe9" font-size="11">XMSS[1]</text>
+
+    <text x="700" y="320" text-anchor="middle" fill="#7fe0a5" font-size="18">&#8230;</text>
+
+    <rect x="740" y="285" width="70" height="55" rx="5" fill="#3a5c47" stroke="#7fe0a5" stroke-width="1.5"/>
+    <text x="775" y="317" text-anchor="middle" fill="#ddffe9" font-size="11">XMSS[d-1]</text>
+  </g>
+
+  <!-- ================= XMSS expansion ================= -->
+  <line x1="560" y1="340" x2="470" y2="410" stroke="#7fe0a5" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <rect x="230" y="415" width="440" height="150" rx="8" fill="#2b3d31" stroke="#5c9c73" stroke-width="1.5"/>
+  <text x="245" y="438" fill="#7fe0a5" font-size="14" font-weight="bold">Single XMSS signature</text>
+  <text x="245" y="458" fill="#9aa2a8" font-size="12">WOTS+ signature + XMSS authentication path</text>
+
+  <!-- WOTS block -->
+  <rect x="245" y="475" width="200" height="65" rx="6" fill="#3a4f5c" stroke="#7fd0e0" stroke-width="2"/>
+  <text x="345" y="500" text-anchor="middle" fill="#ddf6ff" font-size="13" font-weight="bold">WOTS&#8314; signature</text>
+  <text x="345" y="520" text-anchor="middle" fill="#a7dfec" font-size="11">hash chain values</text>
+
+  <!-- AUTH path block -->
+  <rect x="460" y="475" width="195" height="65" rx="6" fill="#5c4f3a" stroke="#e0c37f" stroke-width="2"/>
+  <text x="557" y="500" text-anchor="middle" fill="#fff2d8" font-size="13" font-weight="bold">AUTH path</text>
+  <text x="557" y="520" text-anchor="middle" fill="#ecd9a7" font-size="11">tree node hashes</text>
+
+  <!-- Legend -->
+  <rect x="55" y="380" width="14" height="14" rx="3" fill="#3a4c63" stroke="#7fb3ff" stroke-width="1.5"/>
+  <text x="76" y="392" fill="#c8ced3" font-size="11">Randomizer</text>
+  <rect x="160" y="380" width="14" height="14" rx="3" fill="#4a3a5c" stroke="#c39bff" stroke-width="1.5"/>
+  <text x="181" y="392" fill="#c8ced3" font-size="11">FORS</text>
+  <rect x="235" y="380" width="14" height="14" rx="3" fill="#3a5c47" stroke="#7fe0a5" stroke-width="1.5"/>
+  <text x="256" y="392" fill="#c8ced3" font-size="11">Hypertree / XMSS</text>
+  <rect x="380" y="380" width="14" height="14" rx="3" fill="#3a4f5c" stroke="#7fd0e0" stroke-width="1.5"/>
+  <text x="401" y="392" fill="#c8ced3" font-size="11">WOTS&#8314;</text>
+</svg>

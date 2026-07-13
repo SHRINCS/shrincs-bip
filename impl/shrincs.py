@@ -1,6 +1,6 @@
 from math import ceil, floor
 import hashlib
-from typing import Optional
+from typing import Optional, Tuple
 
 #  Helper functions
 
@@ -98,7 +98,11 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
   """
   Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
   concatenated together. This function will be used to compress Winternitz chain tips to a single
+<<<<<<< HEAD
   hash in SPHINCS+.
+=======
+  hash in SLH-DSA.
+>>>>>>> 58d9f999f78f247b4e52ae2f3d47172e8c4e84bd
 
   - Inputs:
     - `pk_seed`: a 16-byte salt.
@@ -238,7 +242,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -
   and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
   signing in the stateful path.
 
-  TODO: can `position` be used only once?
+  TODO: can `ADRS[:9]` be used only once?
 
   - Inputs:
     - `R`: a 16-byte randomizer.
@@ -684,6 +688,73 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   return node
 
 
+#  Hypertree Algorithms
+
+def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: int, leaf_index: int) -> bytes:
+  """
+  The hypertree signing function. Signs a 16-byte `message`, using a hypertree of XMSS trees. Takes
+  in the `sk_seed`, `pk_seed`, the index of the bottom-layer XMSS tree `tree_index`, and the index
+  of the WOTS-TW leaf key within that tree `leaf_index`.
+
+  - Inputs:
+    - `message`: a 16-byte message to sign.
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
+    - `leaf_index`: the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
+  - Output:
+    - A hypertree signature, a byte string of length
+      `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`
+
+  This function is only used in the stateless path, and only by the signer.
+  """
+  ADRS = bytearray(22)
+
+  sig = b""
+  for j in range(SPHX_LAYER_COUNT):
+    ADRS[0] = j
+    ADRS[1:9] = tree_index.to_bytes(8)
+    layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, ADRS)
+    if j < SPHX_LAYER_COUNT - 1:
+      message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+      leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
+      tree_index >>= SPHX_XMSS_HEIGHT
+    sig += layer_sig
+
+  return sig
+
+def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_index: int, leaf_index: int, sl_root: bytes) -> bool:
+  """
+  The hypertree verification procedure. Recovers the root of a hypertree from a hypertree
+  `signature`, and compares it against the given `sl_root` hash.
+
+  - Inputs:
+    - `message`: a 16-byte message to sign.
+    - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` hypertree signature.
+    - `pk_seed`: a 16-byte salt.
+    - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
+    - `leaf_index`: the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
+    - `sl_root`: the 16-byte stateless root hash from the SHRINCS public key.
+  - Output:
+    - A boolean indicating if the signature is valid.
+
+  This function is only used in the stateless path, and only by the verifier.
+  """
+  ADRS = bytearray(22)
+
+  offset = 0
+  for j in range(SPHX_LAYER_COUNT):
+    ADRS[0] = j
+    ADRS[1:9] = tree_index.to_bytes(8)
+    layer_sig = signature[offset : offset+16*(SPHX_XMSS_HEIGHT+WOTS_TW_CHAIN_COUNT)]
+    message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+    if j < SPHX_LAYER_COUNT - 1:
+      leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
+      tree_index >>= SPHX_XMSS_HEIGHT
+      offset += len(layer_sig)
+  return message == sl_root
+
+
 #  FXMSS algorithms
 
 def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:
@@ -734,12 +805,12 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
   ADRS[10:22] = zeros(12)
   return H(pk_seed, ADRS, lchild + rchild)
 
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
   """
   The FXMSS signing procedure. This function produces a deterministic WOTS+C signature using a
   specific leaf of an FXMSS tree, and appends a merkle authentication path to form an FXMSS
   signature. Takes in a `message_digest` to sign, the `sk_seed`, the WOTS+C leaf position
-  described by `leaf_index` and `leaf_height`, the `pk_seed`, the tree `structure`, and an `ADRS`.
+  described by `leaf_index` and `leaf_height`, the `pk_seed`, and the tree `structure`.
 
   - Inputs:
     - `message_digest`: a 32-byte message digest.
@@ -748,7 +819,6 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
     - `leaf_height`: An 8-bit unsigned integer indicating the height (from the bottom) of the signing leaf in the FXMSS tree.
     - `pk_seed`: a 16-byte salt.
     - `structure`: a 2-byte identifier describing the FXMSS tree structure.
-    - `ADRS`: a 22-byte address.
   - Outputs:
     - An FXMSS signature, a byte string with length `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`
 
@@ -763,6 +833,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   if tree_shape == FXMSS_SHAPE_BALANCED:
     assert leaf_depth == tree_depth
 
+  ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
@@ -775,10 +846,10 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
 
   return sig
 
-def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
   """
   The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given
-  32-byte `message_digest`. Takes in the `pk_seed`, and an `ADRS`.
+  32-byte `message_digest`. Takes in the `pk_seed`.
 
   The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact
   left/right position of the WOTS+C signing leaf within its layer is given explicitly by the
@@ -792,7 +863,6 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
       - Byte length must be 2 more than a multiple of 16.
     - `message_digest`: a 32-byte message digest.
     - `pk_seed`: a 16-byte salt.
-    - `ADRS`: a 22-byte address.
   - Output:
     - a 16-byte FXMSS root node hash, or null
   """
@@ -806,6 +876,7 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
 
   node_height = FXMSS_HEIGHT - node_depth
 
+  ADRS = bytearray(22)
   ADRS[0] = node_height
   ADRS[1:9] = node_index.to_bytes(8)
   node = wots_c_pubkey_from_sig(wots_sig, message_digest, pk_seed, ADRS)
@@ -961,3 +1032,353 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
   ADRS[9] = SL_FORS_ROOTS
   ADRS[14:22] = zeros(8)
   return T_k(pk_seed, ADRS, roots)
+
+
+#  SLH-DSA algorithms
+
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
+  """
+  The SLH-DSA message hashing function. Derives a FORS message digest, tree index, and FORS leaf index
+  by hashing a randomizer `R`, `pk_seed`, `sl_root`, and `message`. This is an internal helper
+  function which partitions and parses the output of `H_msg_sl` into the pseudorandom digest outputs
+  needed for SLH-DSA signing and verification.
+
+  - Inputs:
+    - `R`: a 16-byte randomizer.
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+    - `message`: an arbitrary-length byte string.
+  - Outputs:
+    - a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest, ready for use by FORS.
+    - a pseudorandomly selected index of a bottom-layer XMSS tree (less than `2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1))`).
+    - a pseudorandomly selected index of a FORS key within an XMSS tree (less than `2**SPHX_XMSS_HEIGHT`).
+
+  This function is used only in the stateless path, by both signer and verifier.
+  """
+  digest = H_msg_sl(R, pk_seed, sl_root, message)
+
+  fors_digest = digest[:ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8)]
+  offset = len(fors_digest)
+
+  tree_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8)]
+  offset += len(tree_index_digest)
+
+  leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
+
+  tree_index = int.from_bytes(tree_index_digest) % (2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))
+  leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
+  return (fors_digest, tree_index, leaf_index)
+
+
+def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
+  """
+  The SLH-DSA internal signing function. Signs a given `message` with `sk_seed`, using `pk_seed` to
+  salt all hash function invocations, using `sk_prf` and `opt_rand` to generate an unpredictable
+  randomizer, and binds the signature to the given `sl_root`.
+
+  The optional additional data `opt_rand` is used to further salt the randomizer. If omitted,
+  the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
+
+  The resulting signature is composed of (1) a randomizer, (2) a FORS signature, and (3) a
+  hypertree signature, all concatenated together.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `sk_seed`: a 16-byte secret.
+    - `sk_prf`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+    - `opt_rand`: (optional) a 16-byte string used to salt the randomizer.
+  - Output:
+    - An SLH-DSA signature, of length
+    `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+
+  This function is only used in the stateless path, and only by the signer.
+  """
+  if opt_rand is None:
+    opt_rand = pk_seed # deterministic mode
+
+  R = PRF_msg_sl(sk_prf, opt_rand, message)
+  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
+
+  ADRS = bytearray(22)
+  ADRS[1:9] = tree_index.to_bytes(8)
+  ADRS[10:14] = leaf_index.to_bytes(4)
+
+  fors_signature = fors_sign(fors_digest, sk_seed, pk_seed, ADRS)
+  fors_pubkey = fors_pubkey_from_sig(fors_signature, fors_digest, pk_seed, ADRS)
+  hypertree_signature = hypertree_sign(fors_pubkey, sk_seed, pk_seed, tree_index, leaf_index)
+
+  return R + fors_signature + hypertree_signature
+
+def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
+  """
+  The SLH-DSA internal verification procedure. Recovers the root hash of the root tree from a
+  `signature` on a given `message`, and checks it against `sl_root`.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `signature`: an SLH-DSA signature of length
+      `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+  - Output:
+    - A boolean indicating if the signature is valid.
+
+  This function is only used in the stateless path, and only by the verifier.
+  """
+  if len(signature) != 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+    return False
+
+  R = signature[0:16]
+  fors_signature = signature[16 : 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1))]
+  offset = 16 + len(fors_signature)
+  hypertree_signature = signature[offset : offset + 16 * SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)]
+
+  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
+
+  ADRS = bytearray(22)
+  ADRS[1:9] = tree_index.to_bytes(8)
+  ADRS[10:14] = leaf_index.to_bytes(4)
+
+  fors_pubkey = fors_pubkey_from_sig(fors_signature, fors_digest, pk_seed, ADRS)
+  return hypertree_verify(fors_pubkey, hypertree_signature, pk_seed, tree_index, leaf_index, sl_root)
+
+def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
+  """
+  The SLH-DSA external signing function. Signs a given `message` with `sk_seed`, using `pk_seed` to
+  salt all hash function invocations, using `sk_prf` and `opt_rand` to generate an unpredictable
+  randomizer, and binds the signature to the given `sl_root`.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `ctx`: a variable-length context byte string.
+      - Must be at most 255 bytes long.
+    - `sk_seed`: a 16-byte secret.
+    - `sk_prf`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+    - `opt_rand`: (optional) a 16-byte string used to salt the randomizer.
+  - Output:
+    - An SLH-DSA signature, of length
+    `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+
+  This function is only used in the stateless path, and only by the signer.
+
+  This is a simple wrapper around `slh_dsa_sign_internal` which prepends an optional context string
+  `ctx` to every message. Verifiers must use `slh_dsa_verify` with the same `ctx` string.
+  """
+  assert len(ctx) < 256
+  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
+  return slh_dsa_sign_internal(contextualized_msg, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+
+def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
+  """
+  The SLH-DSA verification procedure. Recovers the root hash of the root tree from a `signature`
+  on a given `message`, and checks it against `sl_root`.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `signature`: an SLH-DSA signature of length
+      `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+    - `ctx`: a variable-length context byte string.
+      - Must be at most 255 bytes long.
+    - `pk_seed`: a 16-byte salt.
+    - `sl_root`: the 16-byte root hash of the stateless root tree.
+  - Output:
+    - A boolean indicating if the signature is valid.
+
+  This function is only used in the stateless path, and only by the verifier.
+
+  This is a simple wrapper around `slh_dsa_verify_internal` which prepends an optional context string
+  `ctx` to every message. Signatures must use be produced via `slh_dsa_sign` with the same `ctx` string.
+  """
+  assert len(ctx) < 256
+  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
+  return slh_dsa_verify_internal(contextualized_msg, signature, pk_seed, sl_root)
+
+
+#  SHRINCS algorithms
+
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
+  """
+  The SHRINCS key-generation procedure. Computes secret and public keys from a given 48-byte `seed`
+  and the `sf_structure` of the stateful FXMSS tree.
+
+  - Inputs:
+    - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
+    - `sf_structure`: a 2-byte identifier describing the shape and depth of the stateful FXMSS tree.
+  - Outputs:
+    - the SHRINCS secret key, of length 82 bytes.
+    - the SHRINCS public key, of length 48 bytes.
+
+  > [!WARNING]
+  > The `sf_structure` argument must come from a trusted source or else be validated.
+  > If an adversary can control `sf_structure` they may cause key-generation to fail, or hang
+  > consuming compute resources by making the implementation generate a very large BXMSS tree.
+  """
+  assert len(seed) == 48
+  assert len(sf_structure) == 2
+
+  sk_seed = seed[0:16]
+  sk_prf  = seed[16:32]
+  pk_seed = seed[32:48]
+
+  ADRS = bytearray(22)
+  ADRS[0] = SPHX_LAYER_COUNT - 1
+  sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, ADRS)
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, sf_structure, bytearray(22))
+
+  shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
+  shrincs_pubkey = pk_seed + sl_root + sf_root
+  return (shrincs_seckey, shrincs_pubkey)
+
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[int, int]]:
+  """
+  The SHRINCS stateful path leaf selection algorithm. Given an FXMSS tree `structure` and the
+  current `state_ctr` counter, this function computes the position of the next WOTS+C leaf in
+  the FXMSS tree, returned as a tuple of `(index, height)` integers.
+
+  - Inputs:
+    - `structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `state_ctr`: an integer indicating how many stateful signatures the SHRINCS keypair has
+      previously issued.
+  - Outputs:
+    - The left-to-right index of the next WOTS+C leaf in the FXMSS tree that should be used.
+    - The bottom-to-top height of the next WOTS+C leaf in the FXMSS tree that should be used.
+
+  Returns `None` if `state_ctr` is set to any negative number, or if `state_ctr + 1` exceeds the
+  number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
+
+  This function is only used in the stateful path, and only by the signer.
+  """
+  tree_shape, tree_depth = structure[0], structure[1]
+  if tree_shape == FXMSS_SHAPE_UNBALANCED:
+    if state_ctr == tree_depth:
+      return (0, FXMSS_HEIGHT - tree_depth)
+    if state_ctr >= 0 and state_ctr < tree_depth + 1:
+      return (1, FXMSS_HEIGHT - 1 - state_ctr)
+
+  elif tree_shape == FXMSS_SHAPE_BALANCED:
+    if state_ctr >= 0 and state_ctr < 2**tree_depth:
+      return (state_ctr, FXMSS_HEIGHT - tree_depth)
+
+  # - unknown FXMSS tree shape
+  # - no more signatures left
+  # - state is negative (explicitly invalid)
+  return None
+
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
+  """
+  The SHRINCS signing function. Signs `message` with the serialized SHRINCS secret key
+  `shrincs_seckey`. If `state_ctr` is non-negative and valid for the stateful tree
+  structure specified in the secret key, then this function will use the stateful path and
+  will return a variable-length FXMSS signature. Otherwise it will fall back to the
+  stateless signing path and use SLH-DSA to sign the message.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `shrincs_seckey`: an 82-byte SHRINCS secret key.
+    - `state_ctr`: an integer indicating how many stateful signatures the SHRINCS keypair has
+      previously issued.
+    - `opt_rand`: (optional) a 16-byte string used to salt the randomizer in SLH-DSA. Not used
+      in the stateful signing path. If omitted, the stateless signing path will use the
+      deterministic variant of SLH-DSA.
+  - Output:
+    - A variable-length SHRINCS signature (a byte string).
+
+  This function is only used by the signer.
+
+  > [!CAUTION]
+  > Using the same key to sign different `message` values with the same `state_ctr` is
+  > a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
+  > which increments and saves the state counter as `state_ctr + 1` on a persistent,
+  > non-recoverable storage medium before the signature is returned to the caller.
+  >
+  > The only exception is for invalid (i.e. negative) values of `state_ctr`, which
+  > explicitly trigger use of the stateful path.
+  """
+  sk_seed      = shrincs_seckey[0:16]
+  sk_prf       = shrincs_seckey[16:32]
+  pk_seed      = shrincs_seckey[32:48]
+  sl_root      = shrincs_seckey[48:64]
+  sf_structure = shrincs_seckey[64:66]
+  sf_root      = shrincs_seckey[66:82]
+
+  leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
+
+  # Stateless signing path.
+  if leaf_position is None:
+    # bind the stateless signature to the stateful keypair.
+    return slh_dsa_sign(sf_root + message, b"", sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+
+  # Stateful signing path.
+  leaf_index, leaf_height = leaf_position
+  ADRS = bytearray(22)
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
+  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, message)
+
+  # bind the stateful signature to the stateless keypair.
+  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+  fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+
+  # TODO: compact encoding for leaf index
+  return R + leaf_index.to_bytes(8) + fxmss_signature
+
+def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> bool:
+  """
+  The SHRINCS verification procedure. Returns true if `signature` is a valid stateful
+  or stateless SHRINCS signature on `message`, issued by the given `shrincs_pubkey`.
+
+  Based on the length of `signature`, the verifier either recomputes `sf_root`
+  (stateful path) or recomputes `sl_root` (stateless path), and compares the result
+  against the public key.
+
+  - Inputs:
+    - `message`: an arbitrary-length byte string.
+    - `signature`: an arbitrary-length byte string, claimed to be a SHRINCS signature.
+    - `shrincs_pubkey`: an 48-byte SHRINCS public key.
+  - Output:
+    - A boolean indicating if the signature is valid.
+
+  This function is used only by the verifier.
+  """
+  pk_seed = shrincs_pubkey[0:16]
+  sl_root = shrincs_pubkey[16:32]
+  sf_root = shrincs_pubkey[32:48]
+
+  # Stateless verification path
+  if len(signature) == 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+    # stateless signatures must be bound to the stateful keypair.
+    return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
+
+  # Stateful verification path
+  if len(signature) < 24:
+    return False
+
+  R = signature[0:16]
+  leaf_index = int.from_bytes(signature[16:24])
+  fxmss_signature = signature[24:len(signature)]
+
+  # Signature must be at least `2 + 16 * WOTS_C_CHAIN_COUNT` bytes.
+  if len(fxmss_signature) < 2 + 16 * WOTS_C_CHAIN_COUNT:
+    return False
+  # Signature must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes.
+  elif len(fxmss_signature) > 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT):
+    return False
+  # Signature length must be 2 more than a multiple of 16.
+  elif (len(fxmss_signature) - 2) % 16 != 0:
+    return False
+
+  leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT
+  leaf_height = FXMSS_HEIGHT - leaf_depth
+
+  ADRS = bytearray(22)
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
+
+  # stateful signatures must be bound to the stateless keypair.
+  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+  root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
+  return root is not None and root == sf_root
