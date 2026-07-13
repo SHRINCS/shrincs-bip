@@ -277,12 +277,12 @@ def hmac_sha256(key: bytes, msg: bytes) -> bytes:
 
 SHA256 and HMAC outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`
 
-The following sections describe tweaked hash functions to fill different roles.
+The following sections describe tweakable hash functions to fill different roles.
 
 
 ### `T_sl(...)`
 
-The tweaked hash function `T_sl`.
+The tweakable hash function `T_sl`.
 
 <!-- DOC START T_sl -->
 Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
@@ -307,7 +307,7 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 
 ### `T_sf(...)`
 
-The tweaked hash function `T_sf`.
+The tweakable hash function `T_sf`.
 
 <!-- DOC START T_sf -->
 Hashes an input `M_l`, which is a sequence of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long,
@@ -332,7 +332,7 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 
 ### `T_k(...)`
 
-The tweaked hash function `T_k`.
+The tweakable hash function `T_k`.
 
 <!-- DOC START T_k -->
 Hashes an input `M_k`, which is a sequence of `SPHX_FORS_COUNT` hashes, each 16 bytes long,
@@ -357,7 +357,7 @@ def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
 
 ### `F(...)`
 
-The tweaked hash function `F`.
+The tweakable hash function `F`.
 
 <!-- DOC START F -->
 Hashes an input `M_1`, which is a single 16-byte hash. This function will be used to generate
@@ -381,7 +381,7 @@ def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
 
 ### `H(...)`
 
-The tweaked hash function `H`.
+The tweakable hash function `H`.
 
 <!-- DOC START H -->
 Hashes an input `M_2`, which is a pair of 16-byte hashes, concatenated together. This function
@@ -405,7 +405,7 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
 
 ### `H_grind(...)`
 
-The tweaked hash function `H_grind`.
+The tweakable hash function `H_grind`.
 
 <!-- DOC START H_grind -->
 Hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to
@@ -437,7 +437,7 @@ Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash in
 
 ### `PRF(...)`
 
-The tweaked hash function `PRF`.
+The tweakable hash function `PRF`.
 
 <!-- DOC START PRF -->
 Hashes `sk_seed` with an `ADRS` to derive secret preimage values needed for signing and key
@@ -463,7 +463,7 @@ Note the order of the arguments passed to `PRF` is _not_ the same order in which
 
 ### `H_msg_sl(...)`
 
-The tweaked hash function `H_msg_sl`.
+The tweakable hash function `H_msg_sl`.
 
 <!-- DOC START H_msg_sl -->
 Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
@@ -479,7 +479,7 @@ bytestring `M`. It will be used to produce a digest for signing in the stateless
 
 This function is only used in the stateless path.
 
-Note that `pk_seed` is not padded in this tweaked hash function.
+Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
 def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
@@ -492,7 +492,7 @@ The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` sa
 
 ### `H_msg_sf(...)`
 
-The tweaked hash function `H_msg_sf`.
+The tweakable hash function `H_msg_sf`.
 
 <!-- DOC START H_msg_sf -->
 Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `ADRS`, a merkle root `root`,
@@ -512,7 +512,7 @@ TODO: can `ADRS[:9]` be used only once?
 
 This function is only used in the stateful path.
 
-Note that `pk_seed` is not padded in this tweaked hash function.
+Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
 def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -> bytes:
@@ -530,7 +530,7 @@ Unlike `H_msg_sl`, this function is a SHRINCS-specific construction and is **not
 
 ### `PRF_msg_sl(...)`
 
-The tweaked hash function `PRF_msg_sl`.
+The tweakable hash function `PRF_msg_sl`.
 
 <!-- DOC START PRF_msg_sl -->
 Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
@@ -559,7 +559,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 
 ### `PRF_msg_sf(...)`
 
-The tweaked hash function `PRF_msg_sf`.
+The tweakable hash function `PRF_msg_sf`.
 
 <!-- DOC START PRF_msg_sf -->
 Uses HMAC-SHA256 to hash `sk_prf`, the `pk_seed`, an `ADRS`, and an arbitrary-length message `M`. This function
@@ -592,7 +592,7 @@ We only use the first 9 bytes of `ADRS`, because these bytes encode the position
 - `PRF_msg` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
 - The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
-- These tweaked hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data. Inputs should not be copied in memory unless securely erased afterwards.
+- These tweakable hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data. Inputs should not be copied in memory unless securely erased afterwards.
 - Many of these hash functions are invoked on independent data, and so can be run in parallel. Platforms with access to vectorized (SIMD) instruction sets on x86[^simd_x86] or ARM[^simd_arm] CPUs may utilize them to parallelize SHA256[^sha256x8] to improve performance significantly: a factor of 4 or more in some cases.
 - Implementors can use SHA2 hardware acceleration[^sha_ni], though this is best used to accelerate verification, not signing or keygen[^sha_ni_bench].
 
