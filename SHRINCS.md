@@ -543,8 +543,8 @@ the stateless path.
 This function is only used in the stateless path, and only by the signer.
 
 `opt_rand` is set to either `pk_seed` (giving the "deterministic variant" of SLH-DSA[^slhdsa]),
-or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, resistant to
-side-channel attacks).
+or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases
+resistance to side-channel attacks).
 
 ```py
 def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
