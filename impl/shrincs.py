@@ -559,7 +559,7 @@ def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: byt
   - Output:
     - A 16-byte hash representing the WOTS+C public key, or null.
 
-  This algorithm is used by both signers and verifiers.
+  This algorithm is used only by the verifier.
   """
   counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, ADRS, counter)

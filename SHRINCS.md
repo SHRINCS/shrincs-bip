@@ -1026,7 +1026,7 @@ should be prefilled with the location of the WOTS keypair being used.
 - Output:
   - A 16-byte hash representing the WOTS+C public key, or null.
 
-This algorithm is used by both signers and verifiers.
+This algorithm is used only by the verifier.
 
 ```py
 def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
