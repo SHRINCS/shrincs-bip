@@ -588,6 +588,8 @@ def xmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
   """
   The XMSS internal node computation helper function. This is a recursive function which takes
   in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an `ADRS`.
+  The `ADRS` must be prefilled with the location of the XMSS tree in the hypertree to ensure
+  the hashes are properly tweaked.
 
   - Inputs:
     - `sk_seed`: a 16-byte secret.
@@ -622,7 +624,8 @@ def xmss_sign(message: bytes, sk_seed: bytes, keypair_index: int, pk_seed: bytes
   The XMSS signing procedure. This function produces a deterministic WOTS-TW signature using a
   specific leaf of a XMSS tree, and appends a merkle authentication path to form a XMSS
   signature. Takes in the `message` to sign, the `sk_seed`, the `keypair_index` to sign with,
-  the `pk_seed`, and an `ADRS`.
+  the `pk_seed`, and an `ADRS`. The `ADRS` must be prefilled with the location of the XMSS tree
+  in the hypertree to ensure the hashes are properly tweaked.
 
   - Inputs:
     - `message`: a 16-byte message to sign.
@@ -650,7 +653,8 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   """
   The XMSS verification function. Recovers an XMSS public key from a `signature` on a given
   16-byte `message`. Takes in the `pk_seed`, and an `ADRS`. The exact position of the WOTS-TW
-  signing leaf is given by the `keypair_index` argument.
+  signing leaf is given by the `keypair_index` argument. The `ADRS` must be prefilled with the
+  location of the XMSS tree in the hypertree to ensure the hashes are properly tweaked.
 
   - Inputs:
     - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
@@ -900,7 +904,9 @@ def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, tree_index: int
   """
   The FORS secret preimage generation function. Generates a secret 16-byte preimage from `sk_seed`.
   Takes in `pk_seed`, an `ADRS`, and the `tree_index` to indicate the position of the FORS leaf
-  in the forest.
+  in the forest. The `ADRS` must be prefilled with the location of the FORS keypair to ensure
+  the hashes are properly tweaked.
+
 
   - Inputs:
     - `sk_seed`: a 16-byte secret.
@@ -924,7 +930,8 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
   """
   The FORS internal merkle node computation helper function. This is a recursive function which
   takes in the `sk_seed`, `pk_seed`, an `ADRS`, and integers `node_height`, `node_index` which
-  describe the position of the FORS node in the forest of merkle trees.
+  describe the position of the FORS node in the forest of merkle trees. The `ADRS` must be
+  prefilled with the location of the FORS keypair to ensure the hashes are properly tweaked.
 
   - Inputs:
     - `sk_seed`: a 16-byte secret.
@@ -960,7 +967,8 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
 def fors_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   """
   The FORS signing function. Signs a `message_digest`, using `sk_seed` and `pk_seed`, with the
-  location of the FORS leaf specified in `ADRS`.
+  location of the FORS leaf specified in `ADRS`. The `ADRS` must be prefilled with the location
+  of the FORS keypair to ensure the hashes are properly tweaked.
 
   - Inputs:
     - `message_digest`: a digest of a message to sign.
@@ -986,7 +994,8 @@ def fors_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytea
 def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   """
   The FORS verification procedure. Recovers a FORS public key hash from the given `signature` on a
-  `message_digest`. Takes in a `pk_seed` and `ADRS`.
+  `message_digest`. Takes in a `pk_seed` and `ADRS`. The `ADRS` must be prefilled with the location
+  of the FORS keypair to ensure the hashes are properly tweaked.
 
   - Inputs:
     - `signature`: a byte string of length `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`.
