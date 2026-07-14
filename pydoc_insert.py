@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+import inspect
 from argparse import ArgumentParser
 import shutil
 
@@ -26,7 +27,7 @@ class SpecFunction:
     code_start_line = positions[1][0] - 1
     code_end_line = positions[-1][0]
     if fn.__doc__ is not None:
-      self.docstring = '\n'.join(fn.__doc__.strip().split('\n  '))
+      self.docstring = inspect.cleandoc(fn.__doc__)
     else:
       self.docstring = None
     self.codestring = '\n'.join([shrincs_code_lines[def_line], *shrincs_code_lines[code_start_line : code_end_line]])
