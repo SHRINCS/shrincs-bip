@@ -945,7 +945,8 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
   This function is only used in the stateless path, and only by the signer.
 
   Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-  within a single tree. The index of node `l` in tree `t` at height `h` is `t * 2**h + l`.
+  within a single tree. The index of node `l` in tree `t` at height `h` is
+  `t * 2**(SPHX_FORS_HEIGHT - h) + l`.
   """
   if node_height == 0:
     preimage = fors_sk_gen(sk_seed, pk_seed, ADRS, node_index)

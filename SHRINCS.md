@@ -1664,7 +1664,8 @@ prefilled with the location of the FORS keypair to ensure the hashes are properl
 This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-within a single tree. The index of node `l` in tree `t` at height `h` is `t * 2**h + l`.
+within a single tree. The index of node `l` in tree `t` at height `h` is
+`t * 2**(SPHX_FORS_HEIGHT - h) + l`.
 
 ```py
 def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
