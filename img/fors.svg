@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 680" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 730" font-family="Segoe UI, Helvetica, Arial, sans-serif">
   <!-- background -->
-  <rect x="0" y="0" width="1040" height="680" fill="#2b2d31"/>
+  <rect x="0" y="0" width="1040" height="730" fill="#2b2d31"/>
 
   <!-- arrowhead marker -->
   <defs>
@@ -11,7 +11,7 @@
 
   <!-- title -->
   <text x="520" y="34" fill="#f0f0f0" font-size="22" font-weight="600" text-anchor="middle">FORS — Forest Of Random Subsets (FIPS-205)</text>
-  <text x="520" y="56" fill="#9aa0a6" font-size="13" text-anchor="middle">k trees, each of height a (2&#170; leaves). Message digest selects one leaf per tree.</text>
+  <text x="520" y="56" fill="#9aa0a6" font-size="13" text-anchor="middle">k trees, each of height a (2&#170; leaves). Each leaf = F(sk); the secret preimage sk sits hidden beneath it.</text>
 
   <!-- ===================== FORS PUBLIC KEY ===================== -->
   <rect x="430" y="78" width="180" height="40" rx="8" fill="#5a3a82" stroke="#b07ad0" stroke-width="2"/>
@@ -39,6 +39,26 @@
     <line x1="890" y1="255" x2="860" y2="340"/><line x1="890" y1="255" x2="920" y2="340"/>
   </g>
 
+  <!-- ===================== LEAF -> PREIMAGE EDGES (hash step F) ===================== -->
+  <!-- revealed (orange), hidden (dashed grey) -->
+  <g>
+    <!-- tree0 -->
+    <line x1="120" y1="353" x2="120" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <line x1="180" y1="353" x2="180" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <line x1="240" y1="354" x2="240" y2="405" stroke="#f0a85a" stroke-width="2"/>
+    <line x1="300" y1="353" x2="300" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <!-- tree1 -->
+    <line x1="430" y1="354" x2="430" y2="405" stroke="#f0a85a" stroke-width="2"/>
+    <line x1="490" y1="353" x2="490" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <line x1="550" y1="353" x2="550" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <line x1="610" y1="353" x2="610" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <!-- tree2 -->
+    <line x1="740" y1="353" x2="740" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <line x1="800" y1="354" x2="800" y2="405" stroke="#f0a85a" stroke-width="2"/>
+    <line x1="860" y1="353" x2="860" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <line x1="920" y1="353" x2="920" y2="405" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+  </g>
+
   <!-- ===================== NODES ===================== -->
   <!-- roots (green) -->
   <g>
@@ -64,8 +84,8 @@
     <circle cx="890" cy="255" r="13" fill="#2f5d8a" stroke="#5aa0e0" stroke-width="2"/>
   </g>
 
-  <!-- leaves -->
-  <!-- orange = selected (secret revealed); blue = auth path; grey = unused -->
+  <!-- leaves (hash of preimage) -->
+  <!-- orange = selected; blue = auth path; grey = unused -->
   <g>
     <!-- tree0 -->
     <circle cx="120" cy="340" r="13" fill="#3c4046" stroke="#6b7280" stroke-width="1.5"/>
@@ -84,45 +104,85 @@
     <circle cx="920" cy="340" r="13" fill="#3c4046" stroke="#6b7280" stroke-width="1.5"/>
   </g>
 
+  <!-- preimage nodes (secret sk, hidden behind the hash) -->
+  <!-- revealed (orange) under selected leaves; hidden (dashed) otherwise -->
+  <g font-size="8" text-anchor="middle">
+    <!-- tree0 -->
+    <rect x="110" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <rect x="170" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <rect x="229" y="404" width="22" height="22" rx="4" fill="#b5621e" stroke="#f0a85a" stroke-width="2.5"/>
+    <rect x="290" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <!-- tree1 -->
+    <rect x="419" y="404" width="22" height="22" rx="4" fill="#b5621e" stroke="#f0a85a" stroke-width="2.5"/>
+    <rect x="480" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <rect x="540" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <rect x="600" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <!-- tree2 -->
+    <rect x="730" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <rect x="789" y="404" width="22" height="22" rx="4" fill="#b5621e" stroke="#f0a85a" stroke-width="2.5"/>
+    <rect x="850" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+    <rect x="910" y="405" width="20" height="20" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+
+    <!-- labels -->
+    <text x="120" y="419" fill="#9aa0a6">sk</text>
+    <text x="180" y="419" fill="#9aa0a6">sk</text>
+    <text x="240" y="419" fill="#ffe6cc">sk</text>
+    <text x="300" y="419" fill="#9aa0a6">sk</text>
+    <text x="430" y="419" fill="#ffe6cc">sk</text>
+    <text x="490" y="419" fill="#9aa0a6">sk</text>
+    <text x="550" y="419" fill="#9aa0a6">sk</text>
+    <text x="610" y="419" fill="#9aa0a6">sk</text>
+    <text x="740" y="419" fill="#9aa0a6">sk</text>
+    <text x="800" y="419" fill="#ffe6cc">sk</text>
+    <text x="860" y="419" fill="#9aa0a6">sk</text>
+    <text x="920" y="419" fill="#9aa0a6">sk</text>
+  </g>
+
   <!-- tree labels -->
-  <text x="210" y="378" fill="#9aa0a6" font-size="11" text-anchor="middle">tree 0</text>
-  <text x="520" y="378" fill="#9aa0a6" font-size="11" text-anchor="middle">tree 1</text>
-  <text x="830" y="378" fill="#9aa0a6" font-size="11" text-anchor="middle">tree k&#8722;1</text>
+  <text x="210" y="448" fill="#9aa0a6" font-size="11" text-anchor="middle">tree 0</text>
+  <text x="520" y="448" fill="#9aa0a6" font-size="11" text-anchor="middle">tree 1</text>
+  <text x="830" y="448" fill="#9aa0a6" font-size="11" text-anchor="middle">tree k&#8722;1</text>
   <text x="670" y="265" fill="#cfa14a" font-size="22" text-anchor="middle">&#183;&#183;&#183;</text>
 
   <!-- ===================== MESSAGE DIGEST ===================== -->
   <g>
-    <rect x="120" y="442" width="180" height="34" rx="6" fill="#3a3d42" stroke="#e89a4a" stroke-width="1.5"/>
-    <rect x="430" y="442" width="180" height="34" rx="6" fill="#3a3d42" stroke="#e89a4a" stroke-width="1.5"/>
-    <rect x="740" y="442" width="180" height="34" rx="6" fill="#3a3d42" stroke="#e89a4a" stroke-width="1.5"/>
-    <text x="210" y="464" fill="#f0d4b4" font-size="12" text-anchor="middle">idx&#8320; = 2</text>
-    <text x="520" y="464" fill="#f0d4b4" font-size="12" text-anchor="middle">idx&#8321; = 0</text>
-    <text x="830" y="464" fill="#f0d4b4" font-size="12" text-anchor="middle">idx&#8342;&#8331;&#8321; = 1</text>
+    <rect x="120" y="490" width="180" height="34" rx="6" fill="#3a3d42" stroke="#e89a4a" stroke-width="1.5"/>
+    <rect x="430" y="490" width="180" height="34" rx="6" fill="#3a3d42" stroke="#e89a4a" stroke-width="1.5"/>
+    <rect x="740" y="490" width="180" height="34" rx="6" fill="#3a3d42" stroke="#e89a4a" stroke-width="1.5"/>
+    <text x="210" y="512" fill="#f0d4b4" font-size="12" text-anchor="middle">idx&#8320; = 2</text>
+    <text x="520" y="512" fill="#f0d4b4" font-size="12" text-anchor="middle">idx&#8321; = 0</text>
+    <text x="830" y="512" fill="#f0d4b4" font-size="12" text-anchor="middle">idx&#8342;&#8331;&#8321; = 1</text>
   </g>
 
-  <!-- arrows digest -> selected leaf -->
-  <line x1="240" y1="442" x2="240" y2="358" stroke="#e89a4a" stroke-width="1.8" marker-end="url(#arrow)"/>
-  <line x1="520" y1="442" x2="432" y2="358" stroke="#e89a4a" stroke-width="1.8" marker-end="url(#arrow)"/>
-  <line x1="830" y1="442" x2="801" y2="358" stroke="#e89a4a" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <!-- arrows digest -> selected preimage (revealed sk) -->
+  <line x1="240" y1="490" x2="240" y2="428" stroke="#e89a4a" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="520" y1="490" x2="432" y2="428" stroke="#e89a4a" stroke-width="1.8" marker-end="url(#arrow)"/>
+  <line x1="830" y1="490" x2="801" y2="428" stroke="#e89a4a" stroke-width="1.8" marker-end="url(#arrow)"/>
 
   <!-- ===================== LEGEND ===================== -->
-  <rect x="120" y="510" width="800" height="138" rx="10" fill="#33363b" stroke="#4a4e54" stroke-width="1"/>
-  <text x="140" y="534" fill="#f0f0f0" font-size="14" font-weight="600">Legend</text>
+  <rect x="120" y="560" width="800" height="152" rx="10" fill="#33363b" stroke="#4a4e54" stroke-width="1"/>
+  <text x="140" y="584" fill="#f0f0f0" font-size="14" font-weight="600">Legend</text>
 
-  <circle cx="150" cy="558" r="9" fill="#b5621e" stroke="#f0a85a" stroke-width="2.5"/>
-  <text x="170" y="562" fill="#dddddd" font-size="12">Selected leaf — secret value sk revealed in signature</text>
+  <circle cx="150" cy="606" r="9" fill="#b5621e" stroke="#f0a85a" stroke-width="2.5"/>
+  <text x="170" y="610" fill="#dddddd" font-size="12">Selected leaf — the hash F(sk) of the revealed preimage</text>
 
-  <circle cx="150" cy="584" r="9" fill="#2f5d8a" stroke="#5aa0e0" stroke-width="2"/>
-  <text x="170" y="588" fill="#dddddd" font-size="12">Authentication-path node (sibling) included in signature</text>
+  <circle cx="150" cy="632" r="9" fill="#2f5d8a" stroke="#5aa0e0" stroke-width="2"/>
+  <text x="170" y="636" fill="#dddddd" font-size="12">Authentication-path node (sibling) included in signature</text>
 
-  <circle cx="150" cy="610" r="9" fill="#2f6b4a" stroke="#5ad08a" stroke-width="2"/>
-  <text x="170" y="614" fill="#dddddd" font-size="12">Sub-tree root (recomputed during verification)</text>
+  <circle cx="150" cy="658" r="9" fill="#2f6b4a" stroke="#5ad08a" stroke-width="2"/>
+  <text x="170" y="662" fill="#dddddd" font-size="12">Sub-tree root (recomputed during verification)</text>
 
-  <rect x="556" y="550" width="18" height="16" rx="4" fill="#5a3a82" stroke="#b07ad0" stroke-width="2"/>
-  <text x="582" y="563" fill="#dddddd" font-size="12">FORS public key; hash of all k roots</text>
+  <rect x="141" y="678" width="18" height="18" rx="4" fill="#b5621e" stroke="#f0a85a" stroke-width="2.5"/>
+  <text x="170" y="691" fill="#dddddd" font-size="12">Revealed preimage sk — secret hashed to the selected leaf</text>
 
-  <circle cx="565" cy="584" r="9" fill="#3c4046" stroke="#6b7280" stroke-width="1.5"/>
-  <text x="582" y="588" fill="#dddddd" font-size="12">Unused / recomputed node</text>
+  <rect x="556" y="598" width="18" height="16" rx="4" fill="#5a3a82" stroke="#b07ad0" stroke-width="2"/>
+  <text x="582" y="611" fill="#dddddd" font-size="12">FORS public key; hash of all k roots</text>
 
-  <text x="556" y="614" fill="#9aa0a6" font-size="11.5">Signature = (sk&#7522;, auth&#7522;) for i = 0 … k&#8722;1</text>
+  <circle cx="565" cy="632" r="9" fill="#3c4046" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="582" y="636" fill="#dddddd" font-size="12">Unused / recomputed node</text>
+
+  <rect x="556" y="653" width="18" height="18" rx="4" fill="#2f333a" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 2"/>
+  <text x="582" y="666" fill="#dddddd" font-size="12">Hidden preimage sk (secret, never revealed)</text>
+
+  <text x="556" y="691" fill="#9aa0a6" font-size="11.5">Signature = (sk&#7522;, auth&#7522;) for i = 0 … k&#8722;1</text>
 </svg>
