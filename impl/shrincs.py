@@ -854,7 +854,7 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
   - Inputs:
     - `node_index`: a 64-bit unsigned integer.
     - `signature`: a variable-length FXMSS signature.
-      - Must be at least `2 + 16 * WOTS_C_CHAIN_COUNT` bytes long.
+      - Must be at least `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` bytes long.
       - Must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
       - Byte length must be 2 more than a multiple of 16.
     - `message_digest`: a 32-byte message digest.
@@ -1250,16 +1250,17 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[i
   """
   tree_shape, tree_depth = structure[0], structure[1]
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    if state_ctr == tree_depth:
+    if state_ctr == tree_depth and tree_depth > 0:
       return (0, FXMSS_HEIGHT - tree_depth)
     if state_ctr >= 0 and state_ctr < tree_depth + 1:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr >= 0 and state_ctr < 2**tree_depth:
+    if state_ctr >= 0 and state_ctr < 2**tree_depth and tree_depth > 0:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
   # - unknown FXMSS tree shape
+  # - depth-zero tree
   # - no more signatures left
   # - state is negative (explicitly invalid)
   return None
@@ -1357,8 +1358,8 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   leaf_index = int.from_bytes(signature[16:24])
   fxmss_signature = signature[24:len(signature)]
 
-  # Signature must be at least `2 + 16 * WOTS_C_CHAIN_COUNT` bytes.
-  if len(fxmss_signature) < 2 + 16 * WOTS_C_CHAIN_COUNT:
+  # Signature must be at least `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` bytes.
+  if len(fxmss_signature) < 2 + 16 * (WOTS_C_CHAIN_COUNT + 1):
     return False
   # Signature must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes.
   elif len(fxmss_signature) > 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT):
