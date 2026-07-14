@@ -916,7 +916,7 @@ def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, tree_index: int
   - Output:
     - A 16-byte preimage.
 
-  This algorithm is used only by the signer.
+  This function is only used in the stateless path, and only by the signer.
 
   Note the `tree_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
   within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
