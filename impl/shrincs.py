@@ -661,7 +661,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   - Output:
     - a 16-byte XMSS root node hash
 
-  This algorithm is used only by the signer.
+  This algorithm is used both by the signer and the verifier.
   """
   wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT*16]
   xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_XMSS_HEIGHT)*16]

@@ -1198,7 +1198,7 @@ signing leaf is given by the `keypair_index` argument.
 - Output:
   - a 16-byte XMSS root node hash
 
-This algorithm is used only by the signer.
+This algorithm is used both by the signer and the verifier.
 
 ```py
 def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
