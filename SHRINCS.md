@@ -516,7 +516,7 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
 
 The `sk_prf` is padded with `0xFF` up until it is 64 bytes long. This ensures domain separation between stateful and stateless paths.
 
-We remove the randomization input option for the stateful path compared to `PRF_msg_sl` as the same WOTS+C instance signs the message only once, and in the misuse scenario where the same message queried under the same state, prodcing exactly the same signature will not constitute a forgery.
+We remove the randomization input option for the stateful path compared to `PRF_msg_sl` as the same WOTS+C instance can sign a message only once, but in a misuse scenario where the same message is queried for a signature under the same state, producing exactly the same signature will not constitute a forgery.
 
 We only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
 
