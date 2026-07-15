@@ -2233,6 +2233,10 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT
   leaf_height = FXMSS_HEIGHT - leaf_depth
 
+  # Reject a leaf_index that names no position in a tree of this depth.
+  if leaf_index >= 2 ** min(64, leaf_depth):
+    return False
+
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
