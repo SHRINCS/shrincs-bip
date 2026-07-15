@@ -143,12 +143,12 @@ We now define the signature verification algorithms for these two flags.
 
 A SHRINCS public key is a 48-byte string constructed as:
 <pre>
-PK = PK.seed || PK.sf_root || PK.sl_root
+PK = PK.seed || PK.sl_root || PK.sf_root
 </pre>
 
 * <code>PK.seed</code> is a domain separator, used in all hash operations while producing the signature.
-* <code>PK.sf_root</code> is a root commitment to a stateful XMSS public key.
 * <code>PK.sl_root</code> is a root commitment to a stateless SPHINCS public key.
+* <code>PK.sf_root</code> is a root commitment to a stateful XMSS public key.
 
 
 ====Signature Format====
