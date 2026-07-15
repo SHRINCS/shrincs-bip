@@ -232,9 +232,9 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
   """
   return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + zeros(4))
 
-def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -> bytes:
+def H_msg_sf(R: bytes, ADRS: bytearray, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
   """
-  Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `ADRS`, a merkle root `root`,
+  Hashes a _randomizer_ `R`, a WOTS+C leaf `ADRS`, the `pk_seed`, a merkle root `root`,
   and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
   signing in the stateful path.
 
@@ -1325,7 +1325,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   R = PRF_msg_sf(sk_prf, pk_seed, ADRS, message)
 
   # bind the stateful signature to the stateless keypair.
-  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+  message_digest = H_msg_sf(R, ADRS, pk_seed, sf_root, sl_root + message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
 
   # TODO: compact encoding for leaf index
@@ -1384,6 +1384,6 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   ADRS[1:9] = leaf_index.to_bytes(8)
 
   # stateful signatures must be bound to the stateless keypair.
-  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+  message_digest = H_msg_sf(R, ADRS, pk_seed, sf_root, sl_root + message)
   root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
   return root is not None and root == sf_root
