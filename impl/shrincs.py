@@ -104,7 +104,7 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
     - `ADRS`: a 22-byte address.
     - `M_l`: a `WOTS_TW_CHAIN_COUNT * 16`-byte concatenation of chain tips.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
@@ -120,7 +120,7 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
     - `ADRS`: a 22-byte address.
     - `M_l`: a `WOTS_C_CHAIN_COUNT * 16`-byte concatenation of chain tips.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is only used in the stateful path, and by both the signer and the verifier.
   """
@@ -136,7 +136,7 @@ def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
     - `ADRS`: a 22-byte address.
     - `M_k`: a `SPHX_FORS_COUNT * 16`-byte concatenation of FORS tree roots.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
@@ -152,7 +152,7 @@ def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
     - `ADRS`: a 22-byte address.
     - `M_1`: a 16-byte hash.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is used in both stateful and stateless paths, and by both the signer and the verifier.
   """
@@ -168,7 +168,7 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
     - `ADRS`: a 22-byte address.
     - `M_2`: a 32-byte concatenation of two child node hashes.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is used in both stateful and stateless paths, and by both the signer and the verifier.
   """
@@ -185,7 +185,7 @@ def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> byt
     - `digest`: a 32-byte digest.
     - `counter`: a 16-bit unsigned integer.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is only used in the stateful path, and by both the signer and the verifier.
   """
@@ -202,7 +202,7 @@ def PRF(pk_seed: bytes, sk_seed: bytes, ADRS: bytearray) -> bytes:
     - `sk_seed`: a 16-byte secret.
     - `ADRS`: a 22-byte address.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is used in both stateful and stateless paths, but only by the signer.
   """
@@ -218,7 +218,7 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
     - `root`: a 16-byte hash.
     - `M`: a message of at most `2**61 - 1 - 48` bytes.
   - Output:
-    - A 32-byte hash.
+    - a 32-byte hash.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
 
@@ -237,7 +237,7 @@ def H_msg_sf(R: bytes, ADRS: bytearray, pk_seed: bytes, root: bytes, M: bytes) -
     - `ADRS`: a 22-byte address.
     - `M`: a message of at most `2**61 - 1 - 57` bytes.
   - Output:
-    - A 32-byte hash.
+    - a 32-byte hash.
 
   This function is only used in the stateful path, and by both the signer and the verifier.
 
@@ -255,7 +255,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
     - `opt_rand`: a 16-byte salt.
     - `M`: a message of at most `2**61 - 1 - 80` bytes.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is only used in the stateless path, and only by the signer.
 
@@ -276,7 +276,7 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
     - `ADRS`: a 22-byte address.
     - `M`: a message of at most `2**61 - 1 - 89` bytes.
   - Output:
-    - A 16-byte hash.
+    - a 16-byte hash.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -298,7 +298,7 @@ def wots_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS: b
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - A 16-byte hash at index `start + steps`.
+    - a 16-byte hash at index `start + steps`.
 
   This function is used in both stateful and stateless paths, and by both the signer and the verifier.
   """
@@ -313,7 +313,7 @@ def wots_tw_message_to_indexes(message: bytes) -> list[int]:
   `WOTS_TW_CHAIN_COUNT` chain indexes in `[0, 2**WOTS_TW_CHAIN_BITS)`.
 
   - Inputs:
-    - `message`: a 16-byte hash
+    - `message`: a 16-byte hash.
   - Output:
     - a checksummed array of `WOTS_TW_CHAIN_COUNT` `WOTS_TW_CHAIN_BITS`-bit unsigned integers.
 
@@ -352,7 +352,7 @@ def wots_tw_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - A 16-byte hash representing the WOTS-TW public key.
+    - a 16-byte hash representing the WOTS-TW public key.
 
   This function is only used in the stateless path, and only by the signer.
   """
@@ -407,7 +407,7 @@ def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, AD
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - A 16-byte hash representing the WOTS-TW public key.
+    - a 16-byte hash representing the WOTS-TW public key.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
@@ -481,7 +481,7 @@ def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - A 16-byte hash representing the WOTS+C public key.
+    - a 16-byte hash representing the WOTS+C public key.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -539,7 +539,7 @@ def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: byt
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - A 16-byte hash representing the WOTS+C public key, or null.
+    - a 16-byte hash representing the WOTS+C public key, or null.
 
   This function is only used in the stateful path, and only by the verifier.
   """
@@ -587,13 +587,13 @@ def xmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
     ADRS[10:14] = node_index.to_bytes(4)
     return wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
 
-  # Recursively derive the left/right child nodes
+  # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
   lchild = xmss_node(sk_seed, lchild_index, child_height, pk_seed, ADRS)
   rchild = xmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, ADRS)
 
-  # Compute & return the parent node.
+  # Compute and return the parent node.
   ADRS[9] = SL_XMSS_TREE
   ADRS[10:14] = zeros(4)
   ADRS[14:18] = node_height.to_bytes(4)
@@ -617,11 +617,11 @@ def xmss_sign(message: bytes, sk_seed: bytes, keypair_index: int, pk_seed: bytes
 
   This function is only used in the stateless path, and only by the signer.
   """
-  # Sign the message with WOTS-TW
+  # Sign the message with WOTS-TW.
   ADRS[10:14] = keypair_index.to_bytes(4)
   sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
 
-  # Append the Merkle authentication path
+  # Append the Merkle authentication path.
   for j in range(SPHX_XMSS_HEIGHT):
     sibling_index = (keypair_index >> j) ^ 1
     sig += xmss_node(sk_seed, sibling_index, j, pk_seed, ADRS)
@@ -641,7 +641,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - a 16-byte XMSS root node hash
+    - a 16-byte XMSS root node hash.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
@@ -666,7 +666,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
   return node
 
 
-#  Hypertree Algorithms
+#  Hypertree algorithms
 
 def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: int, leaf_index: int) -> bytes:
   """
@@ -711,7 +711,7 @@ def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_inde
     - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
   - Output:
-    - A boolean indicating if the signature is valid.
+    - a boolean indicating if the signature is valid.
 
   This function is only used in the stateless path, and only by the verifier.
   """
@@ -760,19 +760,19 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
     ADRS[1:9] = node_index.to_bytes(8)
     return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
 
-  # Catch and throw if control would enter an infinite resursive loop.
+  # Catch and throw if control would enter an infinite recursive loop.
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     assert node_index == 0
   elif tree_shape == FXMSS_SHAPE_BALANCED:
     assert node_depth < tree_depth
 
-  # Recursively derive the left/right child nodes
+  # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
   lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, structure, ADRS)
   rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, structure, ADRS)
 
-  # Compute & return the parent node.
+  # Compute and return the parent node.
   ADRS[0] = node_height
   ADRS[1:9] = node_index.to_bytes(8)
   ADRS[9] = SF_FXMSS_TREE
@@ -810,7 +810,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
 
-  # Append the Merkle authentication path
+  # Append the Merkle authentication path.
   for j in range(leaf_depth):
     sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
@@ -880,7 +880,7 @@ def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, node_index: int
     - `ADRS`: a 22-byte address.
     - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
   - Output:
-    - A 16-byte preimage.
+    - a 16-byte preimage.
 
   This function is only used in the stateless path, and only by the signer.
 
@@ -905,7 +905,7 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
     - `node_index`: a 32-bit unsigned integer, a forest-wide node index in `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
     - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
   - Output:
-    - A 16-byte FORS node hash.
+    - a 16-byte FORS node hash.
 
   This function is only used in the stateless path, and only by the signer.
 
@@ -967,7 +967,7 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - A 16-byte hash of the FORS public key.
+    - a 16-byte hash of the FORS public key.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
@@ -1087,7 +1087,7 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
     - `pk_seed`: a 16-byte salt.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
   - Output:
-    - A boolean indicating if the signature is valid.
+    - a boolean indicating if the signature is valid.
 
   This function is only used in the stateless path, and only by the verifier.
   """
@@ -1146,7 +1146,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
     - `pk_seed`: a 16-byte salt.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
   - Output:
-    - A boolean indicating if the signature is valid.
+    - a boolean indicating if the signature is valid.
 
   This function is only used in the stateless path, and only by the verifier.
 
@@ -1268,7 +1268,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
 
   # Stateless signing path.
   if leaf_position is None:
-    # bind the stateless signature to the stateful keypair.
+    # Bind the stateless signature to the stateful keypair.
     return slh_dsa_sign(sf_root + message, b"", sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
 
   # Stateful signing path.
@@ -1278,7 +1278,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   ADRS[1:9] = leaf_index.to_bytes(8)
   R = PRF_msg_sf(sk_prf, pk_seed, ADRS, message)
 
-  # bind the stateful signature to the stateless keypair.
+  # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, ADRS, pk_seed, sf_root, sl_root + message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
 
@@ -1299,7 +1299,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
     - `signature`: a purported SHRINCS signature of arbitrary length.
     - `shrincs_pubkey`: a 48-byte SHRINCS public key.
   - Output:
-    - A boolean indicating if the signature is valid.
+    - a boolean indicating if the signature is valid.
 
   This function is used only by the verifier.
   """
@@ -1307,12 +1307,12 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   sl_root = shrincs_pubkey[16:32]
   sf_root = shrincs_pubkey[32:48]
 
-  # Stateless verification path
+  # Stateless verification path.
   if len(signature) == 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
-    # stateless signatures must be bound to the stateful keypair.
+    # Stateless signatures must be bound to the stateful keypair.
     return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
 
-  # Stateful verification path
+  # Stateful verification path.
   if len(signature) < 24:
     return False
 
@@ -1341,7 +1341,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
 
-  # stateful signatures must be bound to the stateless keypair.
+  # Stateful signatures must be bound to the stateless keypair.
   message_digest = H_msg_sf(R, ADRS, pk_seed, sf_root, sl_root + message)
   root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
   return root is not None and root == sf_root
