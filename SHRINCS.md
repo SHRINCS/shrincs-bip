@@ -126,11 +126,13 @@ We make use of the following utility helper functions in specifying SHRINCS.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates an array of byte strings.
 
+Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
+
 
 ### `base_2b(...)`
 
 <!-- DOC START base_2b -->
-Decomposes a byte string `x` into `outlen` groups of `b` bits which are each
+Decomposes the bytes `x` into `outlen` groups of `b` bits which are each
 parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
 of `x` are parsed, and so `x` must have accordingly sufficient length.
 
@@ -270,18 +272,17 @@ A tweakable hash function can be thought of as a hash function which supports ad
 The tweakable hash function `T_sl`.
 
 <!-- DOC START T_sl -->
-Hashes an input `M_l`, which is a sequence of `WOTS_TW_CHAIN_COUNT` hashes, each 16 bytes long,
-concatenated together. This function will be used to compress Winternitz chain tips to a single
-hash in SLH-DSA.
+The `T_sl` tweaked hash function. Compresses `WOTS_TW_CHAIN_COUNT` Winternitz chain tips into a
+single 16-byte hash.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: an array of `WOTS_TW_CHAIN_COUNT * 16` bytes.
+  - `M_l`: a `WOTS_TW_CHAIN_COUNT * 16`-byte concatenation of chain tips.
 - Output:
   - A 16-byte hash.
 
-This function is only used in the stateless path.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
 def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
@@ -295,18 +296,17 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 The tweakable hash function `T_sf`.
 
 <!-- DOC START T_sf -->
-Hashes an input `M_l`, which is a sequence of `WOTS_C_CHAIN_COUNT` hashes, each 16 bytes long,
-concatenated together. This function will be used to compress Winternitz chain tips to a single
-hash in FXMSS.
+The `T_sf` tweaked hash function. Compresses `WOTS_C_CHAIN_COUNT` Winternitz chain tips into a
+single 16-byte hash.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: an array of `WOTS_C_CHAIN_COUNT * 16` bytes.
+  - `M_l`: a `WOTS_C_CHAIN_COUNT * 16`-byte concatenation of chain tips.
 - Output:
   - A 16-byte hash.
 
-This function is only used in the stateful path.
+This function is only used in the stateful path, and by both the signer and the verifier.
 
 ```py
 def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
@@ -320,18 +320,17 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 The tweakable hash function `T_k`.
 
 <!-- DOC START T_k -->
-Hashes an input `M_k`, which is a sequence of `SPHX_FORS_COUNT` hashes, each 16 bytes long,
-concatenated together. This function will be used to compress FORS tree roots to a single
-hash in the stateless path.
+The `T_k` tweaked hash function. Compresses `SPHX_FORS_COUNT` FORS tree roots into a single
+16-byte hash.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_k`: an array of `SPHX_FORS_COUNT * 16` bytes.
+  - `M_k`: a `SPHX_FORS_COUNT * 16`-byte concatenation of FORS tree roots.
 - Output:
   - A 16-byte hash.
 
-This function is only used in the stateless path.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
 def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
@@ -345,8 +344,8 @@ def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
 The tweakable hash function `F`.
 
 <!-- DOC START F -->
-Hashes an input `M_1`, which is a single 16-byte hash. This function will be used to generate
-and iterate Winternitz hash chains and to hash FORS leaves.
+The `F` tweaked hash function. Hashes a single 16-byte input, to generate and iterate Winternitz
+hash chains and to hash FORS leaves.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
@@ -355,7 +354,7 @@ and iterate Winternitz hash chains and to hash FORS leaves.
 - Output:
   - A 16-byte hash.
 
-This function is used in both stateful and stateless paths.
+This function is used in both stateful and stateless paths, and by both the signer and the verifier.
 
 ```py
 def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
@@ -369,17 +368,17 @@ def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
 The tweakable hash function `H`.
 
 <!-- DOC START H -->
-Hashes an input `M_2`, which is a pair of 16-byte hashes, concatenated together. This function
-will be used to combine pairs of merkle nodes, to construct merkle trees in XMSS and FORS.
+The `H` tweaked hash function. Combines a pair of 16-byte Merkle child nodes into their 16-byte
+parent, building the Merkle trees in XMSS and FORS.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_2`: an array of 32 bytes.
+  - `M_2`: a 32-byte concatenation of two child node hashes.
 - Output:
   - A 16-byte hash.
 
-This function is used in both stateful and stateless paths.
+This function is used in both stateful and stateless paths, and by both the signer and the verifier.
 
 ```py
 def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
@@ -393,20 +392,18 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
 The tweakable hash function `H_grind`.
 
 <!-- DOC START H_grind -->
-Hashes a 32-byte message `digest` and a grinding `counter`. This function will be used to
-map `digest` into a constant-sum message space for WOTS+C. Also takes in `pk_seed` and
-a WOTS+C leaf `ADRS`.
-
+The `H_grind` tweaked hash function. Maps a 32-byte `digest` and grinding `counter` into the
+constant-sum message space for WOTS+C.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `digest`: an array of 32 bytes.
+  - `digest`: a 32-byte digest.
   - `counter`: a 16-bit unsigned integer.
 - Output:
   - A 16-byte hash.
 
-This function is only used in the stateful path.
+This function is only used in the stateful path, and by both the signer and the verifier.
 
 ```py
 def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> bytes:
@@ -440,8 +437,8 @@ def hmac_sha256(key: bytes, message: bytes) -> bytes:
 The pseudorandom function `PRF`.
 
 <!-- DOC START PRF -->
-Hashes `sk_seed` with an `ADRS` to derive secret preimage values needed for signing and key
-generation.
+The `PRF` tweaked hash function. Derives a secret 16-byte preimage from `sk_seed`, for signing
+and key generation.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
@@ -450,7 +447,7 @@ generation.
 - Output:
   - A 16-byte hash.
 
-This function is used in both stateful and stateless paths, but only by the signing algorithm.
+This function is used in both stateful and stateless paths, but only by the signer.
 
 ```py
 def PRF(pk_seed: bytes, sk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -468,14 +465,13 @@ The pseudorandom function `PRF_msg_sl`.
 <!-- TODO (Jonas): We call opt_rand a "randomness" in the description and "salt" in the inputs list, but a few lines below we say it's not necessarily a salt (deterministic variant) -->
 
 <!-- DOC START PRF_msg_sl -->
-Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
-This function will be used to derive a _randomizer_ (salt) for the given message in
-the stateless path.
+The `PRF_msg_sl` function. Derives the per-message randomizer (salt) for the stateless path via
+HMAC-SHA256.
 
 - Inputs:
   - `sk_prf`: a 16-byte secret.
   - `opt_rand`: a 16-byte salt.
-  - `M`: an arbitrary-length bytestring (TODO).
+  - `M`: a message of at most `2**61 - 1 - 80` bytes.
 - Output:
   - A 16-byte hash.
 
@@ -497,14 +493,14 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 The pseudorandom function `PRF_msg_sf`.
 
 <!-- DOC START PRF_msg_sf -->
-Uses HMAC-SHA256 to hash `sk_prf`, the `pk_seed`, an `ADRS`, and an arbitrary-length message `M`. This function
-will be used to derive a _randomizer_ (salt) for the given message in the stateful path.
+The `PRF_msg_sf` function. Derives the per-message randomizer (salt) for the stateful path via
+HMAC-SHA256.
 
 - Inputs:
   - `sk_prf`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M`: an arbitrary-length bytestring (TODO).
+  - `M`: a message of at most `2**61 - 1 - 89` bytes.
 - Output:
   - A 16-byte hash.
 
@@ -532,18 +528,17 @@ Signing does not hash the user's message directly. Instead, the message is compr
 The keyed hash function `H_msg_sl`.
 
 <!-- DOC START H_msg_sl -->
-Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
-bytestring `M`. It will be used to produce a digest for signing in the stateless path.
+The `H_msg_sl` message hash function. Produces the 32-byte signing digest for the stateless path.
 
 - Inputs:
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
   - `root`: a 16-byte hash.
-  - `M`: an arbitrary-length bytestring (TODO).
+  - `M`: a message of at most `2**61 - 1 - 48` bytes.
 - Output:
   - A 32-byte hash.
 
-This function is only used in the stateless path.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 Note that `pk_seed` is not padded in this keyed hash function.
 
@@ -561,20 +556,18 @@ The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` sa
 The tweakable hash function `H_msg_sf`.
 
 <!-- DOC START H_msg_sf -->
-Hashes a _randomizer_ `R`, a WOTS+C leaf `ADRS`, the `pk_seed`, a merkle root `root`,
-and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
-signing in the stateful path.
+The `H_msg_sf` message hash function. Produces the 32-byte signing digest for the stateful path.
 
 - Inputs:
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
   - `root`: a 16-byte hash.
   - `ADRS`: a 22-byte address.
-  - `M`: an arbitrary-length bytestring (TODO).
+  - `M`: a message of at most `2**61 - 1 - 57` bytes.
 - Output:
   - A 32-byte hash.
 
-This function is only used in the stateful path.
+This function is only used in the stateful path, and by both the signer and the verifier.
 
 Note that `pk_seed` is not padded in this tweakable hash function.
 
@@ -640,22 +633,20 @@ Both WOTS schemes make use of the following common hash-chaining algorithm.
 ### `wots_chain_iter(...)`
 
 <!-- DOC START wots_chain_iter -->
-The WOTS hash chain iteration function. Takes in a 16-byte hash `node` at a given `start` index
-in a hash chain. This method iterates the hash chain by `steps` iterations, returning the hash
-chain node at index `start+steps`. The `ADRS` must be prefilled to ensure the hashes are properly
-tweaked.
+The WOTS hash chain iteration function. Iterates the hash chain from index `start` by `steps`
+steps, returning the node at index `start + steps`. The `ADRS` must be prefilled so the hashes
+are correctly tweaked.
 
 - Inputs:
   - `node`: a 16-byte hash.
-  - `start`: an unsigned integer indicating the index of `node` in the hash chain.
-  - `steps`: an unsigned integer indicating how many steps to take up the hash chain.
+  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
+  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must not exceed `2**32`.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
   - A 16-byte hash at index `start + steps`.
 
-This function is used very heavily by both stateful and stateless paths and is the core target
-for optimization and parallelization.
+This function is used in both stateful and stateless paths, and by both the signer and the verifier.
 
 ```py
 def wots_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -691,13 +682,15 @@ This checksum is then converted into `WOTS_TW_CHAIN_COUNT2` integers of `WOTS_TW
 ### `wots_tw_message_to_indexes(...)`
 
 <!-- DOC START wots_tw_message_to_indexes -->
-The WOTS-TW message map function. Converts a 16-byte `message` to a checksummed array
-of `WOTS_TW_CHAIN_COUNT` WOTS hash chain indexes in the range `[0, 2**WOTS_TW_CHAIN_BITS)`.
+The WOTS-TW message map function. Converts a 16-byte `message` into a checksummed array of
+`WOTS_TW_CHAIN_COUNT` chain indexes in `[0, 2**WOTS_TW_CHAIN_BITS)`.
 
 - Inputs:
   - `message`: a 16-byte hash
 - Output:
-  - An checksummed array of `WOTS_TW_CHAIN_BITS`-bit integers of length `WOTS_TW_CHAIN_COUNT`.
+  - a checksummed array of `WOTS_TW_CHAIN_COUNT` `WOTS_TW_CHAIN_BITS`-bit unsigned integers.
+
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
 def wots_tw_message_to_indexes(message: bytes) -> list[int]:
@@ -769,8 +762,8 @@ After appending the checksum, the final checksummed index sequence should look l
 ### `wots_tw_pubkey_gen(...)`
 
 <!-- DOC START wots_tw_pubkey_gen -->
-The WOTS-TW public key generation function. Takes in the secret `sk_seed`, the `pk_seed`,
-and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+The WOTS-TW public key generation function. Computes the 16-byte WOTS-TW public key at the
+keypair location prefilled in `ADRS`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
@@ -779,7 +772,7 @@ and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keyp
 - Output:
   - A 16-byte hash representing the WOTS-TW public key.
 
-This algorithm is used only by the signer.
+This function is only used in the stateless path, and only by the signer.
 
 ```py
 def wots_tw_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -803,8 +796,8 @@ def wots_tw_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes
 ### `wots_tw_sign(...)`
 
 <!-- DOC START wots_tw_sign -->
-The WOTS-TW signing function. Takes in a 16-byte `message`, the `sk_seed` and `pk_seed`,
-and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+The WOTS-TW signing function. Produces a WOTS-TW signature on a 16-byte `message`, at the keypair
+location prefilled in `ADRS`.
 
 - Inputs:
   - `message`: a 16-byte message to sign.
@@ -812,9 +805,9 @@ and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keyp
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - A WOTS signature composed of `WOTS_TW_CHAIN_COUNT * 16` bytes.
+  - a `WOTS_TW_CHAIN_COUNT * 16`-byte signature.
 
-This algorithm is used only by the signer.
+This function is only used in the stateless path, and only by the signer.
 
 ```py
 def wots_tw_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -835,19 +828,18 @@ def wots_tw_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray
 ### `wots_tw_pubkey_from_sig(...)`
 
 <!-- DOC START wots_tw_pubkey_from_sig -->
-The WOTS-TW verification procedure. Recovers a WOTS-TW public key from a `signature` on a given
-16-byte `message`. Takes in the `pk_seed`. The `ADRS` should be prefilled with the location of
-the WOTS keypair being used.
+The WOTS-TW verification function. Recovers a WOTS-TW public key from a `signature` on a 16-byte
+`message`.
 
 - Inputs:
-  - `signature`: a string of `WOTS_TW_CHAIN_COUNT * 16` bytes.
+  - `signature`: a `WOTS_TW_CHAIN_COUNT * 16`-byte signature.
   - `message`: a 16-byte message.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
   - A 16-byte hash representing the WOTS-TW public key.
 
-This algorithm is used by both signers and verifiers.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
 def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -887,21 +879,18 @@ Eventually the signer finds a counter which maps the message to a set of indexes
 ### `wots_c_grind_to_constant_sum(...)`
 
 <!-- DOC START wots_c_grind_to_constant_sum -->
-The WOTS+C grinding function. Takes in a `message_digest`, the `pk_seed`, and an `ADRS`, and
-grinds - up to a maximum of 2<sup>16</sup> attempts - until we find a counter that maps to a
-constant sum index-set. Returns the lowest valid integer counter and the corresponding array
-of constant-sum hash chain indexes. The `ADRS` should be prefilled with the location of the
-WOTS+C key which will be used to sign the resulting indexes.
+The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message_digest` to a
+constant-sum index set, returning the lowest such counter and its index set.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `ADRS`: a 22-byte address.
-- Outputs:
-  - The smallest possible valid counter.
-  - The corresponding constant-sum set of hash chain indexes.
+- Output:
+  - a tuple `(counter, indexes)`: the smallest valid 16-bit `counter` and the corresponding
+    constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`).
 
-This algorithm is used only by the signer.
+This function is only used in the stateful path, and only by the signer.
 
 ```py
 def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> tuple[int, list[int]]:
@@ -922,20 +911,18 @@ We max out at 2<sup>16</sup> grinding attempts because the counter is serialized
 ### `wots_c_map_digest(...)`
 
 <!-- DOC START wots_c_map_digest -->
-The WOTS+C digest validation function. Takes in a `message_digest`, the `pk_seed`, an `ADRS`,
-and a `counter` parsed from a WOTS+C signature. This evaluates the grinding counter and attempts
-to map the digest to a constant sum set of hash chain indexes. If the `counter` is valid, this
-function returns the constant sum index-set. Otherwise, it returns null.
+The WOTS+C digest validation function. Evaluates a signature's grinding `counter` and returns the
+constant-sum index set it yields, or null if the counter is invalid.
 
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `ADRS`: a 22-byte address.
-  - `counter`: an unsigned integer.
+  - `counter`: a 16-bit unsigned integer.
 - Output:
-  - A constant-sum set of hash chain indexes, or null.
+  - a constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`), or null.
 
-This algorithm is used only by the verifier.
+This function is only used in the stateful path, and only by the verifier.
 
 ```py
 def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[list[int]]:
@@ -953,8 +940,8 @@ def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, co
 ### `wots_c_pubkey_gen(...)`
 
 <!-- DOC START wots_c_pubkey_gen -->
-The WOTS+C public key generation function. Takes in the secret `sk_seed`, the `pk_seed`, and an
-`ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+The WOTS+C public key generation function. Computes the 16-byte WOTS+C public key at the keypair
+location prefilled in `ADRS`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
@@ -963,7 +950,7 @@ The WOTS+C public key generation function. Takes in the secret `sk_seed`, the `p
 - Output:
   - A 16-byte hash representing the WOTS+C public key.
 
-This algorithm is used only by the signer.
+This function is only used in the stateful path, and only by the signer.
 
 ```py
 def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -988,18 +975,18 @@ def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
 ### `wots_c_sign(...)`
 
 <!-- DOC START wots_c_sign -->
-The WOTS+C signing function. Takes in a 32-byte `message_digest`, the `sk_seed` and `pk_seed`,
-and an `ADRS`. The `ADRS` should be prefilled with the location of the WOTS keypair being used.
+The WOTS+C signing function. Produces a WOTS+C signature on a 32-byte `message_digest`, at the
+keypair location prefilled in `ADRS`.
 
 - Inputs:
   - `message_digest`: a 32-byte message digest to sign.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-- Outputs:
-  - A WOTS signature composed of `2 + WOTS_C_CHAIN_COUNT * 16` bytes.
+- Output:
+  - a `2 + WOTS_C_CHAIN_COUNT * 16`-byte signature.
 
-This algorithm is used only by the signer.
+This function is only used in the stateful path, and only by the signer.
 
 ```py
 def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -1022,19 +1009,18 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
 ### `wots_c_pubkey_from_sig(...)`
 
 <!-- DOC START wots_c_pubkey_from_sig -->
-The WOTS+C verification procedure. Recovers a WOTS+C public key from a `signature` on a given
-32-byte `message_digest`. Takes in the `pk_seed`, and an `ADRS`. The `ADRS`
-should be prefilled with the location of the WOTS keypair being used.
+The WOTS+C verification function. Recovers a WOTS+C public key from a `signature` on a 32-byte
+`message_digest`.
 
 - Inputs:
-  - `signature`: a string of `2 + WOTS_C_CHAIN_COUNT * 16` bytes.
+  - `signature`: a `2 + WOTS_C_CHAIN_COUNT * 16`-byte signature.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
   - A 16-byte hash representing the WOTS+C public key, or null.
 
-This algorithm is used only by the verifier.
+This function is only used in the stateful path, and only by the verifier.
 
 ```py
 def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
@@ -1120,21 +1106,20 @@ These algorithms are used only for the stateless XMSS sub-scheme.
 ### `xmss_node(...)`
 
 <!-- DOC START xmss_node -->
-The XMSS internal node computation helper function. This is a recursive function which takes
-in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, and an `ADRS`.
-The `ADRS` must be prefilled with the location of the XMSS tree in the hypertree to ensure
-the hashes are properly tweaked.
+The XMSS internal node computation function. Recursively computes the XMSS node at the given
+`node_index` and `node_height`. The `ADRS` must be prefilled with the location of the XMSS tree
+in the hypertree to ensure the hashes are properly tweaked.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `node_index`: An unsigned integer indicating the index (from the left) of the desired node in the XMSS layer.
-  - `node_height`: An unsigned integer indicating the height (from the bottom) of the desired node in the XMSS layer.
+  - `node_index`: a 32-bit unsigned integer, the index (from the left) of the node in the XMSS layer.
+  - `node_height`: a 32-bit unsigned integer, the height (from the bottom) of the node in the XMSS layer.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-- Outputs:
-  - A 16-byte XMSS node hash
+- Output:
+  - a 16-byte XMSS node hash.
 
-This algorithm is used only by the signer.
+This function is only used in the stateless path, and only by the signer.
 
 ```py
 def xmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -1161,22 +1146,20 @@ def xmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
 ### `xmss_sign(...)`
 
 <!-- DOC START xmss_sign -->
-The XMSS signing procedure. This function produces a deterministic WOTS-TW signature using a
-specific leaf of a XMSS tree, and appends a merkle authentication path to form a XMSS
-signature. Takes in the `message` to sign, the `sk_seed`, the `keypair_index` to sign with,
-the `pk_seed`, and an `ADRS`. The `ADRS` must be prefilled with the location of the XMSS tree
-in the hypertree to ensure the hashes are properly tweaked.
+The XMSS signing function. Produces a deterministic WOTS-TW signature at leaf `keypair_index` and
+appends the Merkle authentication path to form an XMSS signature. The `ADRS` must be prefilled with
+the location of the XMSS tree in the hypertree to ensure the hashes are properly tweaked.
 
 - Inputs:
   - `message`: a 16-byte message to sign.
   - `sk_seed`: a 16-byte secret.
-  - `keypair_index`: The index of the WOTS-TW keypair to sign with.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-- Outputs:
-  - A XMSS signature consisting of `16 * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` bytes.
+- Output:
+  - a `16 * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
 
-This algorithm is used only by the signer.
+This function is only used in the stateless path, and only by the signer.
 
 ```py
 def xmss_sign(message: bytes, sk_seed: bytes, keypair_index: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -1196,21 +1179,20 @@ def xmss_sign(message: bytes, sk_seed: bytes, keypair_index: int, pk_seed: bytes
 ### `xmss_pubkey_from_sig(...)`
 
 <!-- DOC START xmss_pubkey_from_sig -->
-The XMSS verification function. Recovers an XMSS public key from a `signature` on a given
-16-byte `message`. Takes in the `pk_seed`, and an `ADRS`. The exact position of the WOTS-TW
-signing leaf is given by the `keypair_index` argument. The `ADRS` must be prefilled with the
-location of the XMSS tree in the hypertree to ensure the hashes are properly tweaked.
+The XMSS verification function. Recovers an XMSS root from a `signature` on a 16-byte `message`
+at leaf `keypair_index`. The `ADRS` must be prefilled with the location of the XMSS tree in the
+hypertree to ensure the hashes are properly tweaked.
 
 - Inputs:
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
-  - `signature`: an XMSS signature consisting of `16 * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)` bytes.
+  - `signature`: a `16 * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)`-byte signature.
   - `message`: a 16-byte message.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte XMSS root node hash
 
-This algorithm is used both by the signer and the verifier.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
 def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -1254,19 +1236,16 @@ The following algorithms are used only for stateless hypertree signing and verif
 ### `hypertree_sign(...)`
 
 <!-- DOC START hypertree_sign -->
-The hypertree signing function. Signs a 16-byte `message`, using a hypertree of XMSS trees. Takes
-in the `sk_seed`, `pk_seed`, the index of the bottom-layer XMSS tree `tree_index`, and the index
-of the WOTS-TW leaf key within that tree `leaf_index`.
+The hypertree signing function. Signs a 16-byte `message` through a hypertree of XMSS trees.
 
 - Inputs:
   - `message`: a 16-byte message to sign.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
-  - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
-  - `leaf_index`: the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
+  - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
+  - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
 - Output:
-  - A hypertree signature, a byte string of length
-    `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`
+  - a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1293,16 +1272,16 @@ def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: i
 ### `hypertree_verify(...)`
 
 <!-- DOC START hypertree_verify -->
-The hypertree verification procedure. Recovers the root of a hypertree from a hypertree
-`signature`, and compares it against the given `sl_root` hash.
+The hypertree verification function. Recovers the hypertree root from a `signature` and compares
+it against `sl_root`.
 
 - Inputs:
-  - `message`: a 16-byte message to sign.
-  - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)` hypertree signature.
+  - `message`: a 16-byte message.
+  - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
   - `pk_seed`: a 16-byte salt.
-  - `tree_index`: the index (from the left) of the bottom-layer XMSS tree to sign with.
-  - `leaf_index`: the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
-  - `sl_root`: the 16-byte stateless root hash from the SHRINCS public key.
+  - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
+  - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
+  - `sl_root`: the 16-byte root hash of the stateless root tree.
 - Output:
   - A boolean indicating if the signature is valid.
 
@@ -1434,21 +1413,20 @@ These algorithms are used only for the stateful FXMSS sub-scheme.
 ### `fxmss_node(...)`
 
 <!-- DOC START fxmss_node -->
-The FXMSS internal node computation helper function. This is a recursive function which takes
-in the `sk_seed`, a target `node_index`, a `node_height`, the `pk_seed`, an FXMSS tree
-`structure` identifier, and an `ADRS`.
+The FXMSS internal node computation function. Recursively computes the FXMSS node at the given
+`node_index` and `node_height` for the tree `structure`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `node_index`: A 64-bit unsigned integer indicating the index (from the left) of the desired node in the FXMSS layer.
-  - `node_height`: An 8-bit unsigned integer indicating the height (from the bottom) of the desired node in the FXMSS tree.
+  - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
+  - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
   - `pk_seed`: a 16-byte salt.
   - `structure`: a 2-byte identifier describing the FXMSS tree structure.
   - `ADRS`: a 22-byte address.
-- Outputs:
-  - A 16-byte FXMSS node hash
+- Output:
+  - a 16-byte FXMSS node hash.
 
-This algorithm is used only by the signer.
+This function is only used in the stateful path, and only by the signer.
 
 ```py
 def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:
@@ -1488,22 +1466,20 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
 ### `fxmss_sign(...)`
 
 <!-- DOC START fxmss_sign -->
-The FXMSS signing procedure. This function produces a deterministic WOTS+C signature using a
-specific leaf of an FXMSS tree, and appends a merkle authentication path to form an FXMSS
-signature. Takes in a `message_digest` to sign, the `sk_seed`, the WOTS+C leaf position
-described by `leaf_index` and `leaf_height`, the `pk_seed`, and the tree `structure`.
+The FXMSS signing function. Produces a deterministic WOTS+C signature at the leaf given by
+`leaf_index`/`leaf_height` and appends the Merkle authentication path to form an FXMSS signature.
 
 - Inputs:
   - `message_digest`: a 32-byte message digest.
   - `sk_seed`: a 16-byte secret.
-  - `leaf_index`: A 64-bit unsigned integer indicating the index (from the left) of the signing leaf in the FXMSS layer.
-  - `leaf_height`: An 8-bit unsigned integer indicating the height (from the bottom) of the signing leaf in the FXMSS tree.
+  - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
+  - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
   - `pk_seed`: a 16-byte salt.
   - `structure`: a 2-byte identifier describing the FXMSS tree structure.
-- Outputs:
-  - An FXMSS signature, a byte string with length `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`
+- Output:
+  - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature.
 
-This algorithm is used only by the signer.
+This function is only used in the stateful path, and only by the signer.
 
 ```py
 def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
@@ -1535,23 +1511,19 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
 ### `fxmss_pubkey_from_sig(...)`
 
 <!-- DOC START fxmss_pubkey_from_sig -->
-The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given
-32-byte `message_digest`. Takes in the `pk_seed`.
-
-The length of the `signature` implies the depth of the WOTS+C signing leaf. The exact
-left/right position of the WOTS+C signing leaf within its layer is given explicitly by the
-`node_index` argument.
+The FXMSS verification function. Recovers an FXMSS root from a `signature` on a 32-byte
+`message_digest`. The signature length implies the leaf depth; `leaf_index` gives its
+left-to-right position.
 
 - Inputs:
-  - `node_index`: a 64-bit unsigned integer.
-  - `signature`: a variable-length FXMSS signature.
-    - Must be at least `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` bytes long.
-    - Must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes long.
-    - Byte length must be 2 more than a multiple of 16.
+  - `leaf_index`: a 64-bit unsigned integer, the left-to-right position of the WOTS+C signing leaf.
+  - `signature`: a variable-length signature of `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` to `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes, with length 2 more than a multiple of 16.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
 - Output:
-  - a 16-byte FXMSS root node hash, or null
+  - a 16-byte FXMSS root node hash, or null.
+
+This function is only used in the stateful path, and only by the verifier.
 
 ```py
 def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
@@ -1623,17 +1595,15 @@ The following sections describe the algorithms needed for FORS key-generation, s
 ### `fors_sk_gen(...)`
 
 <!-- DOC START fors_sk_gen -->
-The FORS secret preimage generation function. Generates a secret 16-byte preimage from `sk_seed`.
-Takes in `pk_seed`, an `ADRS`, and the `tree_index` to indicate the position of the FORS leaf
-in the forest. The `ADRS` must be prefilled with the location of the FORS keypair to ensure
-the hashes are properly tweaked.
-
+The FORS secret preimage generation function. Generates the secret 16-byte preimage of the FORS
+leaf at forest-wide index `node_index`. The `ADRS` must be prefilled with the location of the FORS
+keypair to ensure the hashes are properly tweaked.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `tree_index`: a 32-bit unsigned integer.
+  - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
 - Output:
   - A 16-byte preimage.
 
@@ -1655,17 +1625,16 @@ def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, node_index: int
 ### `fors_node(...)`
 
 <!-- DOC START fors_node -->
-The FORS internal merkle node computation helper function. This is a recursive function which
-takes in the `sk_seed`, `pk_seed`, an `ADRS`, and integers `node_height`, `node_index` which
-describe the position of the FORS node in the forest of merkle trees. The `ADRS` must be
-prefilled with the location of the FORS keypair to ensure the hashes are properly tweaked.
+The FORS internal node computation function. Recursively computes the FORS node at the forest-wide
+`node_index` and `node_height`. The `ADRS` must be prefilled with the location of the FORS keypair
+to ensure the hashes are properly tweaked.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `node_index`: a 32-bit unsigned integer.
-  - `node_height`: a 32-bit unsigned integer.
+  - `node_index`: a 32-bit unsigned integer, a forest-wide node index in `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
+  - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
 - Output:
   - A 16-byte FORS node hash.
 
@@ -1700,18 +1669,16 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
 ### `fors_sign(...)`
 
 <!-- DOC START fors_sign -->
-The FORS signing function. Signs a `message_digest`, using `sk_seed` and `pk_seed`, with the
-location of the FORS leaf specified in `ADRS`. The `ADRS` must be prefilled with the location
-of the FORS keypair to ensure the hashes are properly tweaked.
+The FORS signing function. Produces a FORS signature on a `message_digest`. The `ADRS` must be
+prefilled with the location of the FORS keypair to ensure the hashes are properly tweaked.
 
 - Inputs:
-  - `message_digest`: a digest of a message to sign.
-    - Must be exactly `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)` bytes long.
+  - `message_digest`: a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - A FORS signature, a byte string of length `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`.
+  - a `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1733,20 +1700,19 @@ def fors_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytea
 ### `fors_pubkey_from_sig(...)`
 
 <!-- DOC START fors_pubkey_from_sig -->
-The FORS verification procedure. Recovers a FORS public key hash from the given `signature` on a
-`message_digest`. Takes in a `pk_seed` and `ADRS`. The `ADRS` must be prefilled with the location
-of the FORS keypair to ensure the hashes are properly tweaked.
+The FORS verification function. Recovers a FORS public key from a `signature` on a
+`message_digest`. The `ADRS` must be prefilled with the location of the FORS keypair to ensure
+the hashes are properly tweaked.
 
 - Inputs:
-  - `signature`: a byte string of length `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`.
-  - `message_digest`: a digest of a message to sign.
-    - Must be exactly `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)` bytes long.
+  - `signature`: a `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`-byte signature.
+  - `message_digest`: a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
   - A 16-byte hash of the FORS public key.
 
-This function is only used in the stateless path.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
 def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
@@ -1805,22 +1771,20 @@ The following sections describe the algorithms used for SLH-DSA.
 ### `slh_dsa_digest_message(...)`
 
 <!-- DOC START slh_dsa_digest_message -->
-The SLH-DSA message hashing function. Derives a FORS message digest, tree index, and FORS leaf index
-by hashing a randomizer `R`, `pk_seed`, `sl_root`, and `message`. This is an internal helper
-function which partitions and parses the output of `H_msg_sl` into the pseudorandom digest outputs
-needed for SLH-DSA signing and verification.
+The SLH-DSA message hashing function. Derives the FORS message digest, bottom-layer XMSS tree
+index, and FORS leaf index from `message` under `H_msg_sl`.
 
 - Inputs:
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
-  - `message`: an arbitrary-length byte string.
+  - `message`: a message of at most `2**61 - 1 - 48` bytes.
 - Outputs:
   - a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest, ready for use by FORS.
-  - a pseudorandomly selected index of a bottom-layer XMSS tree (less than `2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1))`).
-  - a pseudorandomly selected index of a FORS key within an XMSS tree (less than `2**SPHX_XMSS_HEIGHT`).
+  - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))`.
+  - a pseudorandomly selected index of a FORS key within an XMSS tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
 
-This function is used only in the stateless path, by both signer and verifier.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
 def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
@@ -1844,9 +1808,9 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
 ### `slh_dsa_sign_internal(...)`
 
 <!-- DOC START slh_dsa_sign_internal -->
-The SLH-DSA internal signing function. Signs a given `message` with `sk_seed`, using `pk_seed` to
-salt all hash function invocations, using `sk_prf` and `opt_rand` to generate an unpredictable
-randomizer, and binds the signature to the given `sl_root`.
+The SLH-DSA internal signing function. Signs `message` with `sk_seed`, salting all hashes with
+`pk_seed`, deriving the randomizer from `sk_prf`/`opt_rand`, and binding the signature to
+`sl_root`.
 
 The optional additional data `opt_rand` is used to further salt the randomizer. If omitted,
 the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
@@ -1855,15 +1819,14 @@ The resulting signature is composed of (1) a randomizer, (2) a FORS signature, a
 hypertree signature, all concatenated together.
 
 - Inputs:
-  - `message`: an arbitrary-length byte string.
+  - `message`: a message of at most `2**61 - 1 - 80` bytes.
   - `sk_seed`: a 16-byte secret.
   - `sk_prf`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
-  - `opt_rand`: (optional) a 16-byte string used to salt the randomizer.
+  - `opt_rand`: an optional 16-byte salt for the randomizer.
 - Output:
-  - An SLH-DSA signature, of length
-  `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+  - a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1891,13 +1854,12 @@ def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed
 ### `slh_dsa_verify_internal`
 
 <!-- DOC START slh_dsa_verify_internal -->
-The SLH-DSA internal verification procedure. Recovers the root hash of the root tree from a
-`signature` on a given `message`, and checks it against `sl_root`.
+The SLH-DSA internal verification function. Recovers the root-tree root from a `signature` on
+`message` and checks it against `sl_root`.
 
 - Inputs:
-  - `message`: an arbitrary-length byte string.
-  - `signature`: an SLH-DSA signature of length
-    `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+  - `message`: a message of at most `2**61 - 1 - 80` bytes.
+  - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
 - Output:
@@ -1930,27 +1892,25 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
 ### `slh_dsa_sign(...)`
 
 <!-- DOC START slh_dsa_sign -->
-The SLH-DSA external signing function. Signs a given `message` with `sk_seed`, using `pk_seed` to
-salt all hash function invocations, using `sk_prf` and `opt_rand` to generate an unpredictable
-randomizer, and binds the signature to the given `sl_root`.
+The SLH-DSA external signing function. Signs `message` with `sk_seed`, prepending the context
+`ctx`; salts all hashes with `pk_seed`, derives the randomizer from `sk_prf`/`opt_rand`, and
+binds to `sl_root`.
 
 - Inputs:
-  - `message`: an arbitrary-length byte string.
-  - `ctx`: a variable-length context byte string.
-    - Must be at most 255 bytes long.
+  - `message`: a message of at most `2**61 - 1 - 82 - len(ctx)` bytes.
+  - `ctx`: a context of at most 255 bytes.
   - `sk_seed`: a 16-byte secret.
   - `sk_prf`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
-  - `opt_rand`: (optional) a 16-byte string used to salt the randomizer.
+  - `opt_rand`: an optional 16-byte salt for the randomizer.
 - Output:
-  - An SLH-DSA signature, of length
-  `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
+  - a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
-This is a simple wrapper around `slh_dsa_sign_internal` which prepends an optional context string
-`ctx` to every message. Verifiers must use `slh_dsa_verify` with the same `ctx` string.
+This is a simple wrapper around `slh_dsa_sign_internal` which prepends an optional context
+`ctx` to every message. Verifiers must use `slh_dsa_verify` with the same `ctx`.
 
 ```py
 def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
@@ -1964,15 +1924,13 @@ def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_s
 ### `slh_dsa_verify(...)`
 
 <!-- DOC START slh_dsa_verify -->
-The SLH-DSA verification procedure. Recovers the root hash of the root tree from a `signature`
-on a given `message`, and checks it against `sl_root`.
+The SLH-DSA verification function. Recovers the root-tree root from a `signature` on `message`
+(with context `ctx`) and checks it against `sl_root`.
 
 - Inputs:
-  - `message`: an arbitrary-length byte string.
-  - `signature`: an SLH-DSA signature of length
-    `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`
-  - `ctx`: a variable-length context byte string.
-    - Must be at most 255 bytes long.
+  - `message`: a message of at most `2**61 - 1 - 82 - len(ctx)` bytes.
+  - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+  - `ctx`: a context of at most 255 bytes.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
 - Output:
@@ -1980,8 +1938,8 @@ on a given `message`, and checks it against `sl_root`.
 
 This function is only used in the stateless path, and only by the verifier.
 
-This is a simple wrapper around `slh_dsa_verify_internal` which prepends an optional context string
-`ctx` to every message. Signatures must use be produced via `slh_dsa_sign` with the same `ctx` string.
+This is a simple wrapper around `slh_dsa_verify_internal` which prepends an optional context
+`ctx` to every message. Signatures must be produced via `slh_dsa_sign` with the same `ctx`.
 
 ```py
 def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
@@ -2042,15 +2000,17 @@ The following sections describe algorithms used for SHRINCS.
 ### `shrincs_keygen(...)`
 
 <!-- DOC START shrincs_keygen -->
-The SHRINCS key-generation procedure. Computes secret and public keys from a given 48-byte `seed`
-and the `sf_structure` of the stateful FXMSS tree.
+The SHRINCS key generation function. Computes the secret and public keys from a 48-byte `seed`
+and the stateful tree `sf_structure`.
 
 - Inputs:
   - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
   - `sf_structure`: a 2-byte identifier describing the shape and depth of the stateful FXMSS tree.
 - Outputs:
-  - the SHRINCS secret key, of length 82 bytes.
-  - the SHRINCS public key, of length 48 bytes.
+  - an 82-byte SHRINCS secret key.
+  - a 48-byte SHRINCS public key.
+
+This function is used only during key generation.
 
 > [!WARNING]
 > The `sf_structure` argument must come from a trusted source or else be validated.
@@ -2081,17 +2041,16 @@ def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
 ### `shrincs_sf_leaf_select(...)`
 
 <!-- DOC START shrincs_sf_leaf_select -->
-The SHRINCS stateful path leaf selection algorithm. Given an FXMSS tree `structure` and the
-current `state_ctr` counter, this function computes the position of the next WOTS+C leaf in
-the FXMSS tree, returned as a tuple of `(index, height)` integers.
+The SHRINCS stateful-path leaf-selection function. Computes the position `(index, height)` of the
+next WOTS+C leaf for the given `structure` and `state_ctr`.
 
 - Inputs:
   - `structure`: a 2-byte identifier describing the FXMSS tree structure.
-  - `state_ctr`: an integer indicating how many stateful signatures the SHRINCS keypair has
-    previously issued.
+  - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
+    previously issued (a negative value is explicitly invalid).
 - Outputs:
-  - The left-to-right index of the next WOTS+C leaf in the FXMSS tree that should be used.
-  - The bottom-to-top height of the next WOTS+C leaf in the FXMSS tree that should be used.
+  - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
+  - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
 
 Returns `None` if `state_ctr` is set to any negative number, or if `state_ctr + 1` exceeds the
 number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
@@ -2123,24 +2082,21 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[i
 ### `shrincs_sign(...)`
 
 <!-- DOC START shrincs_sign -->
-The SHRINCS signing function. Signs `message` with the serialized SHRINCS secret key
-`shrincs_seckey`. If `state_ctr` is non-negative and valid for the stateful tree
-structure specified in the secret key, then this function will use the stateful path and
-will return a variable-length FXMSS signature. Otherwise it will fall back to the
-stateless signing path and use SLH-DSA to sign the message.
+The SHRINCS signing function. Signs `message` with the serialized secret key `shrincs_seckey`:
+uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
+falls back to the stateless SLH-DSA path.
 
 - Inputs:
-  - `message`: an arbitrary-length byte string.
+  - `message`: a message of at most `2**61 - 1 - 98` bytes.
   - `shrincs_seckey`: an 82-byte SHRINCS secret key.
-  - `state_ctr`: an integer indicating how many stateful signatures the SHRINCS keypair has
-    previously issued.
-  - `opt_rand`: (optional) a 16-byte string used to salt the randomizer in SLH-DSA. Not used
-    in the stateful signing path. If omitted, the stateless signing path will use the
-    deterministic variant of SLH-DSA.
+  - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
+    previously issued (a negative value is explicitly invalid).
+  - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
+    if omitted, the stateless path uses the deterministic variant of SLH-DSA).
 - Output:
-  - A variable-length SHRINCS signature (a byte string).
+  - a variable-length SHRINCS signature.
 
-This function is only used by the signer.
+This function is used only by the signer.
 
 > [!CAUTION]
 > Using the same key to sign different `message` values with the same `state_ctr` is
@@ -2187,17 +2143,17 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
 ### `shrincs_verify(...)`
 
 <!-- DOC START shrincs_verify -->
-The SHRINCS verification procedure. Returns true if `signature` is a valid stateful
-or stateless SHRINCS signature on `message`, issued by the given `shrincs_pubkey`.
+The SHRINCS verification function. Returns true iff `signature` is a valid stateful or stateless
+SHRINCS signature on `message` under `shrincs_pubkey`.
 
 Based on the length of `signature`, the verifier either recomputes `sf_root`
 (stateful path) or recomputes `sl_root` (stateless path), and compares the result
 against the public key.
 
 - Inputs:
-  - `message`: an arbitrary-length byte string.
-  - `signature`: an arbitrary-length byte string, claimed to be a SHRINCS signature.
-  - `shrincs_pubkey`: an 48-byte SHRINCS public key.
+  - `message`: a message of at most `2**61 - 1 - 98` bytes.
+  - `signature`: a purported SHRINCS signature of arbitrary length.
+  - `shrincs_pubkey`: a 48-byte SHRINCS public key.
 - Output:
   - A boolean indicating if the signature is valid.
 
