@@ -563,8 +563,6 @@ Hashes a _randomizer_ `R`, the `pk_seed`, a WOTS+C leaf `ADRS`, a merkle root `r
 and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
 signing in the stateful path.
 
-TODO: can `ADRS[:9]` be used only once?
-
 - Inputs:
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
@@ -580,7 +578,7 @@ Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
 def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -> bytes:
-  return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + root + ADRS[:9] + M))
+  return sha256(R + ADRS[:9] + pk_seed + sha256(R + ADRS[:9] + pk_seed + root + M))
 ```
 <!-- DOC END H_msg_sf -->
 

@@ -238,8 +238,6 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -
   and an arbitrary-length message bytestring `M`. It will be used to produce a digest for
   signing in the stateful path.
 
-  TODO: can `ADRS[:9]` be used only once?
-
   - Inputs:
     - `R`: a 16-byte randomizer.
     - `pk_seed`: a 16-byte salt.
@@ -253,7 +251,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, root: bytes, ADRS: bytearray, M: bytes) -
 
   Note that `pk_seed` is not padded in this tweakable hash function.
   """
-  return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + root + ADRS[:9] + M))
+  return sha256(R + ADRS[:9] + pk_seed + sha256(R + ADRS[:9] + pk_seed + root + M))
 
 def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   """
