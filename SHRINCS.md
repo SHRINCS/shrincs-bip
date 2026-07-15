@@ -459,7 +459,7 @@ Note the order of the arguments passed to `PRF` is _not_ the same order in which
 
 ### `H_msg_sl(...)`
 
-The tweakable hash function `H_msg_sl`.
+The keyed hash function `H_msg_sl`.
 
 <!-- DOC START H_msg_sl -->
 Hashes a _randomizer_ `R`, the `pk_seed`, a merkle root `root`, and an arbitrary-length message
@@ -475,7 +475,7 @@ bytestring `M`. It will be used to produce a digest for signing in the stateless
 
 This function is only used in the stateless path.
 
-Note that `pk_seed` is not padded in this tweakable hash function.
+Note that `pk_seed` is not padded in this keyed hash function.
 
 ```py
 def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:

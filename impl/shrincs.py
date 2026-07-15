@@ -228,7 +228,7 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
 
   This function is only used in the stateless path.
 
-  Note that `pk_seed` is not padded in this tweakable hash function.
+  Note that `pk_seed` is not padded in this keyed hash function.
   """
   return sha256(R + pk_seed + sha256(R + pk_seed + root + M) + zeros(4))
 
