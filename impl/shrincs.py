@@ -85,10 +85,10 @@ SF_WOTS_C_GRIND = 22
 def sha256(message: bytes) -> bytes:
   return hashlib.sha256(bytes(message)).digest()
 
-def hmac_sha256(key: bytes, msg: bytes) -> bytes:
+def hmac_sha256(key: bytes, message: bytes) -> bytes:
   assert len(key) <= 64
   padded_key = key + zeros(64 - len(key))
-  inner = sha256(xor(padded_key, repeat(0x36, 64)) + msg)
+  inner = sha256(xor(padded_key, repeat(0x36, 64)) + message)
   return sha256(xor(padded_key, repeat(0x5C, 64)) + inner)
 
 
@@ -272,7 +272,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases
   resistance to side-channel attacks).
   """
-  return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
+  return hmac_sha256(key=sk_prf, message=opt_rand + M)[:16]
 
 def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
   """
@@ -289,7 +289,7 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
 
   This function is only used in the stateful path, and only by the signer.
   """
-  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), msg=pk_seed + ADRS[:9] + M)[:16]
+  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
 
 
 #  Winternitz algorithms
@@ -844,7 +844,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
 
   return sig
 
-def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
+def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
   """
   The FXMSS verification function. Recovers an FXMSS public key from a `signature` on a given
   32-byte `message_digest`. Takes in the `pk_seed`.
@@ -867,16 +867,16 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
   wots_sig = signature[0 : 2+WOTS_C_CHAIN_COUNT*16]
   xmss_auth = signature[2+WOTS_C_CHAIN_COUNT*16 : len(signature)]
 
-  node_depth = floor(len(xmss_auth) / 16)
+  leaf_depth = floor(len(xmss_auth) / 16)
 
-  # Ensure node_index describes a valid position in the FXMSS tree.
-  assert node_index < 2 ** min(64, node_depth)
+  # Ensure leaf_index describes a valid position in the FXMSS tree.
+  assert leaf_index < 2 ** min(64, leaf_depth)
 
-  node_height = FXMSS_HEIGHT - node_depth
+  leaf_height = FXMSS_HEIGHT - leaf_depth
 
   ADRS = bytearray(22)
-  ADRS[0] = node_height
-  ADRS[1:9] = node_index.to_bytes(8)
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
   node = wots_c_pubkey_from_sig(wots_sig, message_digest, pk_seed, ADRS)
   if node is None:
     return None
@@ -884,11 +884,11 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
   ADRS[9] = SF_FXMSS_TREE
   ADRS[10:22] = zeros(12)
 
-  for k in range(node_depth):
+  for k in range(leaf_depth):
     ADRS[0] += 1
-    ADRS[1:9] = (node_index >> (k+1)).to_bytes(8)
+    ADRS[1:9] = (leaf_index >> (k+1)).to_bytes(8)
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (node_index >> k) & 1 == 1:
+    if (leaf_index >> k) & 1 == 1:
       node = H(pk_seed, ADRS, sibling + node)
     else:
       node = H(pk_seed, ADRS, node + sibling)
@@ -898,7 +898,7 @@ def fxmss_pubkey_from_sig(node_index: int, signature: bytes, message_digest: byt
 
 #  FORS algorithms
 
-def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, tree_index: int) -> bytes:
+def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, node_index: int) -> bytes:
   """
   The FORS secret preimage generation function. Generates a secret 16-byte preimage from `sk_seed`.
   Takes in `pk_seed`, an `ADRS`, and the `tree_index` to indicate the position of the FORS leaf
@@ -916,12 +916,12 @@ def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, tree_index: int
 
   This function is only used in the stateless path, and only by the signer.
 
-  Note the `tree_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
+  Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
   within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
   """
   ADRS[9] = SL_FORS_PRF
   ADRS[14:18] = zeros(4)
-  ADRS[18:22] = tree_index.to_bytes(4)
+  ADRS[18:22] = node_index.to_bytes(4)
   return PRF(pk_seed, sk_seed, ADRS)
 
 def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
