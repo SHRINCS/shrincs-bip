@@ -194,7 +194,7 @@ def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> byt
 
 def PRF(pk_seed: bytes, sk_seed: bytes, ADRS: bytearray) -> bytes:
   """
-  The `PRF` tweaked hash function. Derives a secret 16-byte preimage from `sk_seed`, for signing
+  The `PRF` pseudorandom function. Derives a secret 16-byte preimage from `sk_seed`, for signing
   and key generation.
 
   - Inputs:
