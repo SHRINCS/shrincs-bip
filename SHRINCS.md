@@ -437,7 +437,7 @@ def hmac_sha256(key: bytes, message: bytes) -> bytes:
 The pseudorandom function `PRF`.
 
 <!-- DOC START PRF -->
-The `PRF` tweaked hash function. Derives a secret 16-byte preimage from `sk_seed`, for signing
+The `PRF` pseudorandom function. Derives a secret 16-byte preimage from `sk_seed`, for signing
 and key generation.
 
 - Inputs:
@@ -465,7 +465,7 @@ The pseudorandom function `PRF_msg_sl`.
 <!-- TODO (Jonas): We call opt_rand a "randomness" in the description and "salt" in the inputs list, but a few lines below we say it's not necessarily a salt (deterministic variant) -->
 
 <!-- DOC START PRF_msg_sl -->
-The `PRF_msg_sl` function. Derives the per-message randomizer (salt) for the stateless path via
+The `PRF_msg_sl` pseudorandom function. Derives the per-message randomizer (salt) for the stateless path via
 HMAC-SHA256.
 
 - Inputs:
