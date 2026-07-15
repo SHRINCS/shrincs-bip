@@ -247,7 +247,7 @@ def H_msg_sf(R: bytes, ADRS: bytearray, pk_seed: bytes, root: bytes, M: bytes) -
 
 def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   """
-  The `PRF_msg_sl` function. Derives the per-message randomizer (salt) for the stateless path via
+  The `PRF_msg_sl` pseudorandom function. Derives the per-message randomizer (salt) for the stateless path via
   HMAC-SHA256.
 
   - Inputs:
