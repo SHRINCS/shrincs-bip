@@ -160,13 +160,13 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
 
 # Building Blocks
 
-SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and _tweakable hash functions_ - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SLH-DSA, which together form SHRINCS.
+SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and the _hash functions_ and _pseudorandom functions_ (PRFs) - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SLH-DSA, which together form SHRINCS.
 
 ```
      ADRS
         \
-      tweakable hash
-        functions
+      hash functions
+          & PRFs
         /         \
        /         /   \
       /         /      \
@@ -253,30 +253,19 @@ The following figures show, for each `ADRS` type, how the 22-byte address is lai
 <sup>Stateful (`SF_*`) `ADRS` types, used along the FXMSS signing path.</sup>
 
 
-## Tweakable Hash Functions
+## Hash and Pseudorandom Functions
 
-At the core of both SLH-DSA and XMSS is the concept of _tweakable hash functions._ A tweakable hash function can be thought of as a hash function which supports additional independent parameters that can be used to scope the hash function to a specific role. This makes security easier to prove.
+SHRINCS builds all of these functions from SHA256 as the base hash function, which we invoke as the primitive function `sha256(x)`, returning a 32-byte array. Outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`.
 
-In SHRINCS, we construct tweakable hash functions using SHA256 as the base hash function. This we invoke as the primitive function `sha256(x)` which returns a 32-byte array.
-
-In one case, we use HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, msg)`.
-
-<!-- DOC START hmac_sha256 -->
-```py
-def hmac_sha256(key: bytes, msg: bytes) -> bytes:
-  assert len(key) <= 64
-  padded_key = key + zeros(64 - len(key))
-  inner = sha256(xor(padded_key, repeat(0x36, 64)) + msg)
-  return sha256(xor(padded_key, repeat(0x5C, 64)) + inner)
-```
-<!-- DOC END hmac_sha256 -->
-
-SHA256 and HMAC outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`
-
-The following sections describe tweakable hash functions to fill different roles.
+These functions fall into three families, described in the following sections: _tweakable hash functions_, _pseudorandom functions_, and _message digest functions_. Though built on the same primitive, they play conceptually distinct roles and are relied on for different security properties.
 
 
-### `T_sl(...)`
+### Tweakable Hash Functions
+
+A tweakable hash function can be thought of as a hash function which supports additional independent parameters that scope it to a specific role. Concretely, each invocation is parameterized by a public parameter, `PK.seed`, and a tweak, the `ADRS`, so that the same input hashed at two different positions yields unrelated outputs.
+
+
+#### `T_sl(...)`
 
 The tweakable hash function `T_sl`.
 
@@ -301,7 +290,7 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 <!-- DOC END T_sl -->
 
 
-### `T_sf(...)`
+#### `T_sf(...)`
 
 The tweakable hash function `T_sf`.
 
@@ -326,7 +315,7 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 <!-- DOC END T_sf -->
 
 
-### `T_k(...)`
+#### `T_k(...)`
 
 The tweakable hash function `T_k`.
 
@@ -351,7 +340,7 @@ def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
 <!-- DOC END T_k -->
 
 
-### `F(...)`
+#### `F(...)`
 
 The tweakable hash function `F`.
 
@@ -375,7 +364,7 @@ def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
 <!-- DOC END F -->
 
 
-### `H(...)`
+#### `H(...)`
 
 The tweakable hash function `H`.
 
@@ -399,7 +388,7 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
 <!-- DOC END H -->
 
 
-### `H_grind(...)`
+#### `H_grind(...)`
 
 The tweakable hash function `H_grind`.
 
@@ -431,9 +420,24 @@ The extra 4 bytes of padding before the counter ensures the counter lines up wit
 Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `PK.seed` input. The remaining 12 bytes are always zero padding.
 
 
-### `PRF(...)`
+### Pseudorandom Functions
 
-The tweakable hash function `PRF`.
+A _pseudorandom function_ produces output indistinguishable from random to anyone who does not know its key. SHRINCS instantiates its two pseudorandom functions as _keyed hash functions_, that is, hash functions that take a dedicated key input alongside the message. Both are keyed by a secret: `PRF` is keyed by `SK.seed` and derives secret key material, while `PRF_msg` is keyed by `SK.prf` and derives the per-message randomizer. `PRF_msg` comes in a stateless and a stateful variant, `PRF_msg_sl` and `PRF_msg_sf`, both built on HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, msg)`:
+
+<!-- DOC START hmac_sha256 -->
+```py
+def hmac_sha256(key: bytes, msg: bytes) -> bytes:
+  assert len(key) <= 64
+  padded_key = key + zeros(64 - len(key))
+  inner = sha256(xor(padded_key, repeat(0x36, 64)) + msg)
+  return sha256(xor(padded_key, repeat(0x5C, 64)) + inner)
+```
+<!-- DOC END hmac_sha256 -->
+
+
+#### `PRF(...)`
+
+The pseudorandom function `PRF`.
 
 <!-- DOC START PRF -->
 Hashes `sk_seed` with an `ADRS` to derive secret preimage values needed for signing and key
@@ -457,7 +461,71 @@ def PRF(pk_seed: bytes, sk_seed: bytes, ADRS: bytearray) -> bytes:
 Note the order of the arguments passed to `PRF` is _not_ the same order in which those arguments are processed by `sha256`. This aligns with definitions in FIPS-205[^slhdsa].
 
 
-### `H_msg_sl(...)`
+#### `PRF_msg_sl(...)`
+
+The pseudorandom function `PRF_msg_sl`.
+
+<!-- DOC START PRF_msg_sl -->
+Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
+This function will be used to derive a _randomizer_ (salt) for the given message in
+the stateless path.
+
+- Inputs:
+  - `sk_prf`: a 16-byte secret.
+  - `opt_rand`: a 16-byte salt.
+  - `M`: an arbitrary-length bytestring (TODO).
+- Output:
+  - A 16-byte hash.
+
+This function is only used in the stateless path, and only by the signer.
+
+`opt_rand` is set to either `pk_seed` (giving the "deterministic variant" of SLH-DSA[^slhdsa]),
+or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases
+resistance to side-channel attacks).
+
+```py
+def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
+  return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
+```
+<!-- DOC END PRF_msg_sl -->
+
+
+#### `PRF_msg_sf(...)`
+
+The pseudorandom function `PRF_msg_sf`.
+
+<!-- DOC START PRF_msg_sf -->
+Uses HMAC-SHA256 to hash `sk_prf`, the `pk_seed`, an `ADRS`, and an arbitrary-length message `M`. This function
+will be used to derive a _randomizer_ (salt) for the given message in the stateful path.
+
+- Inputs:
+  - `sk_prf`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+  - `M`: an arbitrary-length bytestring (TODO).
+- Output:
+  - A 16-byte hash.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
+  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), msg=pk_seed + ADRS[:9] + M)[:16]
+```
+<!-- DOC END PRF_msg_sf -->
+
+The `sk_prf` is padded with `0xFF` up until it is 64 bytes long. This ensures domain separation between stateful and stateless paths.
+
+We remove the randomization input option for the stateful path compared to `PRF_msg_sl` as the same WOTS+C instance signs the message only once, and in the misuse scenario where the same message queried under the same state, prodcing exactly the same signature will not constitute a forgery.
+
+We only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
+
+
+### Message Digest Functions
+
+Signing does not hash the user's message directly. Instead, the message is compressed together with a randomizer `R` into a short digest, which the one-time and few-time signatures then sign. SHRINCS uses a different digest function on each path. The stateless `H_msg_sl` is a keyed hash function, keyed by `R`. The stateful `H_msg_sf` additionally binds the position of the signing leaf, and so takes a tweak (the `ADRS`) in addition to `R`; it is therefore a tweakable hash function rather than a plain keyed hash.
+
+#### `H_msg_sl(...)`
 
 The keyed hash function `H_msg_sl`.
 
@@ -486,7 +554,7 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
 The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` satisfies FIPS-205[^slhdsa], wherein `H_msg_sl` is defined using MGF1-SHA-256[^mgf1].
 
 
-### `H_msg_sf(...)`
+#### `H_msg_sf(...)`
 
 The tweakable hash function `H_msg_sf`.
 
@@ -522,66 +590,6 @@ Unlike `H_msg_sl`, this function is a SHRINCS-specific construction and is **not
 
 - There is no trailing 4-byte zero-padding on the outer hash. That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
 - The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs. This domain-separates the stateful digest by the leaf used to sign it.
-
-
-### `PRF_msg_sl(...)`
-
-The tweakable hash function `PRF_msg_sl`.
-
-<!-- DOC START PRF_msg_sl -->
-Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
-This function will be used to derive a _randomizer_ (salt) for the given message in
-the stateless path.
-
-- Inputs:
-  - `sk_prf`: a 16-byte secret.
-  - `opt_rand`: a 16-byte salt.
-  - `M`: an arbitrary-length bytestring (TODO).
-- Output:
-  - A 16-byte hash.
-
-This function is only used in the stateless path, and only by the signer.
-
-`opt_rand` is set to either `pk_seed` (giving the "deterministic variant" of SLH-DSA[^slhdsa]),
-or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases
-resistance to side-channel attacks).
-
-```py
-def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
-  return hmac_sha256(key=sk_prf, msg=opt_rand + M)[:16]
-```
-<!-- DOC END PRF_msg_sl -->
-
-
-### `PRF_msg_sf(...)`
-
-The tweakable hash function `PRF_msg_sf`.
-
-<!-- DOC START PRF_msg_sf -->
-Uses HMAC-SHA256 to hash `sk_prf`, the `pk_seed`, an `ADRS`, and an arbitrary-length message `M`. This function
-will be used to derive a _randomizer_ (salt) for the given message in the stateful path.
-
-- Inputs:
-  - `sk_prf`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
-  - `ADRS`: a 22-byte address.
-  - `M`: an arbitrary-length bytestring (TODO).
-- Output:
-  - A 16-byte hash.
-
-This function is only used in the stateful path, and only by the signer.
-
-```py
-def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
-  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), msg=pk_seed + ADRS[:9] + M)[:16]
-```
-<!-- DOC END PRF_msg_sf -->
-
-The `sk_prf` is padded with `0xFF` up until it is 64 bytes long. This ensures domain separation between stateful and stateless paths.
-
-We remove the randomization input option for the stateful path compared to `PRF_msg_sl` as the same WOTS+C instance signs the message only once, and in the misuse scenario where the same message queried under the same state, prodcing exactly the same signature will not constitute a forgery.
-
-We only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
 
 
 ### Implementation Notes
