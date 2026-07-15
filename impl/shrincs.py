@@ -83,9 +83,26 @@ SF_WOTS_C_GRIND = 22
 #  Primitive cryptographic functions
 
 def sha256(message: bytes) -> bytes:
+  """
+  The `sha256` hash function.
+
+  - Inputs:
+    - `message`: a message of at most `2**61 - 1` bytes.
+  - Output:
+    - a 32-byte hash.
+  """
   return hashlib.sha256(bytes(message)).digest()
 
 def hmac_sha256(key: bytes, message: bytes) -> bytes:
+  """
+  The `hmac_sha256` keyed hash function.
+
+  - Inputs:
+    - `key`: a key of at most 64 bytes.
+    - `message`: a message of at most `2**61 - 1 - 64` bytes.
+  - Output:
+    - a 32-byte hash.
+  """
   assert len(key) <= 64
   padded_key = key + zeros(64 - len(key))
   inner = sha256(xor(padded_key, repeat(0x36, 64)) + message)
@@ -216,7 +233,7 @@ def H_msg_sl(R: bytes, pk_seed: bytes, root: bytes, M: bytes) -> bytes:
     - `R`: a 16-byte randomizer.
     - `pk_seed`: a 16-byte salt.
     - `root`: a 16-byte hash.
-    - `M`: a message of at most `2**61 - 1 - 48` bytes.
+    - `M`: a variable-length message.
   - Output:
     - a 32-byte hash.
 
@@ -235,7 +252,7 @@ def H_msg_sf(R: bytes, ADRS: bytearray, pk_seed: bytes, root: bytes, M: bytes) -
     - `pk_seed`: a 16-byte salt.
     - `root`: a 16-byte hash.
     - `ADRS`: a 22-byte address.
-    - `M`: a message of at most `2**61 - 1 - 57` bytes.
+    - `M`: a variable-length message.
   - Output:
     - a 32-byte hash.
 
@@ -253,7 +270,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   - Inputs:
     - `sk_prf`: a 16-byte secret.
     - `opt_rand`: a 16-byte salt.
-    - `M`: a message of at most `2**61 - 1 - 80` bytes.
+    - `M`: a variable-length message.
   - Output:
     - a 16-byte hash.
 
@@ -274,7 +291,7 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
     - `sk_prf`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
-    - `M`: a message of at most `2**61 - 1 - 89` bytes.
+    - `M`: a variable-length message.
   - Output:
     - a 16-byte hash.
 
@@ -1013,7 +1030,7 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
     - `R`: a 16-byte randomizer.
     - `pk_seed`: a 16-byte salt.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
-    - `message`: a message of at most `2**61 - 1 - 48` bytes.
+    - `message`: a variable-length message.
   - Outputs:
     - a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest, ready for use by FORS.
     - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))`.
@@ -1049,7 +1066,7 @@ def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed
   hypertree signature, all concatenated together.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 1 - 80` bytes.
+    - `message`: a variable-length message.
     - `sk_seed`: a 16-byte secret.
     - `sk_prf`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
@@ -1082,7 +1099,7 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
   `message` and checks it against `sl_root`.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 1 - 80` bytes.
+    - `message`: a variable-length message.
     - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
     - `pk_seed`: a 16-byte salt.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
@@ -1115,7 +1132,7 @@ def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_s
   binds to `sl_root`.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 1 - 82 - len(ctx)` bytes.
+    - `message`: a variable-length message.
     - `ctx`: a context of at most 255 bytes.
     - `sk_seed`: a 16-byte secret.
     - `sk_prf`: a 16-byte secret.
@@ -1140,7 +1157,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
   (with context `ctx`) and checks it against `sl_root`.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 1 - 82 - len(ctx)` bytes.
+    - `message`: a variable-length message.
     - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
     - `ctx`: a context of at most 255 bytes.
     - `pk_seed`: a 16-byte salt.
@@ -1237,7 +1254,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   falls back to the stateless SLH-DSA path.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 1 - 98` bytes.
+    - `message`: a message of at most `2**61 - 128` bytes.
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
       previously issued (a negative value is explicitly invalid).
@@ -1295,7 +1312,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   against the public key.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 1 - 98` bytes.
+    - `message`: a message of at most `2**61 - 128` bytes.
     - `signature`: a purported SHRINCS signature of arbitrary length.
     - `shrincs_pubkey`: a 48-byte SHRINCS public key.
   - Output:

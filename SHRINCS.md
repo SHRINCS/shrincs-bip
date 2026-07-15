@@ -259,6 +259,22 @@ The following figures show, for each `ADRS` type, how the 22-byte address is lai
 
 SHRINCS builds all of these functions from SHA256 as the base hash function, which we invoke as the primitive function `sha256(x)`, returning a 32-byte array. Outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`.
 
+<!-- DOC START sha256 -->
+The `sha256` hash function.
+
+- Inputs:
+  - `message`: a message of at most `2**61 - 1` bytes.
+- Output:
+  - a 32-byte hash.
+
+```py
+def sha256(message: bytes) -> bytes:
+  return hashlib.sha256(bytes(message)).digest()
+```
+<!-- DOC END sha256 -->
+
+SHA-256 accepts an input of at most `2**61 - 1` bytes: its padding encodes the message length in a 64-bit field that counts bits, so the input cannot exceed `2**64 - 1` bits. HMAC-SHA256 prepends a single 64-byte block to the message before hashing it, so `hmac_sha256` accepts at most `2**61 - 1 - 64` bytes. These two primitive limits are the root of every message-length bound in the scheme; the resulting cap on a SHRINCS message is derived in [Maximum Message Length](#maximum-message-length).
+
 These functions fall into three families, described in the following sections: _tweakable hash functions_, _pseudorandom functions_, and _message digest functions_. Though built on the same primitive, they play conceptually distinct roles and are relied on for different security properties.
 
 
@@ -422,6 +438,14 @@ Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash in
 A _pseudorandom function_ produces output indistinguishable from random to anyone who does not know its key. SHRINCS instantiates its two pseudorandom functions as _keyed hash functions_, that is, hash functions that take a dedicated key input alongside the message. Both are keyed by a secret: `PRF` is keyed by `SK.seed` and derives secret key material, while `PRF_msg` is keyed by `SK.prf` and derives the per-message randomizer. `PRF_msg` comes in a stateless and a stateful variant, `PRF_msg_sl` and `PRF_msg_sf`, both built on HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, msg)`:
 
 <!-- DOC START hmac_sha256 -->
+The `hmac_sha256` keyed hash function.
+
+- Inputs:
+  - `key`: a key of at most 64 bytes.
+  - `message`: a message of at most `2**61 - 1 - 64` bytes.
+- Output:
+  - a 32-byte hash.
+
 ```py
 def hmac_sha256(key: bytes, message: bytes) -> bytes:
   assert len(key) <= 64
@@ -471,7 +495,7 @@ HMAC-SHA256.
 - Inputs:
   - `sk_prf`: a 16-byte secret.
   - `opt_rand`: a 16-byte salt.
-  - `M`: a message of at most `2**61 - 1 - 80` bytes.
+  - `M`: a variable-length message.
 - Output:
   - a 16-byte hash.
 
@@ -500,7 +524,7 @@ HMAC-SHA256.
   - `sk_prf`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M`: a message of at most `2**61 - 1 - 89` bytes.
+  - `M`: a variable-length message.
 - Output:
   - a 16-byte hash.
 
@@ -534,7 +558,7 @@ The `H_msg_sl` message hash function. Produces the 32-byte signing digest for th
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
   - `root`: a 16-byte hash.
-  - `M`: a message of at most `2**61 - 1 - 48` bytes.
+  - `M`: a variable-length message.
 - Output:
   - a 32-byte hash.
 
@@ -563,7 +587,7 @@ The `H_msg_sf` message hash function. Produces the 32-byte signing digest for th
   - `pk_seed`: a 16-byte salt.
   - `root`: a 16-byte hash.
   - `ADRS`: a 22-byte address.
-  - `M`: a message of at most `2**61 - 1 - 57` bytes.
+  - `M`: a variable-length message.
 - Output:
   - a 32-byte hash.
 
@@ -1778,7 +1802,7 @@ index, and FORS leaf index from `message` under `H_msg_sl`.
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
-  - `message`: a message of at most `2**61 - 1 - 48` bytes.
+  - `message`: a variable-length message.
 - Outputs:
   - a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest, ready for use by FORS.
   - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))`.
@@ -1819,7 +1843,7 @@ The resulting signature is composed of (1) a randomizer, (2) a FORS signature, a
 hypertree signature, all concatenated together.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 1 - 80` bytes.
+  - `message`: a variable-length message.
   - `sk_seed`: a 16-byte secret.
   - `sk_prf`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
@@ -1858,7 +1882,7 @@ The SLH-DSA internal verification function. Recovers the root-tree root from a `
 `message` and checks it against `sl_root`.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 1 - 80` bytes.
+  - `message`: a variable-length message.
   - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
@@ -1897,7 +1921,7 @@ The SLH-DSA external signing function. Signs `message` with `sk_seed`, prependin
 binds to `sl_root`.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 1 - 82 - len(ctx)` bytes.
+  - `message`: a variable-length message.
   - `ctx`: a context of at most 255 bytes.
   - `sk_seed`: a 16-byte secret.
   - `sk_prf`: a 16-byte secret.
@@ -1928,7 +1952,7 @@ The SLH-DSA verification function. Recovers the root-tree root from a `signature
 (with context `ctx`) and checks it against `sl_root`.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 1 - 82 - len(ctx)` bytes.
+  - `message`: a variable-length message.
   - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
   - `ctx`: a context of at most 255 bytes.
   - `pk_seed`: a 16-byte salt.
@@ -1991,6 +2015,10 @@ It is **absolutely critical for security that signers manage state counters extr
 - Signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
 
 If correct state is not available for any reason, such as when restoring from a static backup, then a SHRINCS implementation MUST refuse to sign with the stateful path, and utilize only the stateless signing path.
+
+### Maximum Message Length
+
+Every message SHRINCS hashes is bounded in length, because it is ultimately absorbed by SHA-256, which accepts at most `2**61 - 1` bytes (or `2**61 - 1 - 64` bytes when it is reached through HMAC-SHA256). `shrincs_sign` and `shrincs_verify` cap `message` at `2**61 - 128` bytes. This cap is set by the tighter stateless path, where the message reaches the innermost hash behind `98` bytes of fixed prefixes (the 64-byte HMAC block, the 16-byte `opt_rand`, the 2-byte SLH-DSA message prefix, and the 16-byte `sf_root`). SHA-256's limit then gives an exact maximum of `2**61 - 99` bytes, which we round down to `2**61 - 128`. The intermediate functions in between accept *a variable-length message*. Its length still carries an upper bound, just an implicit one, set by the primitive bounds above rather than stated at each function: a SHRINCS `message` is already capped, and each intermediate prepends only a fixed number of bytes to it, so every hash input stays within SHA-256's limit by construction. No realistic message will ever approach this cap.
 
 ### SHRINCS Algorithms
 
@@ -2087,7 +2115,7 @@ uses the stateful FXMSS path when `state_ctr` is valid for the key's tree struct
 falls back to the stateless SLH-DSA path.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 1 - 98` bytes.
+  - `message`: a message of at most `2**61 - 128` bytes.
   - `shrincs_seckey`: an 82-byte SHRINCS secret key.
   - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
     previously issued (a negative value is explicitly invalid).
@@ -2151,7 +2179,7 @@ Based on the length of `signature`, the verifier either recomputes `sf_root`
 against the public key.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 1 - 98` bytes.
+  - `message`: a message of at most `2**61 - 128` bytes.
   - `signature`: a purported SHRINCS signature of arbitrary length.
   - `shrincs_pubkey`: a 48-byte SHRINCS public key.
 - Output:
