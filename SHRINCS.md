@@ -72,7 +72,6 @@ Here follow the parameters of the stateful and the stateless component.
 |:-:|:-:|:--|
 | `WOTS_C_CHAIN_BITS` | <!-- CONST START WOTS_C_CHAIN_BITS -->4<!-- CONST END WOTS_C_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
 | `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
-| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | The most likely sum for Winternitz hash chain indexes. |
 | `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
 
 ### Stateless Parameters
@@ -86,11 +85,42 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 | `WOTS_TW_CHAIN_COUNT1` | `len1` | <!-- CONST START WOTS_TW_CHAIN_COUNT1 -->32<!-- CONST END WOTS_TW_CHAIN_COUNT1 --> | The number of Winternitz message chains per WOTS key. |
 | `WOTS_TW_CHAIN_COUNT2` | `len2` | <!-- CONST START WOTS_TW_CHAIN_COUNT2 -->3<!-- CONST END WOTS_TW_CHAIN_COUNT2 --> | The number of Winternitz checksum chains per WOTS key. |
 | `WOTS_TW_CHAIN_COUNT` | `len` | <!-- CONST START WOTS_TW_CHAIN_COUNT -->35<!-- CONST END WOTS_TW_CHAIN_COUNT --> | The overall number of Winternitz chains per WOTS key. |
-| `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | <!-- CONST START WOTS_TW_CHECKSUM_MAX -->480<!-- CONST END WOTS_TW_CHECKSUM_MAX --> | The maximum possible sum of Winternitz hash chain indexes. |
 | `SPHX_LAYER_COUNT` | `d` | <!-- CONST START SPHX_LAYER_COUNT -->5<!-- CONST END SPHX_LAYER_COUNT --> | The number of XMSS layers in the SLH-DSA hypertree. |
 | `SPHX_XMSS_HEIGHT` | `h'` | <!-- CONST START SPHX_XMSS_HEIGHT -->9<!-- CONST END SPHX_XMSS_HEIGHT --> | The height of each XMSS layer within the SLH-DSA hypertree. |
 | `SPHX_FORS_HEIGHT` | `a` | <!-- CONST START SPHX_FORS_HEIGHT -->13<!-- CONST END SPHX_FORS_HEIGHT --> | The height of each FORS tree used in the SLH-DSA signature. |
 | `SPHX_FORS_COUNT` | `k` | <!-- CONST START SPHX_FORS_COUNT -->10<!-- CONST END SPHX_FORS_COUNT --> | The number of FORS trees used in the SLH-DSA signature. |
+
+
+## Derived Constants
+
+The following constants are derived from the parameters above. We show formulas for how these are computed.
+
+### Stateful Constants
+
+| Constant | Value | Formula | Description |
+|:-:|:-:|:-:|:-:|
+| `WOTS_C_CHAINS_SIZE` | <!-- CONST START WOTS_C_CHAINS_SIZE -->512<!-- CONST END WOTS_C_CHAINS_SIZE --> | `WOTS_C_CHAIN_COUNT * 16` | The byte size of a full set of concatenated WOTS chain hashes. |
+| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)` | The most likely sum for Winternitz hash chain indexes. |
+|`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
+|`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
+
+### Stateless Constants
+
+The FIPS-205 column gives the name of the parameter in FIPS-205.
+
+| Constant | FIPS-205 | Value | Formula | Description |
+|:-:|:-:|:-:|:-:|:-:|
+| `WOTS_TW_CHAINS_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START WOTS_TW_CHAINS_SIZE -->560<!-- CONST END WOTS_TW_CHAINS_SIZE --> | `WOTS_TW_CHAIN_COUNT * 16` | The byte size of a full set of concatenated WOTS chain hashes.  |
+| `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | <!-- CONST START WOTS_TW_CHECKSUM_MAX -->480<!-- CONST END WOTS_TW_CHECKSUM_MAX --> | `WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)` | The maximum possible sum of Winternitz hash chain indexes. |
+| `SPHX_XMSS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_XMSS_SIGNATURE_SIZE -->704<!-- CONST END SPHX_XMSS_SIGNATURE_SIZE --> | `WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT` | The byte size of a serialized XMSS signature.  |
+| `HYPERTREE_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START HYPERTREE_SIGNATURE_SIZE -->3520<!-- CONST END HYPERTREE_SIGNATURE_SIZE --> | `SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE` | The byte size of a hypertree signature. |
+| `FORS_DIGEST_SIZE` | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
+| `FORS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_SIGNATURE_SIZE -->2240<!-- CONST END FORS_SIGNATURE_SIZE --> | `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)` | The byte size of a FORS signature. |
+| `SPHX_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> | `16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE` | The byte size of an SLH-DSA signature. |
+| `SPHX_TREE_INDEX_BITS` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_TREE_INDEX_BITS -->36<!-- CONST END SPHX_TREE_INDEX_BITS --> | `SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)` | The number of bits needed to represent the index of an XMSS tree in the hypertree. |
+| <sub>(Not named in SHRINCS)</sub> | `h` | 45 | `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT` | The total height of the SLH-DSA hypertree. |
+| <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8) + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8) + ceil(SPHX_XMSS_HEIGHT / 8)` | The byte length of the message digest. |
+
 
 ## Keygen Inputs
 
@@ -289,7 +319,7 @@ single 16-byte hash.
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: a `WOTS_TW_CHAIN_COUNT * 16`-byte concatenation of chain tips.
+  - `M_l`: a `WOTS_TW_CHAINS_SIZE`-byte concatenation of chain tips.
 - Output:
   - a 16-byte hash.
 
@@ -311,7 +341,7 @@ single 16-byte hash.
 - Inputs:
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `M_l`: a `WOTS_C_CHAIN_COUNT * 16`-byte concatenation of chain tips.
+  - `M_l`: a `WOTS_C_CHAINS_SIZE`-byte concatenation of chain tips.
 - Output:
   - a 16-byte hash.
 
@@ -667,7 +697,7 @@ This process starts by breaking a 128-bit message into `WOTS_TW_CHAIN_COUNT1` in
 WOTS_TW_CHECKSUM_MAX = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
 ```
 
-This constant is defined explicitly in the earlier [table of constants](#Parameters).
+This constant is also defined explicitly in the earlier [table of derived constants](#derived-constants).
 
 Given an array of `msg_indexes`, the checksum can be computed by:
 
@@ -804,7 +834,7 @@ location prefilled in `ADRS`.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - a `WOTS_TW_CHAIN_COUNT * 16`-byte signature.
+  - a `WOTS_TW_CHAINS_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -831,7 +861,7 @@ The WOTS-TW verification function. Recovers a WOTS-TW public key from a `signatu
 `message`.
 
 - Inputs:
-  - `signature`: a `WOTS_TW_CHAIN_COUNT * 16`-byte signature.
+  - `signature`: a `WOTS_TW_CHAINS_SIZE`-byte signature.
   - `message`: a 16-byte message.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
@@ -983,7 +1013,7 @@ keypair location prefilled in `ADRS`.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - a `2 + WOTS_C_CHAIN_COUNT * 16`-byte signature.
+  - a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -1012,7 +1042,7 @@ The WOTS+C verification function. Recovers a WOTS+C public key from a `signature
 `message_digest`.
 
 - Inputs:
-  - `signature`: a `2 + WOTS_C_CHAIN_COUNT * 16`-byte signature.
+  - `signature`: a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
@@ -1156,7 +1186,7 @@ the location of the XMSS tree in the hypertree to ensure the hashes are properly
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - a `16 * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
+  - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1184,7 +1214,7 @@ hypertree to ensure the hashes are properly tweaked.
 
 - Inputs:
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
-  - `signature`: a `16 * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)`-byte signature.
+  - `signature`: a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
   - `message`: a 16-byte message.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
@@ -1195,8 +1225,8 @@ This function is only used in the stateless path, and by both the signer and the
 
 ```py
 def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
-  wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT*16]
-  xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_XMSS_HEIGHT)*16]
+  wots_sig = signature[0 : WOTS_TW_CHAINS_SIZE]
+  xmss_auth = signature[WOTS_TW_CHAINS_SIZE : SPHX_XMSS_SIGNATURE_SIZE]
 
   ADRS[10:14] = keypair_index.to_bytes(4) # AKA keypair address
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, ADRS)
@@ -1244,7 +1274,7 @@ The hypertree signing function. Signs a 16-byte `message` through a hypertree of
   - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
   - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
 - Output:
-  - a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
+  - a `HYPERTREE_SIGNATURE_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1276,7 +1306,7 @@ it against `sl_root`.
 
 - Inputs:
   - `message`: a 16-byte message.
-  - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
+  - `signature`: a `HYPERTREE_SIGNATURE_SIZE`-byte signature.
   - `pk_seed`: a 16-byte salt.
   - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
   - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
@@ -1290,16 +1320,14 @@ This function is only used in the stateless path, and only by the verifier.
 def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_index: int, leaf_index: int, sl_root: bytes) -> bool:
   ADRS = bytearray(22)
 
-  offset = 0
   for j in range(SPHX_LAYER_COUNT):
     ADRS[0] = j
     ADRS[1:9] = tree_index.to_bytes(8)
-    layer_sig = signature[offset : offset+16*(SPHX_XMSS_HEIGHT+WOTS_TW_CHAIN_COUNT)]
+    layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
     if j < SPHX_LAYER_COUNT - 1:
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
       tree_index >>= SPHX_XMSS_HEIGHT
-      offset += len(layer_sig)
   return message == sl_root
 ```
 <!-- DOC END hypertree_verify -->
@@ -1516,7 +1544,8 @@ left-to-right position.
 
 - Inputs:
   - `leaf_index`: a 64-bit unsigned integer, the left-to-right position of the WOTS+C signing leaf.
-  - `signature`: a variable-length signature of `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` to `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes, with length 2 more than a multiple of 16.
+  - `signature`: a variable-length signature of at least `FXMSS_SIGNATURE_SIZE_MIN` bytes and at
+    most `FXMSS_SIGNATURE_SIZE_MAX` bytes, with length 2 more than a multiple of 16.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
 - Output:
@@ -1526,8 +1555,8 @@ This function is only used in the stateful path, and only by the verifier.
 
 ```py
 def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
-  wots_sig = signature[0 : 2+WOTS_C_CHAIN_COUNT*16]
-  xmss_auth = signature[2+WOTS_C_CHAIN_COUNT*16 : len(signature)]
+  wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
+  xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
 
   leaf_depth = floor(len(xmss_auth) / 16)
 
@@ -1632,7 +1661,8 @@ to ensure the hashes are properly tweaked.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
-  - `node_index`: a 32-bit unsigned integer, a forest-wide node index in `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
+  - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
+    `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
   - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
 - Output:
   - a 16-byte FORS node hash.
@@ -1672,12 +1702,12 @@ The FORS signing function. Produces a FORS signature on a `message_digest`. The 
 prefilled with the location of the FORS keypair to ensure the hashes are properly tweaked.
 
 - Inputs:
-  - `message_digest`: a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest.
+  - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - a `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`-byte signature.
+  - a `FORS_SIGNATURE_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1704,8 +1734,8 @@ The FORS verification function. Recovers a FORS public key from a `signature` on
 the hashes are properly tweaked.
 
 - Inputs:
-  - `signature`: a `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`-byte signature.
-  - `message_digest`: a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest.
+  - `signature`: a `FORS_SIGNATURE_SIZE`-byte signature.
+  - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
@@ -1779,8 +1809,8 @@ index, and FORS leaf index from `message` under `H_msg_sl`.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
   - `message`: a variable-length message.
 - Outputs:
-  - a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest, ready for use by FORS.
-  - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))`.
+  - a `FORS_DIGEST_SIZE`-byte message digest, ready for use by FORS.
+  - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**SPHX_TREE_INDEX_BITS)`.
   - a pseudorandomly selected index of a FORS key within an XMSS tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
 
 This function is only used in the stateless path, and by both the signer and the verifier.
@@ -1789,10 +1819,10 @@ This function is only used in the stateless path, and by both the signer and the
 def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
-  fors_digest = digest[:ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8)]
-  offset = len(fors_digest)
+  fors_digest = digest[:FORS_DIGEST_SIZE]
+  offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8)]
+  tree_index_digest = digest[offset : offset + ceil(SPHX_TREE_INDEX_BITS / 8)]
   offset += len(tree_index_digest)
 
   leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
@@ -1825,7 +1855,7 @@ hypertree signature, all concatenated together.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
   - `opt_rand`: an optional 16-byte salt for the randomizer.
 - Output:
-  - a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+  - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1858,7 +1888,7 @@ The SLH-DSA internal verification function. Recovers the root-tree root from a `
 
 - Inputs:
   - `message`: a variable-length message.
-  - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+  - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
 - Output:
@@ -1868,13 +1898,12 @@ This function is only used in the stateless path, and only by the verifier.
 
 ```py
 def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
-  if len(signature) != 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+  if len(signature) != SPHX_SIGNATURE_SIZE:
     return False
 
   R = signature[0:16]
-  fors_signature = signature[16 : 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1))]
-  offset = 16 + len(fors_signature)
-  hypertree_signature = signature[offset : offset + 16 * SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)]
+  fors_signature = signature[16 : 16 + FORS_SIGNATURE_SIZE]
+  hypertree_signature = signature[16 + FORS_SIGNATURE_SIZE : 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE]
 
   fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
 
@@ -1904,7 +1933,7 @@ binds to `sl_root`.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
   - `opt_rand`: an optional 16-byte salt for the randomizer.
 - Output:
-  - a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+  - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1928,7 +1957,7 @@ The SLH-DSA verification function. Recovers the root-tree root from a `signature
 
 - Inputs:
   - `message`: a variable-length message.
-  - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+  - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
   - `ctx`: a context of at most 255 bytes.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
@@ -2169,7 +2198,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   sf_root = shrincs_pubkey[32:48]
 
   # Stateless verification path.
-  if len(signature) == 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+  if len(signature) == SPHX_SIGNATURE_SIZE:
     # Stateless signatures must be bound to the stateful keypair.
     return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
 
@@ -2181,14 +2210,12 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   leaf_index = int.from_bytes(signature[16:24])
   fxmss_signature = signature[24:len(signature)]
 
-  # Signature must be at least `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` bytes.
-  if len(fxmss_signature) < 2 + 16 * (WOTS_C_CHAIN_COUNT + 1):
+  # FXMSS signature length must fall within expected bounds.
+  if not FXMSS_SIGNATURE_SIZE_MIN <= len(fxmss_signature) <= FXMSS_SIGNATURE_SIZE_MAX:
     return False
-  # Signature must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes.
-  elif len(fxmss_signature) > 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT):
-    return False
+
   # Signature length must be 2 more than a multiple of 16.
-  elif (len(fxmss_signature) - 2) % 16 != 0:
+  if (len(fxmss_signature) - 2) % 16 != 0:
     return False
 
   leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT

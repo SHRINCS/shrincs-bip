@@ -46,20 +46,32 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
   return baseb
 
 
-#  Constants
+#  Parameters
 WOTS_C_CHAIN_BITS    = 4
 WOTS_TW_CHAIN_BITS   = 4
 WOTS_C_CHAIN_COUNT   = 32
 WOTS_TW_CHAIN_COUNT1 = 32
 WOTS_TW_CHAIN_COUNT2 = 3
 WOTS_TW_CHAIN_COUNT  = 35
-WOTS_TW_CHECKSUM_MAX = 480
-WOTS_C_CONSTANT_SUM  = 240
 SPHX_LAYER_COUNT     = 5
 SPHX_XMSS_HEIGHT     = 9
 SPHX_FORS_HEIGHT     = 13
 SPHX_FORS_COUNT      = 10
 FXMSS_HEIGHT         = 255
+
+#  Derived constants
+WOTS_TW_CHAINS_SIZE      = WOTS_TW_CHAIN_COUNT * 16
+WOTS_TW_CHECKSUM_MAX     = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
+WOTS_C_CHAINS_SIZE       = WOTS_C_CHAIN_COUNT * 16
+WOTS_C_CONSTANT_SUM      = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
+SPHX_XMSS_SIGNATURE_SIZE = WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT
+HYPERTREE_SIGNATURE_SIZE = SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE
+FXMSS_SIGNATURE_SIZE_MIN = 2 + WOTS_C_CHAINS_SIZE + 16
+FXMSS_SIGNATURE_SIZE_MAX = 2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT
+FORS_DIGEST_SIZE         = ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)
+FORS_SIGNATURE_SIZE      = 16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)
+SPHX_TREE_INDEX_BITS     = SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)
+SPHX_SIGNATURE_SIZE      = 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE
 
 #  FXMSS structure types
 FXMSS_SHAPE_UNBALANCED = 0
@@ -119,7 +131,7 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
   - Inputs:
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
-    - `M_l`: a `WOTS_TW_CHAIN_COUNT * 16`-byte concatenation of chain tips.
+    - `M_l`: a `WOTS_TW_CHAINS_SIZE`-byte concatenation of chain tips.
   - Output:
     - a 16-byte hash.
 
@@ -135,7 +147,7 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
   - Inputs:
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
-    - `M_l`: a `WOTS_C_CHAIN_COUNT * 16`-byte concatenation of chain tips.
+    - `M_l`: a `WOTS_C_CHAINS_SIZE`-byte concatenation of chain tips.
   - Output:
     - a 16-byte hash.
 
@@ -398,7 +410,7 @@ def wots_tw_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - a `WOTS_TW_CHAIN_COUNT * 16`-byte signature.
+    - a `WOTS_TW_CHAINS_SIZE`-byte signature.
 
   This function is only used in the stateless path, and only by the signer.
   """
@@ -419,7 +431,7 @@ def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, AD
   `message`.
 
   - Inputs:
-    - `signature`: a `WOTS_TW_CHAIN_COUNT * 16`-byte signature.
+    - `signature`: a `WOTS_TW_CHAINS_SIZE`-byte signature.
     - `message`: a 16-byte message.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
@@ -528,7 +540,7 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - a `2 + WOTS_C_CHAIN_COUNT * 16`-byte signature.
+    - a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -551,7 +563,7 @@ def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: byt
   `message_digest`.
 
   - Inputs:
-    - `signature`: a `2 + WOTS_C_CHAIN_COUNT * 16`-byte signature.
+    - `signature`: a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
     - `message_digest`: a 32-byte message digest.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
@@ -630,7 +642,7 @@ def xmss_sign(message: bytes, sk_seed: bytes, keypair_index: int, pk_seed: bytes
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - a `16 * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
+    - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
 
   This function is only used in the stateless path, and only by the signer.
   """
@@ -653,7 +665,7 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
 
   - Inputs:
     - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
-    - `signature`: a `16 * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)`-byte signature.
+    - `signature`: a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
     - `message`: a 16-byte message.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
@@ -662,8 +674,8 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
-  wots_sig = signature[0 : WOTS_TW_CHAIN_COUNT*16]
-  xmss_auth = signature[WOTS_TW_CHAIN_COUNT*16 : (WOTS_TW_CHAIN_COUNT+SPHX_XMSS_HEIGHT)*16]
+  wots_sig = signature[0 : WOTS_TW_CHAINS_SIZE]
+  xmss_auth = signature[WOTS_TW_CHAINS_SIZE : SPHX_XMSS_SIGNATURE_SIZE]
 
   ADRS[10:14] = keypair_index.to_bytes(4) # AKA keypair address
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, ADRS)
@@ -696,7 +708,7 @@ def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: i
     - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
     - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
   - Output:
-    - a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
+    - a `HYPERTREE_SIGNATURE_SIZE`-byte signature.
 
   This function is only used in the stateless path, and only by the signer.
   """
@@ -722,7 +734,7 @@ def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_inde
 
   - Inputs:
     - `message`: a 16-byte message.
-    - `signature`: a `16 * SPHX_LAYER_COUNT * (SPHX_XMSS_HEIGHT + WOTS_TW_CHAIN_COUNT)`-byte signature.
+    - `signature`: a `HYPERTREE_SIGNATURE_SIZE`-byte signature.
     - `pk_seed`: a 16-byte salt.
     - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
     - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
@@ -734,16 +746,14 @@ def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_inde
   """
   ADRS = bytearray(22)
 
-  offset = 0
   for j in range(SPHX_LAYER_COUNT):
     ADRS[0] = j
     ADRS[1:9] = tree_index.to_bytes(8)
-    layer_sig = signature[offset : offset+16*(SPHX_XMSS_HEIGHT+WOTS_TW_CHAIN_COUNT)]
+    layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
     if j < SPHX_LAYER_COUNT - 1:
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
       tree_index >>= SPHX_XMSS_HEIGHT
-      offset += len(layer_sig)
   return message == sl_root
 
 
@@ -843,7 +853,8 @@ def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: byt
 
   - Inputs:
     - `leaf_index`: a 64-bit unsigned integer, the left-to-right position of the WOTS+C signing leaf.
-    - `signature`: a variable-length signature of `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` to `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes, with length 2 more than a multiple of 16.
+    - `signature`: a variable-length signature of at least `FXMSS_SIGNATURE_SIZE_MIN` bytes and at
+      most `FXMSS_SIGNATURE_SIZE_MAX` bytes, with length 2 more than a multiple of 16.
     - `message_digest`: a 32-byte message digest.
     - `pk_seed`: a 16-byte salt.
   - Output:
@@ -851,8 +862,8 @@ def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: byt
 
   This function is only used in the stateful path, and only by the verifier.
   """
-  wots_sig = signature[0 : 2+WOTS_C_CHAIN_COUNT*16]
-  xmss_auth = signature[2+WOTS_C_CHAIN_COUNT*16 : len(signature)]
+  wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
+  xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
 
   leaf_depth = floor(len(xmss_auth) / 16)
 
@@ -919,7 +930,8 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
     - `sk_seed`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
-    - `node_index`: a 32-bit unsigned integer, a forest-wide node index in `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
+    - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
+      `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
     - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
   - Output:
     - a 16-byte FORS node hash.
@@ -953,12 +965,12 @@ def fors_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytea
   prefilled with the location of the FORS keypair to ensure the hashes are properly tweaked.
 
   - Inputs:
-    - `message_digest`: a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest.
+    - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
     - `sk_seed`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - a `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`-byte signature.
+    - a `FORS_SIGNATURE_SIZE`-byte signature.
 
   This function is only used in the stateless path, and only by the signer.
   """
@@ -979,8 +991,8 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
   the hashes are properly tweaked.
 
   - Inputs:
-    - `signature`: a `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)`-byte signature.
-    - `message_digest`: a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest.
+    - `signature`: a `FORS_SIGNATURE_SIZE`-byte signature.
+    - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
@@ -1032,18 +1044,18 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
     - `sl_root`: the 16-byte root hash of the stateless root tree.
     - `message`: a variable-length message.
   - Outputs:
-    - a `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)`-byte message digest, ready for use by FORS.
-    - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))`.
+    - a `FORS_DIGEST_SIZE`-byte message digest, ready for use by FORS.
+    - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**SPHX_TREE_INDEX_BITS)`.
     - a pseudorandomly selected index of a FORS key within an XMSS tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
-  fors_digest = digest[:ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8)]
-  offset = len(fors_digest)
+  fors_digest = digest[:FORS_DIGEST_SIZE]
+  offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8)]
+  tree_index_digest = digest[offset : offset + ceil(SPHX_TREE_INDEX_BITS / 8)]
   offset += len(tree_index_digest)
 
   leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
@@ -1073,7 +1085,7 @@ def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed
     - `sl_root`: the 16-byte root hash of the stateless root tree.
     - `opt_rand`: an optional 16-byte salt for the randomizer.
   - Output:
-    - a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+    - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
   This function is only used in the stateless path, and only by the signer.
   """
@@ -1100,7 +1112,7 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
 
   - Inputs:
     - `message`: a variable-length message.
-    - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+    - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
     - `pk_seed`: a 16-byte salt.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
   - Output:
@@ -1108,13 +1120,12 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
 
   This function is only used in the stateless path, and only by the verifier.
   """
-  if len(signature) != 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+  if len(signature) != SPHX_SIGNATURE_SIZE:
     return False
 
   R = signature[0:16]
-  fors_signature = signature[16 : 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1))]
-  offset = 16 + len(fors_signature)
-  hypertree_signature = signature[offset : offset + 16 * SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)]
+  fors_signature = signature[16 : 16 + FORS_SIGNATURE_SIZE]
+  hypertree_signature = signature[16 + FORS_SIGNATURE_SIZE : 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE]
 
   fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
 
@@ -1140,7 +1151,7 @@ def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_s
     - `sl_root`: the 16-byte root hash of the stateless root tree.
     - `opt_rand`: an optional 16-byte salt for the randomizer.
   - Output:
-    - a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+    - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
   This function is only used in the stateless path, and only by the signer.
 
@@ -1158,7 +1169,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 
   - Inputs:
     - `message`: a variable-length message.
-    - `signature`: a `16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT))`-byte signature.
+    - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
     - `ctx`: a context of at most 255 bytes.
     - `pk_seed`: a 16-byte salt.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
@@ -1325,7 +1336,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   sf_root = shrincs_pubkey[32:48]
 
   # Stateless verification path.
-  if len(signature) == 16 * (1 + SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1) + SPHX_LAYER_COUNT * (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT)):
+  if len(signature) == SPHX_SIGNATURE_SIZE:
     # Stateless signatures must be bound to the stateful keypair.
     return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
 
@@ -1337,14 +1348,12 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   leaf_index = int.from_bytes(signature[16:24])
   fxmss_signature = signature[24:len(signature)]
 
-  # Signature must be at least `2 + 16 * (WOTS_C_CHAIN_COUNT + 1)` bytes.
-  if len(fxmss_signature) < 2 + 16 * (WOTS_C_CHAIN_COUNT + 1):
+  # FXMSS signature length must fall within expected bounds.
+  if not FXMSS_SIGNATURE_SIZE_MIN <= len(fxmss_signature) <= FXMSS_SIGNATURE_SIZE_MAX:
     return False
-  # Signature must be no longer than `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT)` bytes.
-  elif len(fxmss_signature) > 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT):
-    return False
+
   # Signature length must be 2 more than a multiple of 16.
-  elif (len(fxmss_signature) - 2) % 16 != 0:
+  if (len(fxmss_signature) - 2) % 16 != 0:
     return False
 
   leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT
