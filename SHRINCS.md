@@ -100,7 +100,7 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes. This is then split into 3 x 16-byte seeds.
 
 - `SK.seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
-- `SK.prf` is bonus randomness used for deriving per-message salt values. This is a hedge against faulty signing-time RNG.
+- `SK.prf` is a secret value used to derive per-message randomness.
 - `PK.seed` is a salt value which is appended to the public key.
 
 Note this is the bare minimum needed to generate a full SHRINCS public key. More performant (but larger) secret key representations are possible.
@@ -464,6 +464,8 @@ Note the order of the arguments passed to `PRF` is _not_ the same order in which
 #### `PRF_msg_sl(...)`
 
 The pseudorandom function `PRF_msg_sl`.
+
+<!-- TODO (Jonas): We call opt_rand a "randomness" in the description and "salt" in the inputs list, but a few lines below we say it's not necessarily a salt (deterministic variant) -->
 
 <!-- DOC START PRF_msg_sl -->
 Uses HMAC-SHA256 to hash `sk_prf`, randomness `opt_rand`, and an arbitrary-length message `M`.
