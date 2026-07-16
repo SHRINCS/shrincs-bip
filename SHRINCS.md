@@ -70,10 +70,10 @@ Here follow the parameters of the stateful and the stateless component.
 
 | Parameter | Value | Description |
 |:-:|:-:|:--|
-| `WOTS_C_CHAIN_BITS` | 4 | The number of bits encoded by each Winternitz key chain. |
-| `WOTS_C_CHAIN_COUNT` | 32 | The number of Winternitz chains. |
-| `WOTS_C_CONSTANT_SUM` | 240 | The most likely sum for Winternitz hash chain indexes. |
-| `FXMSS_HEIGHT` | 255 | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+| `WOTS_C_CHAIN_BITS` | <!-- CONST START WOTS_C_CHAIN_BITS -->4<!-- CONST END WOTS_C_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
+| `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
+| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | The most likely sum for Winternitz hash chain indexes. |
+| `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
 
 ### Stateless Parameters
 
@@ -82,18 +82,15 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 | Parameter | FIPS-205 | Value | Description |
 |:-:|:-:|:-:|:--|
 | — | `n` | 16 | The byte length of the hash outputs, i.e. the security parameter. It is not a named parameter in SHRINCS: every tweakable hash function truncates its output to 16 bytes. |
-| `WOTS_TW_CHAIN_BITS` | `lg_w` | 4 | The number of bits encoded by each Winternitz key chain. |
-| `WOTS_TW_CHAIN_COUNT1` | `len1` | 32 | The number of Winternitz message chains per WOTS key. |
-| `WOTS_TW_CHAIN_COUNT2` | `len2` | 3 | The number of Winternitz checksum chains per WOTS key. |
-| `WOTS_TW_CHAIN_COUNT` | `len` | 35 | The overall number of Winternitz chains per WOTS key. |
-| `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | 480 | The maximum possible sum of Winternitz hash chain indexes. |
-| `SPHX_LAYER_COUNT` | `d` | 5 | The number of XMSS layers in the SLH-DSA hypertree. |
-| `SPHX_XMSS_HEIGHT` | `h'` | 9 | The height of each XMSS layer within the SLH-DSA hypertree. |
-| — | `h` | 45 | The total height of the SLH-DSA hypertree. It is not a named parameter in SHRINCS, but is derived as `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT`. |
-| `SPHX_FORS_HEIGHT` | `a` | 13 | The height of each FORS tree used in the SLH-DSA signature. |
-| `SPHX_FORS_COUNT` | `k` | 10 | The number of FORS trees used in the SLH-DSA signature. |
-| — | `m` | 24 | The byte length of the message digest. It is not a named parameter in SHRINCS, but is derived in `slh_dsa_digest_message` as `ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8) + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8) + ceil(SPHX_XMSS_HEIGHT / 8)`. |
-
+| `WOTS_TW_CHAIN_BITS` | `lg_w` | <!-- CONST START WOTS_TW_CHAIN_BITS -->4<!-- CONST END WOTS_TW_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
+| `WOTS_TW_CHAIN_COUNT1` | `len1` | <!-- CONST START WOTS_TW_CHAIN_COUNT1 -->32<!-- CONST END WOTS_TW_CHAIN_COUNT1 --> | The number of Winternitz message chains per WOTS key. |
+| `WOTS_TW_CHAIN_COUNT2` | `len2` | <!-- CONST START WOTS_TW_CHAIN_COUNT2 -->3<!-- CONST END WOTS_TW_CHAIN_COUNT2 --> | The number of Winternitz checksum chains per WOTS key. |
+| `WOTS_TW_CHAIN_COUNT` | `len` | <!-- CONST START WOTS_TW_CHAIN_COUNT -->35<!-- CONST END WOTS_TW_CHAIN_COUNT --> | The overall number of Winternitz chains per WOTS key. |
+| `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | <!-- CONST START WOTS_TW_CHECKSUM_MAX -->480<!-- CONST END WOTS_TW_CHECKSUM_MAX --> | The maximum possible sum of Winternitz hash chain indexes. |
+| `SPHX_LAYER_COUNT` | `d` | <!-- CONST START SPHX_LAYER_COUNT -->5<!-- CONST END SPHX_LAYER_COUNT --> | The number of XMSS layers in the SLH-DSA hypertree. |
+| `SPHX_XMSS_HEIGHT` | `h'` | <!-- CONST START SPHX_XMSS_HEIGHT -->9<!-- CONST END SPHX_XMSS_HEIGHT --> | The height of each XMSS layer within the SLH-DSA hypertree. |
+| `SPHX_FORS_HEIGHT` | `a` | <!-- CONST START SPHX_FORS_HEIGHT -->13<!-- CONST END SPHX_FORS_HEIGHT --> | The height of each FORS tree used in the SLH-DSA signature. |
+| `SPHX_FORS_COUNT` | `k` | <!-- CONST START SPHX_FORS_COUNT -->10<!-- CONST END SPHX_FORS_COUNT --> | The number of FORS trees used in the SLH-DSA signature. |
 
 ## Keygen Inputs
 
