@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -e
+
+./pydoc_insert.py --dry-run || (
+  echo "Template script failed!"
+  exit 1
+)
+
+diff -q SHRINCS.md SHRINCS.new.md || (
+  diff -C 5 SHRINCS.md SHRINCS.new.md || : # ignore exit code, just print the diff
+  echo ""
+  echo "  SHRINCS.md needs templating update! Run ./pydoc_insert.py"
+  echo ""
+  rm -f SHRINCS.new.md
+  exit 1
+)
