@@ -285,8 +285,6 @@ A tweakable hash function can be thought of as a hash function which supports ad
 
 #### `T_sl(...)`
 
-The tweakable hash function `T_sl`.
-
 <!-- DOC START T_sl -->
 The `T_sl` tweaked hash function. Compresses `WOTS_TW_CHAIN_COUNT` Winternitz chain tips into a
 single 16-byte hash.
@@ -308,8 +306,6 @@ def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 
 
 #### `T_sf(...)`
-
-The tweakable hash function `T_sf`.
 
 <!-- DOC START T_sf -->
 The `T_sf` tweaked hash function. Compresses `WOTS_C_CHAIN_COUNT` Winternitz chain tips into a
@@ -333,8 +329,6 @@ def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
 
 #### `T_k(...)`
 
-The tweakable hash function `T_k`.
-
 <!-- DOC START T_k -->
 The `T_k` tweaked hash function. Compresses `SPHX_FORS_COUNT` FORS tree roots into a single
 16-byte hash.
@@ -356,8 +350,6 @@ def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
 
 
 #### `F(...)`
-
-The tweakable hash function `F`.
 
 <!-- DOC START F -->
 The `F` tweaked hash function. Hashes a single 16-byte input, to generate and iterate Winternitz
@@ -381,8 +373,6 @@ def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
 
 #### `H(...)`
 
-The tweakable hash function `H`.
-
 <!-- DOC START H -->
 The `H` tweaked hash function. Combines a pair of 16-byte Merkle child nodes into their 16-byte
 parent, building the Merkle trees in XMSS and FORS.
@@ -404,8 +394,6 @@ def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
 
 
 #### `H_grind(...)`
-
-The tweakable hash function `H_grind`.
 
 <!-- DOC START H_grind -->
 The `H_grind` tweaked hash function. Maps a 32-byte `digest` and grinding `counter` into the
@@ -458,8 +446,6 @@ def hmac_sha256(key: bytes, message: bytes) -> bytes:
 
 #### `PRF(...)`
 
-The pseudorandom function `PRF`.
-
 <!-- DOC START PRF -->
 The `PRF` pseudorandom function. Derives a secret 16-byte preimage from `sk_seed`, for signing
 and key generation.
@@ -483,8 +469,6 @@ Note the order of the arguments passed to `PRF` is _not_ the same order in which
 
 
 #### `PRF_msg_sl(...)`
-
-The pseudorandom function `PRF_msg_sl`.
 
 <!-- TODO (Jonas): We call opt_rand a "randomness" in the description and "salt" in the inputs list, but a few lines below we say it's not necessarily a salt (deterministic variant) -->
 
@@ -513,8 +497,6 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 
 
 #### `PRF_msg_sf(...)`
-
-The pseudorandom function `PRF_msg_sf`.
 
 <!-- DOC START PRF_msg_sf -->
 The `PRF_msg_sf` function. Derives the per-message randomizer (salt) for the stateful path via
@@ -549,8 +531,6 @@ Signing does not hash the user's message directly. Instead, the message is compr
 
 #### `H_msg_sl(...)`
 
-The keyed hash function `H_msg_sl`.
-
 <!-- DOC START H_msg_sl -->
 The `H_msg_sl` message hash function. Produces the 32-byte signing digest for the stateless path.
 
@@ -576,8 +556,6 @@ The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` sa
 
 
 #### `H_msg_sf(...)`
-
-The tweakable hash function `H_msg_sf`.
 
 <!-- DOC START H_msg_sf -->
 The `H_msg_sf` message hash function. Produces the 32-byte signing digest for the stateful path.
