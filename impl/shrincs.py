@@ -463,8 +463,8 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
     - `ADRS`: a 22-byte address.
   - Outputs:
-    - the smallest valid 16-bit grinding `counter`.
-    - the constant-sum set of hash chain indexes it yields (of length `WOTS_C_CHAIN_COUNT`).
+    - the smallest valid grinding `counter`: a 16-bit unsigned integer.
+    - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -488,7 +488,7 @@ def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, co
     - `ADRS`: a 22-byte address.
     - `counter`: a 16-bit unsigned integer.
   - Output:
-    - a constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`), or null.
+    - a constant-sum set of hash chain indexes (`WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers), or null.
 
   This function is only used in the stateful path, and only by the verifier.
   """
@@ -1045,8 +1045,8 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
     - `message`: a variable-length message.
   - Outputs:
     - a `FORS_DIGEST_SIZE`-byte message digest, ready for use by FORS.
-    - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**SPHX_TREE_INDEX_BITS)`.
-    - a pseudorandomly selected index of a FORS key within an XMSS tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
+    - a pseudorandomly selected index of a bottom-layer XMSS tree: an unsigned integer in `[0, 2**SPHX_TREE_INDEX_BITS)`.
+    - a pseudorandomly selected index of a FORS key within an XMSS tree: an unsigned integer in `[0, 2**SPHX_XMSS_HEIGHT)`.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
