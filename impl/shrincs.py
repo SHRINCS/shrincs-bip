@@ -462,9 +462,9 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     - `pk_seed`: a 16-byte salt.
     - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
     - `ADRS`: a 22-byte address.
-  - Output:
-    - a tuple `(counter, indexes)`: the smallest valid 16-bit `counter` and the corresponding
-      constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`).
+  - Outputs:
+    - the smallest valid 16-bit grinding `counter`.
+    - the constant-sum set of hash chain indexes it yields (of length `WOTS_C_CHAIN_COUNT`).
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -1231,7 +1231,7 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[i
   - Inputs:
     - `structure`: a 2-byte identifier describing the FXMSS tree structure.
     - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-      previously issued (a negative value is explicitly invalid).
+      previously issued (a negative value is permitted, and makes the function return `None`).
   - Outputs:
     - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
     - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
@@ -1255,7 +1255,7 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[i
   # - unknown FXMSS tree shape
   # - depth-zero tree
   # - no more signatures left
-  # - state is negative (explicitly invalid)
+  # - state is negative
   return None
 
 def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
@@ -1268,7 +1268,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
     - `message`: a message of at most `2**61 - 128` bytes.
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-      previously issued (a negative value is explicitly invalid).
+      previously issued (a negative value is permitted, and forces the stateless path).
     - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
       if omitted, the stateless path uses the deterministic variant of SLH-DSA).
   - Output:
@@ -1282,8 +1282,8 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   > which increments and saves the state counter as `state_ctr + 1` on a persistent,
   > non-recoverable storage medium before the signature is returned to the caller.
   >
-  > The only exception is for invalid (i.e. negative) values of `state_ctr`, which
-  > explicitly trigger use of the stateful path.
+  > The only exception is for negative values of `state_ctr`, which explicitly force
+  > the stateless path.
   """
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
