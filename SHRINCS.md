@@ -922,7 +922,7 @@ constant-sum index set, returning the lowest such counter and its index set.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> tuple[int, list[int]]:
+def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
@@ -930,7 +930,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
 
-  raise RuntimeError("Unreachable") # practically impossible
+  return None # practically impossible
 ```
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
@@ -1018,8 +1018,12 @@ keypair location prefilled in `ADRS`.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
-  counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  if grinded is None:
+    return None # practically impossible
+
+  counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
   ADRS[10:14] = zeros(4) # zeros reserved
@@ -1509,7 +1513,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> Optional[bytes]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
@@ -1523,6 +1527,8 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  if sig is None:
+    return None # practically impossible
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
@@ -2140,7 +2146,7 @@ This function is used only by the signer.
 > explicitly trigger use of the stateful path.
 
 ```py
-def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> Optional[bytes]:
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
@@ -2165,6 +2171,8 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+  if fxmss_signature is None:
+    return None # practically impossible
 
   # TODO: compact encoding for leaf index
   return R + leaf_index.to_bytes(8) + fxmss_signature
