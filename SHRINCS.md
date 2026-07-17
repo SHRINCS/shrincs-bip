@@ -1816,7 +1816,7 @@ index, and FORS leaf index from `message` under `H_msg_sl`.
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> tuple[bytes, int, int]:
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
@@ -2050,7 +2050,7 @@ This function is used only during key generation.
 > consuming compute resources by making the implementation generate a very large BXMSS tree.
 
 ```py
-def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
   assert len(seed) == 48
   assert len(sf_structure) == 2
 
@@ -2090,7 +2090,7 @@ number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[int, int]]:
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
   tree_shape, tree_depth = structure[0], structure[1]
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth and tree_depth > 0:

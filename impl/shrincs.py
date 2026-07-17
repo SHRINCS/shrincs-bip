@@ -1,6 +1,6 @@
 from math import ceil, floor
 import hashlib
-from typing import Optional, Tuple
+from typing import Optional
 
 #  Helper functions
 
@@ -1033,7 +1033,7 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
 
 #  SLH-DSA algorithms
 
-def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> tuple[bytes, int, int]:
   """
   The SLH-DSA message hashing function. Derives the FORS message digest, bottom-layer XMSS tree
   index, and FORS leaf index from `message` under `H_msg_sl`.
@@ -1188,7 +1188,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 
 #  SHRINCS algorithms
 
-def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
   """
   The SHRINCS key generation function. Computes the secret and public keys from a 48-byte `seed`
   and the stateful tree `sf_structure`.
@@ -1223,7 +1223,7 @@ def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
   shrincs_pubkey = pk_seed + sl_root + sf_root
   return (shrincs_seckey, shrincs_pubkey)
 
-def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[int, int]]:
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
   """
   The SHRINCS stateful-path leaf-selection function. Computes the position `(index, height)` of the
   next WOTS+C leaf for the given `structure` and `state_ctr`.
