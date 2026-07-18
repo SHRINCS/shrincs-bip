@@ -937,13 +937,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
 We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
 
 > [!INFO]
->
-> While the declared return type of `wots_c_grind_to_constant_sum` suggests it may return `None`, this
-> is such a low probability event due to the parameters we use, that it is essentially impossible
-> in our universe. The `Optional` return type is needed only to satisfy formal verification of the
-> SHRINCS specification, which must account for even extremely low-probability paths in the
-> control flow of the signing algorithm. Real-world implementations may treat `wots_c_grind_to_constant_sum` as
-> infallible, provided all input invariants are satisfied.
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 ### `wots_c_map_digest(...)`
@@ -1048,13 +1042,7 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
 <!-- DOC END wots_c_sign -->
 
 > [!INFO]
->
-> While the declared return type of `wots_c_sign` suggests it may return `None`, this
-> is such a low probability event due to the parameters we use, that it is essentially impossible
-> in our universe. The `Optional` return type is needed only to satisfy formal verification of the
-> SHRINCS specification, which must account for even extremely low-probability paths in the
-> control flow of the signing algorithm. Real-world implementations may treat `wots_c_sign` as
-> infallible, provided all input invariants are satisfied.
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 ### `wots_c_pubkey_from_sig(...)`
@@ -1559,13 +1547,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
 <!-- DOC END fxmss_sign -->
 
 > [!INFO]
->
-> While the declared return type of `fxmss_sign` suggests it may return `None`, this
-> is such a low probability event due to the parameters we use, that it is essentially impossible
-> in our universe. The `Optional` return type is needed only to satisfy formal verification of the
-> SHRINCS specification, which must account for even extremely low-probability paths in the
-> control flow of the signing algorithm. Real-world implementations may treat `fxmss_sign` as
-> infallible, provided all input invariants are satisfied.
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 ### `fxmss_pubkey_from_sig(...)`
@@ -2207,13 +2189,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
 <!-- DOC END shrincs_sign -->
 
 > [!INFO]
->
-> While the declared return type of `shrincs_sign` suggests it may return `None`, this
-> is such a low probability event due to the parameters we use, that it is essentially impossible
-> in our universe. The `Optional` return type is needed only to satisfy formal verification of the
-> SHRINCS specification, which must account for even extremely low-probability paths in the
-> control flow of the signing algorithm. Real-world implementations may treat `shrincs_sign` as
-> infallible, provided all input invariants are satisfied.
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 ### `shrincs_verify(...)`
 
@@ -2278,6 +2254,15 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   return root is not None and root == sf_root
 ```
 <!-- DOC END shrincs_verify -->
+
+
+## On Signing Fallibility
+
+The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` f the function fails. This originates from an edgecase condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+
+While this edgecase is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe. See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.
+
+Still, as this python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms. Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`, and `wots_c_grind_to_constant_sum` as infallible functions, provided all input invariants are satisfied.
 
 
 ## TODO
