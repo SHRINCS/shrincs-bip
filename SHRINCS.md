@@ -2170,7 +2170,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   return R + leaf_index.to_bytes(8) + fxmss_signature
 ```
 <!-- DOC END shrincs_sign -->
-
+<!--Mike: I think R = PRF_msg_sf(sk_prf, pk_seed, ADRS, message) should be R = PRF_msg_sf(sk_prf, pk_seed, ADRS, sl_root + message) to match the stateless route. Or we should put sf_root and sl_root into contexts.-->
 
 ### `shrincs_verify(...)`
 
