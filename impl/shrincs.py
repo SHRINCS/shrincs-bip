@@ -1300,14 +1300,15 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
     return slh_dsa_sign(sf_root + message, b"", sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
 
   # Stateful signing path.
+  bound_message = sl_root + message # Bind the stateful signature to the stateless keypair
   leaf_index, leaf_height = leaf_position
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, message)
+  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, bound_message)
 
   # Bind the stateful signature to the stateless keypair.
-  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
 
   # TODO: compact encoding for leaf index
