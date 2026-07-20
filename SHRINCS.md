@@ -450,7 +450,9 @@ Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash in
 
 ### Pseudorandom Functions
 
-A _pseudorandom function_ produces output indistinguishable from random to anyone who does not know its key. SHRINCS instantiates its two pseudorandom functions as _keyed hash functions_, that is, hash functions that take a dedicated key input alongside the message. Both are keyed by a secret: `PRF` is keyed by `SK.seed` and derives secret key material, while `PRF_msg` is keyed by `SK.prf` and derives the per-message randomizer. `PRF_msg` comes in a stateless and a stateful variant, `PRF_msg_sl` and `PRF_msg_sf`, both built on HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, msg)`:
+A _pseudorandom function_ produces output indistinguishable from random to anyone who does not know its key. SHRINCS instantiates its two pseudorandom functions as _keyed hash functions_, that is, hash functions that take a dedicated key input alongside the message. Both are keyed by a secret: `PRF` is keyed by `SK.seed` and derives secret key material, while `PRF_msg` is keyed by `SK.prf` and derives the per-message randomizer. `PRF_msg` comes in a stateless and a stateful variant, `PRF_msg_sl` and `PRF_msg_sf`, both built on HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, message)`.
+
+#### `hmac_sha256(...)`
 
 <!-- DOC START hmac_sha256 -->
 The `hmac_sha256` keyed hash function.
@@ -915,9 +917,9 @@ constant-sum index set, returning the lowest such counter and its index set.
   - `pk_seed`: a 16-byte salt.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `ADRS`: a 22-byte address.
-- Output:
-  - a tuple `(counter, indexes)`: the smallest valid 16-bit `counter` and the corresponding
-    constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`).
+- Outputs:
+  - the smallest valid grinding `counter`: a 16-bit unsigned integer.
+  - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -949,7 +951,7 @@ constant-sum index set it yields, or null if the counter is invalid.
   - `ADRS`: a 22-byte address.
   - `counter`: a 16-bit unsigned integer.
 - Output:
-  - a constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`), or null.
+  - a constant-sum set of hash chain indexes (`WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers), or null.
 
 This function is only used in the stateful path, and only by the verifier.
 
@@ -1810,13 +1812,13 @@ index, and FORS leaf index from `message` under `H_msg_sl`.
   - `message`: a variable-length message.
 - Outputs:
   - a `FORS_DIGEST_SIZE`-byte message digest, ready for use by FORS.
-  - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**SPHX_TREE_INDEX_BITS)`.
-  - a pseudorandomly selected index of a FORS key within an XMSS tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
+  - a pseudorandomly selected index of a bottom-layer XMSS tree: an unsigned integer in `[0, 2**SPHX_TREE_INDEX_BITS)`.
+  - a pseudorandomly selected index of a FORS key within an XMSS tree: an unsigned integer in `[0, 2**SPHX_XMSS_HEIGHT)`.
 
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> tuple[bytes, int, int]:
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
@@ -2050,7 +2052,7 @@ This function is used only during key generation.
 > consuming compute resources by making the implementation generate a very large BXMSS tree.
 
 ```py
-def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
   assert len(seed) == 48
   assert len(sf_structure) == 2
 
@@ -2079,7 +2081,7 @@ next WOTS+C leaf for the given `structure` and `state_ctr`.
 - Inputs:
   - `structure`: a 2-byte identifier describing the FXMSS tree structure.
   - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-    previously issued (a negative value is explicitly invalid).
+    previously issued (a negative value is permitted, and makes the function return `None`).
 - Outputs:
   - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
   - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
@@ -2090,7 +2092,7 @@ number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[int, int]]:
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
   tree_shape, tree_depth = structure[0], structure[1]
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth and tree_depth > 0:
@@ -2105,7 +2107,7 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[i
   # - unknown FXMSS tree shape
   # - depth-zero tree
   # - no more signatures left
-  # - state is negative (explicitly invalid)
+  # - state is negative
   return None
 ```
 <!-- DOC END shrincs_sf_leaf_select -->
@@ -2122,7 +2124,7 @@ falls back to the stateless SLH-DSA path.
   - `message`: a message of at most `2**61 - 128` bytes.
   - `shrincs_seckey`: an 82-byte SHRINCS secret key.
   - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-    previously issued (a negative value is explicitly invalid).
+    previously issued (a negative value is permitted, and forces the stateless path).
   - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
     if omitted, the stateless path uses the deterministic variant of SLH-DSA).
 - Output:
@@ -2136,8 +2138,8 @@ This function is used only by the signer.
 > which increments and saves the state counter as `state_ctr + 1` on a persistent,
 > non-recoverable storage medium before the signature is returned to the caller.
 >
-> The only exception is for invalid (i.e. negative) values of `state_ctr`, which
-> explicitly trigger use of the stateful path.
+> The only exception is for negative values of `state_ctr`, which explicitly force
+> the stateless path.
 
 ```py
 def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:

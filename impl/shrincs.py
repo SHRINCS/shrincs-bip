@@ -1,6 +1,6 @@
 from math import ceil, floor
 import hashlib
-from typing import Optional, Tuple
+from typing import Optional
 
 #  Helper functions
 
@@ -462,9 +462,9 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     - `pk_seed`: a 16-byte salt.
     - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
     - `ADRS`: a 22-byte address.
-  - Output:
-    - a tuple `(counter, indexes)`: the smallest valid 16-bit `counter` and the corresponding
-      constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`).
+  - Outputs:
+    - the smallest valid grinding `counter`: a 16-bit unsigned integer.
+    - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -488,7 +488,7 @@ def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, co
     - `ADRS`: a 22-byte address.
     - `counter`: a 16-bit unsigned integer.
   - Output:
-    - a constant-sum set of hash chain indexes (of length `WOTS_C_CHAIN_COUNT`), or null.
+    - a constant-sum set of hash chain indexes (`WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers), or null.
 
   This function is only used in the stateful path, and only by the verifier.
   """
@@ -1033,7 +1033,7 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
 
 #  SLH-DSA algorithms
 
-def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> Tuple[bytes, int, int]:
+def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> tuple[bytes, int, int]:
   """
   The SLH-DSA message hashing function. Derives the FORS message digest, bottom-layer XMSS tree
   index, and FORS leaf index from `message` under `H_msg_sl`.
@@ -1045,8 +1045,8 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
     - `message`: a variable-length message.
   - Outputs:
     - a `FORS_DIGEST_SIZE`-byte message digest, ready for use by FORS.
-    - a pseudorandomly selected index of a bottom-layer XMSS tree, in `[0, 2**SPHX_TREE_INDEX_BITS)`.
-    - a pseudorandomly selected index of a FORS key within an XMSS tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
+    - a pseudorandomly selected index of a bottom-layer XMSS tree: an unsigned integer in `[0, 2**SPHX_TREE_INDEX_BITS)`.
+    - a pseudorandomly selected index of a FORS key within an XMSS tree: an unsigned integer in `[0, 2**SPHX_XMSS_HEIGHT)`.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
@@ -1188,7 +1188,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 
 #  SHRINCS algorithms
 
-def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
+def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
   """
   The SHRINCS key generation function. Computes the secret and public keys from a 48-byte `seed`
   and the stateful tree `sf_structure`.
@@ -1223,7 +1223,7 @@ def shrincs_keygen(seed: bytes, sf_structure: bytes) -> Tuple[bytes, bytes]:
   shrincs_pubkey = pk_seed + sl_root + sf_root
   return (shrincs_seckey, shrincs_pubkey)
 
-def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[int, int]]:
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
   """
   The SHRINCS stateful-path leaf-selection function. Computes the position `(index, height)` of the
   next WOTS+C leaf for the given `structure` and `state_ctr`.
@@ -1231,7 +1231,7 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[i
   - Inputs:
     - `structure`: a 2-byte identifier describing the FXMSS tree structure.
     - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-      previously issued (a negative value is explicitly invalid).
+      previously issued (a negative value is permitted, and makes the function return `None`).
   - Outputs:
     - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
     - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
@@ -1255,7 +1255,7 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[Tuple[i
   # - unknown FXMSS tree shape
   # - depth-zero tree
   # - no more signatures left
-  # - state is negative (explicitly invalid)
+  # - state is negative
   return None
 
 def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
@@ -1268,7 +1268,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
     - `message`: a message of at most `2**61 - 128` bytes.
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-      previously issued (a negative value is explicitly invalid).
+      previously issued (a negative value is permitted, and forces the stateless path).
     - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
       if omitted, the stateless path uses the deterministic variant of SLH-DSA).
   - Output:
@@ -1282,8 +1282,8 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   > which increments and saves the state counter as `state_ctr + 1` on a persistent,
   > non-recoverable storage medium before the signature is returned to the caller.
   >
-  > The only exception is for invalid (i.e. negative) values of `state_ctr`, which
-  > explicitly trigger use of the stateful path.
+  > The only exception is for negative values of `state_ctr`, which explicitly force
+  > the stateless path.
   """
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
