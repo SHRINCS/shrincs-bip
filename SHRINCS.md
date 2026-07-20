@@ -924,7 +924,7 @@ constant-sum index set, returning the lowest such counter and its index set.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> tuple[int, list[int]]:
+def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
@@ -932,11 +932,14 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
 
-  raise RuntimeError("Unreachable") # practically impossible
+  return None # practically impossible
 ```
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
 We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
+
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 ### `wots_c_map_digest(...)`
@@ -1020,8 +1023,12 @@ keypair location prefilled in `ADRS`.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
-  counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  if grinded is None:
+    return None # practically impossible
+
+  counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
   ADRS[10:14] = zeros(4) # zeros reserved
@@ -1035,6 +1042,9 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
   return counter.to_bytes(2) + concat(signature)
 ```
 <!-- DOC END wots_c_sign -->
+
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 ### `wots_c_pubkey_from_sig(...)`
@@ -1511,7 +1521,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> Optional[bytes]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
@@ -1525,6 +1535,8 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  if sig is None:
+    return None # practically impossible
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
@@ -1535,6 +1547,9 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   return sig
 ```
 <!-- DOC END fxmss_sign -->
+
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 ### `fxmss_pubkey_from_sig(...)`
@@ -2142,7 +2157,7 @@ This function is used only by the signer.
 > the stateless path.
 
 ```py
-def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> Optional[bytes]:
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
@@ -2168,12 +2183,16 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+  if fxmss_signature is None:
+    return None # practically impossible
 
   # TODO: compact encoding for leaf index
   return R + leaf_index.to_bytes(8) + fxmss_signature
 ```
 <!-- DOC END shrincs_sign -->
 
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 ### `shrincs_verify(...)`
 
@@ -2238,6 +2257,15 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   return root is not None and root == sf_root
 ```
 <!-- DOC END shrincs_verify -->
+
+
+## On Signing Fallibility
+
+The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` f the function fails. This originates from an edgecase condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+
+While this edgecase is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe. See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.
+
+Still, as this python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms. Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`, and `wots_c_grind_to_constant_sum` as infallible functions, provided all input invariants are satisfied.
 
 
 ## TODO

@@ -453,7 +453,7 @@ def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, AD
   wots_pk_hash = T_sl(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> tuple[int, list[int]]:
+def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
   """
   The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message_digest` to a
   constant-sum index set, returning the lowest such counter and its index set.
@@ -475,7 +475,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
 
-  raise RuntimeError("Unreachable") # practically impossible
+  return None # practically impossible
 
 def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[list[int]]:
   """
@@ -529,7 +529,7 @@ def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
   """
   The WOTS+C signing function. Produces a WOTS+C signature on a 32-byte `message_digest`, at the
   keypair location prefilled in `ADRS`.
@@ -544,7 +544,11 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
 
   This function is only used in the stateful path, and only by the signer.
   """
-  counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  if grinded is None:
+    return None # practically impossible
+
+  counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
   ADRS[10:14] = zeros(4) # zeros reserved
@@ -806,7 +810,7 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
   ADRS[10:22] = zeros(12)
   return H(pk_seed, ADRS, lchild + rchild)
 
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> Optional[bytes]:
   """
   The FXMSS signing function. Produces a deterministic WOTS+C signature at the leaf given by
   `leaf_index`/`leaf_height` and appends the Merkle authentication path to form an FXMSS signature.
@@ -836,6 +840,8 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  if sig is None:
+    return None # practically impossible
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
@@ -1258,7 +1264,7 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[i
   # - state is negative
   return None
 
-def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> Optional[bytes]:
   """
   The SHRINCS signing function. Signs `message` with the serialized secret key `shrincs_seckey`:
   uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
@@ -1310,6 +1316,8 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+  if fxmss_signature is None:
+    return None # practically impossible
 
   # TODO: compact encoding for leaf index
   return R + leaf_index.to_bytes(8) + fxmss_signature
