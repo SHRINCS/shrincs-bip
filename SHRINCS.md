@@ -12,7 +12,7 @@
 
 This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based signature scheme designed for transaction authorization in the Bitcoin protocol.
 
-SHRINCS combines compact stateful hash-based signatures with a stateless fallback. It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security. A security proof is TODO.
+SHRINCS combines compact stateful hash-based signatures with a stateless fallback[^hbsb]. It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security. A security proof is TODO.
 
 This specification describes the key generation, signing, and verification algorithms of SHRINCS.
 
@@ -29,7 +29,8 @@ This SHRINCS specification includes Python reference code and documentation defi
 
 ## Motivation
 
-TODO
+<!-- TODO (Jonas): the motivation is that this spec allows a soft-fork BIP to add post-quantum transaction authorization rules to Bitcoin (this BIP is purely cryptographical); -->
+
 
 ## Overview
 
@@ -38,7 +39,7 @@ At a high level, a SHRINCS instance combines two hash-based signature schemes:
 1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^sphincs+c] one-time signatures.
 2. A **stateless** component — a variant of SLH-DSA, with algorithms as defined in NIST FIPS-205[^slhdsa] but using a non-standard parameter set.
 
-A signature from either component is sufficient to pass verification. The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable.
+A signature from either component is sufficient to pass verification. The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable (lost, corrupted, or intentionally reset, e.g. after seed recovery).
 
 The **stateful** component, FXMSS, generates small signatures. It is a variant of XMSS[^xmss]. In XMSS, the public key is the root of a Merkle tree whose leaves are one-time-signature public keys, and each signature is a single one-time signature together with the Merkle authentication path from its leaf to the root. The signer must maintain state so that no leaf is used to sign more than once.
 
@@ -66,13 +67,78 @@ Public key and signature sizes are summarized below:
 
 The stateless component of SHRINCS uses SLH-DSA, defined in NIST FIPS-205. It is not exactly SLH-DSA as standardized, however: FIPS-205 approves only a fixed list of parameter sets, and the parameter set used here (see [Parameters](#parameters)) is not among them. The hash functions are instantiated with SHA256, as in the FIPS-205 parameter sets of the SHA2 family at security category 1.
 
-The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except in how the additional randomness used in signing is generated. An implementation of FIPS-205 that admits an arbitrary parameter set can therefore be used for the stateless component of SHRINCS.
+The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except in how the additional randomness used in signing is generated. An implementation of FIPS-205 that admits an arbitrary parameter set can therefore be used for the stateless component of SHRINCS, and its signatures turned into SHRINCS signatures with a thin wrapper.
 
 This document nonetheless respecifies these algorithms in full, rather than referring to FIPS-205, in order to present both components of SHRINCS in one consistent notation. The exact correspondence is given in [the section on SLH-DSA](#slh-dsa) (TODO?).
 
+## Performance
+
+- Note how SPHINCS verification is fast but keygen and signing are slow.
+- XMSS signing and keygen are relatively fast depending on tree depth. Verification is very fast (probably faster than ECDSA, TODO fact check).
+- Mention [verification speed benchmarks](https://conduition.io/code/fast-slh-dsa-verification/) and [CPU/GPU optimizations for signing/keygen](https://conduition.io/code/fast-slh-dsa/).
+
 ## Rationale
 
-TODO
+<!-- Jonas (TODO): SHRINCS covers many use cases but cannot optimize for all of them while keeping complexity manageable -->
+
+### Why hash-based signatures
+
+Among PQ signature families, hash-based schemes occupy a unique position: Their security relies solely on the security of the underlying hash function. This is, arguably, the most conservative and well-studied assumption available. In conditions where acceptance of a cryptographic signature requires a network-wide soft fork, conservatism in cryptographic assumptions is the most significant decision parameter.
+
+### Why not SLH-DSA
+
+NIST-standardized SLH-DSA (the standardized version of SPHINCS+) produces a stateless signature ranging from 7856 bytes (SLH-DSA-SHA2-128s) at the 128-bit classical security level. In the Bitcoin context, where each witness byte affects the transaction fees and consumes scarce block space, these sizes are painful for routine/regular transactions.
+
+One can also construct the shortest suitable Post-Quantum sig+pub schemes (among lattice-, hash-based, and multivariate schemes) using hash-based designs.
+
+We could have used a modified set of algorithms too, which would have improved signature size by as much as 15% and improved code reusability, but this would come at the cost of breaking compatibility with NIST-compliant SLH-DSA implementations. Introducing new algorithms would also mandates a new security proof. By reusing SLH-DSA, we can lean on existing infrastructure, hardware, software, and security arguments.
+
+Still, we achieve a 25% reduction in signature size (a SHRINCS stateless signature is 2 kilobytes smaller) and a ~33% improvement in signing and verification performance compared to SLH-DSA-SHA2-128s by accepting a reduction in signature budget from 2<sup>64</sup> to 2<sup>40</sup>.
+
+### Why not a hybrid scheme
+
+There exist _signature combiners_ such as Bird-of-Prey[^bop] which allow efficient hybridization of classical and post-quantum signature schemes. A hybrid scheme is at least as secure as either of the two base schemes, requiring successful attacks on both base schemes to be considered vulnerable as a whole. With a well-designed combiner, one can achieve stronger security notions than naive signature and public key concatenation. Well-designed signature combiners like BoP also reduce overall signature size compared to a naive combiner because the verifier can recover or reuse some components of the signature.[^bop-delving]
+
+In this proposal we elect **not** to introduce a dedicated hybrid signature scheme combiner for Schnorr+SHRINCS, for a few reasons:
+
+- **Redundancy.** Deploying SHRINCS as a standalone signature scheme is desirable for efficient quantum-safe spending of bitcoin. If standalone SHRINCS is available, users will already have access to hybridization techniques by using hybrid constructions.
+- **Lack of value.** Strong unforgeability - one of the main selling points of using a combiner - is not security-critical in Bitcoin because segregated witnesses don't affect TXIDs. At best a hybrid scheme would provide a minor ~5%-10% improvement in witness size over a naive scripting approach, and this is still less efficient than keeping keys compartmentalized in isolated spending paths. <!-- TODO: this bullet leans on Bitcoin/consensus-specific concepts (segregated witnesses, TXIDs, witness size, scripting, spending paths); reword to be scheme-only or move to the 0xC2 BIP. -->
+- **Complexity & fragility.** A hybrid scheme would necessitate new Schnorr signing sub-algorithms, because combiners like Bird-of-Prey don't use Schnorr as a black-box. This greatly expands the scope of implementation.
+- **Security.** Standalone SHRINCS uses strictly weaker cryptographic assumptions than BIP340, so adding hybridization with Schnorr hedges only against implementation flaws or state reuse in SHRINCS. Both risks can already be effectively mitigated using formal code verification and cautious wallet design.
+
+We thus conclude that deploying a unified hybrid scheme would not offer justifiable value to Bitcoin users, and comes at the expense of great risk and effort in adding a bespoke new signature algorithm, which very few people would use because of the cheaper options available, such as keeping the keys for each algorithm compartmentalized. <!-- TODO: original said "such as placing public keys for each algorithm in isolated leaf scripts in P2MR". -->
+
+Users who do find value in hedging against state reuse or implementation flaws in SHRINCS may do so using explicit multisignature which verifies each signature algorithm individually.
+
+### Why NIST security category 1
+
+The SHRINCS verification algorithm consists mostly of evaluating a series of hash functions on the signature to recompute a certain hash. Ultimately the verifier recomputes one of the SHRINCS public key components: `PK.sf_root` or `PK.sl_root`.
+
+The security of SHRINCS relies solely on the security of the underlying hash function, which seems very robust in general. Given a hash function with output width of `b` bits (given a big enough internal state), the best-known classical attack is simple trial-and-error, which yields a second preimage after 2<sup>b</sup> tries on average. The best case quantum attack using Grover's algorithm yields a second preimage in time on the order of O(2<sup>b/2</sup>). In other words, using a `b`-bit hash gives `b` bits of classical security, and `b/2` bits of quantum security.
+
+While the definition of quantum security bits is less clear, the classical analogue is well-studied. The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time O(sqrt(n)), where `n` is the order of the curve. The secp256k1 curve order is an approximately 2<sup>256</sup> bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
+
+Having no concrete basis on which to select a level of quantum security against Grover's algorithm, we aim for SHRINCS to match BIP340's level of classical security, and so follow the NIST-I security category guidelines: 128 bits of classical security, and 64 bits of quantum security. We do so by using a 128-bit truncation of the SHA256 hash function to instantiate SHRINCS, and this mirrors the NIST FIPS-205 specification's reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.[^why128] We use SHA256 because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if collision resistance of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
+
+### Why use WOTS+C in the stateful path
+
+SLH-DSA signs with WOTS, the Winternitz one-time signature scheme. The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces smaller signatures. WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
+
+### Statefulness
+
+<!-- TODO: cross-link the normative state-management rules in the "On Managing State" spec subsection. -->
+
+SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm.
+
+- Discuss novel paradigms of stateful signature schemes.
+  - Prescribe best practices for stateful wallet devs
+  - Encourage fallback to stateless path if in doubt
+- Explain SPHINCS parameter set choice and compare to NIST-standardized sets with absolute benchmarks: keygen/sign/verify SHA256 compression calls, plus compare key and sig sizes.
+  - Privacy footnote: Multiple parameter sets would be a footgun. Devs could misunderstand or misuse them, and would degrade privacy for the entire network as wallet fingerprinting would be even easier.
+- Discuss upper sig limit parameter of SPHINCS security and explain our choice of this parameter.
+  - Extrapolate the 'max repeated signing lifetime' using a worst-case single-signer scenario.
+  - Graph the signature overuse security degradation curve.
+- Mention how quantum security bits are difficult to empirically measure. Unclear if 64 bits of quantum security is acceptable. TODO: find that link to DJB's critique of NIST….
 
 ## Specification
 
@@ -1142,6 +1208,8 @@ Notably for security, XMSS is always used as part of the SPHINCS (SLH-DSA) frame
 > - In FORS, the preimage leaves sit at height 0, and the root of each of the merkle trees in the forest is at height `SPHX_FORS_HEIGHT`. All leaves share a common layer, but internally FORS tree node indexes count across the entire forest, and so the indexing scheme is more subtle. A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `j * 2**(SPHX_FORS_HEIGHT - h) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type. In other words, the index of a FORS node or leaf must account for all the other nodes to its left at the same height in the other FORS trees.
 >
 > When merkle nodes are combined with the hash function `H`, the coordinates written into the `ADRS` are those of the node being computed (the parent), not of its children. In XMSS, the tree height field of an `SL_XMSS_TREE` address therefore only takes values 1 through `SPHX_XMSS_HEIGHT` - Leaf nodes are not addressed by tree coordinates at all, but through the WOTS-TW keypair index, which equals the leaf's index at height 0. In FXMSS (stateful path), a WOTS+C leaf's coordinates are carried in the `node_height` and `node_index` fields of `ADRS`.
+
+Unlike a directionless merkle tree, XMSS requires explicit left/right direction in the structure of its merkle tree for security.[^xmss-directional]
 
 The following sections describe the XMSS and FXMSS algorithms.
 
@@ -2286,6 +2354,7 @@ This document is licensed under the 3-clause BSD license.
 ## Footnotes
 
 [^slhdsa]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf
+[^hbsb]: The underlying construction is sketched in the appendix of "Hash-based Signature Schemes for Bitcoin", https://eprint.iacr.org/2025/2203.
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
 [^xmss]: https://www.rfc-editor.org/rfc/rfc8391.html
 [^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
@@ -2302,4 +2371,8 @@ This document is licensed under the 3-clause BSD license.
 [^sphincs+]: https://sphincs.org/data/sphincs+-paper.pdf
 [^sphincs+c]: https://eprint.iacr.org/2022/778
 [^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
+[^bop]: https://eprint.iacr.org/2025/1844
+[^bop-delving]: https://delvingbitcoin.org/t/bird-of-prey-2-non-malleable-schnorr-pq-signatures/2514
+[^why128]: Readers may wonder why we can use 128-bit hash functions safely here, when the rest of Bitcoin depends on 256-bit hashes. This is because most of the usage of hash functions in Bitcoin depends on collision resistance for security, and collisions in a b-bit hash function can be found in only 2<sup>b/2</sup> attempts classically, due to the birthday "paradox". In SHRINCS we do not need collision resistance, so we can get away with much smaller hash functions.
+[^xmss-directional]: Can we still prove XMSS secure if we use an unstructured (directionless) tree, a la taproot? (better privacy and XMSS clients are more flexible) No. Unstructured XMSS trees would give an attacker an advantage in multi-target attacks. Say you have an XMSS tree with height two (i.e. four leaves). Let's say you reveal the two intermediate nodes in the first layer to an attacker, e.g. by signing a transaction. The hash function used to compute both of these nodes must be the same - otherwise it would not be a directionless tree - So the attacker can try preimage search on both hash function outputs at once. This doubles their chances of successfully finding a preimage. Scaled up, with more target hashes, the attacker increases their advantage even more.
 [^fxmss_node_index]: The key requirement for a valid FXMSS tree shape is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable. This provides plenty of space while maintaining a fixed max-length encoding for node indexes.
