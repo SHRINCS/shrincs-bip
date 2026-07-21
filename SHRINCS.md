@@ -122,7 +122,8 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 | <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8) + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8) + ceil(SPHX_XMSS_HEIGHT / 8)` | The byte length of the message digest. |
 
 
-## Keygen Inputs
+## Key Generation Inputs
+<!-- TODO (Jonas): What's the prupose of having this section here? Why not explain this in the keygen algorithm section? -->
 
 Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes. This is then split into 3 x 16-byte seeds.
 
