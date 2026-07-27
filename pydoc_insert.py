@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 import shutil
 
 """
-This script parses the shrincs.py reference implementation, to substitute
+This script parses the shrincs.py implementation, to substitute
 docstrings and exact python code for reference functions and constants
 into SHRINCS.md. We parse markdown comments as doc/const insert directives.
 """

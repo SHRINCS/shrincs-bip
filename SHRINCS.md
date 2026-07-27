@@ -2327,11 +2327,14 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
 
 ## Reference Implementation
 
-The reference implementation of SHRINCS is the Python module [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
-
-## Test Vectors
+We provide a naive, highly inefficient, and non-constant time pure Python 3 implementation of the SHRINCS algorithms in [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
 
 Test vectors are provided in [`impl/test.py`](./impl/test.py). Comprehensive test vectors covering every algorithm are still TODO; they are required to advance this proposal from Draft to Complete.
+
+> [!WARNING]
+> The implementation is for demonstration purposes only and not to be used in production environments. It exists to generate test vectors and to serve as an executable specification to write independent implementations against. It does not sample or protect secret key material, and it performs no state management at all: `shrincs_sign` takes the state counter as a caller-supplied argument and does nothing to prevent the same counter being used twice. See [On Managing State](#on-managing-state) for the rules a real implementation must enforce.
+
+TODO: optimized implementation
 
 ## Discussion Items
 
