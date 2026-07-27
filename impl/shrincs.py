@@ -357,7 +357,7 @@ def wots_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS: b
     node = F(pk_seed, ADRS, node)
   return node
 
-def wots_tw_message_to_indexes(message: bytes) -> list[int]:
+def wots_tw_message_to_indexes(message: bytes) -> bytes:
   """
   The WOTS-TW message map function. Converts a 16-byte `message` into a checksummed array of
   `WOTS_TW_CHAIN_COUNT` chain indexes in `[0, 2**WOTS_TW_CHAIN_BITS)`.
@@ -365,7 +365,8 @@ def wots_tw_message_to_indexes(message: bytes) -> list[int]:
   - Inputs:
     - `message`: a 16-byte hash.
   - Output:
-    - a checksummed array of `WOTS_TW_CHAIN_COUNT` `WOTS_TW_CHAIN_BITS`-bit unsigned integers.
+    - a `WOTS_TW_CHAIN_COUNT`-byte checksummed array of chain indexes, each a
+      `WOTS_TW_CHAIN_BITS`-bit unsigned integer.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
@@ -377,9 +378,9 @@ def wots_tw_message_to_indexes(message: bytes) -> list[int]:
     checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
     checksum >>= WOTS_TW_CHAIN_BITS
 
-  return msg_indexes + checksum_indexes
+  return bytes(msg_indexes + checksum_indexes)
 
-def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
+def wots_tw_message_to_indexes_alt(message: bytes) -> bytes:
   """
   Alternative implementation, equivalent to `wots_tw_message_to_indexes` but using the
   more complex FIPS-205 algorithm.
@@ -390,7 +391,7 @@ def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
   checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
   checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
-  return msg_indexes + checksum_indexes
+  return bytes(msg_indexes + checksum_indexes)
 
 def wots_tw_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   """
@@ -474,7 +475,7 @@ def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, AD
   wots_pk_hash = T_sl(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
+def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, bytes]]:
   """
   The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message_digest` to a
   constant-sum index set, returning the lowest such counter and its index set.
@@ -485,7 +486,8 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     - `ADRS`: a 22-byte address.
   - Outputs:
     - the smallest valid grinding `counter`: a 16-bit unsigned integer.
-    - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
+    - a `WOTS_C_CHAIN_COUNT`-byte constant-sum array of the chain indexes it yields, each a
+      `WOTS_C_CHAIN_BITS`-bit unsigned integer.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -494,11 +496,11 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
-      return (i, indexes)
+      return (i, bytes(indexes))
 
   return None # practically impossible
 
-def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[list[int]]:
+def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[bytes]:
   """
   The WOTS+C digest validation function. Evaluates a signature's grinding `counter` and returns the
   constant-sum index set it yields, or null if the counter is invalid.
@@ -509,7 +511,8 @@ def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, co
     - `ADRS`: a 22-byte address.
     - `counter`: a 16-bit unsigned integer.
   - Output:
-    - a constant-sum set of hash chain indexes (`WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers), or null.
+    - a `WOTS_C_CHAIN_COUNT`-byte constant-sum array of chain indexes, each a
+      `WOTS_C_CHAIN_BITS`-bit unsigned integer, or null.
 
   This function is only used in the stateful path, and only by the verifier.
   """
@@ -517,7 +520,7 @@ def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, co
   hashed = H_grind(pk_seed, ADRS, message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
-    return indexes
+    return bytes(indexes)
   else:
     return None
 

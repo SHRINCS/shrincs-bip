@@ -824,12 +824,13 @@ The WOTS-TW message map function. Converts a 16-byte `message` into a checksumme
 - Inputs:
   - `message`: a 16-byte hash.
 - Output:
-  - a checksummed array of `WOTS_TW_CHAIN_COUNT` `WOTS_TW_CHAIN_BITS`-bit unsigned integers.
+  - a `WOTS_TW_CHAIN_COUNT`-byte checksummed array of chain indexes, each a
+    `WOTS_TW_CHAIN_BITS`-bit unsigned integer.
 
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def wots_tw_message_to_indexes(message: bytes) -> list[int]:
+def wots_tw_message_to_indexes(message: bytes) -> bytes:
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)
 
@@ -838,7 +839,7 @@ def wots_tw_message_to_indexes(message: bytes) -> list[int]:
     checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
     checksum >>= WOTS_TW_CHAIN_BITS
 
-  return msg_indexes + checksum_indexes
+  return bytes(msg_indexes + checksum_indexes)
 ```
 <!-- DOC END wots_tw_message_to_indexes -->
 
@@ -847,14 +848,14 @@ Alternative implementation, equivalent to `wots_tw_message_to_indexes` but using
 more complex FIPS-205 algorithm.
 
 ```py
-def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
+def wots_tw_message_to_indexes_alt(message: bytes) -> bytes:
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
   SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
   checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
-  return msg_indexes + checksum_indexes
+  return bytes(msg_indexes + checksum_indexes)
 ```
 <!-- DOC END wots_tw_message_to_indexes_alt -->
 
@@ -1024,18 +1025,19 @@ constant-sum index set, returning the lowest such counter and its index set.
   - `ADRS`: a 22-byte address.
 - Outputs:
   - the smallest valid grinding `counter`: a 16-bit unsigned integer.
-  - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
+  - a `WOTS_C_CHAIN_COUNT`-byte constant-sum array of the chain indexes it yields, each a
+    `WOTS_C_CHAIN_BITS`-bit unsigned integer.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
+def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, bytes]]:
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
-      return (i, indexes)
+      return (i, bytes(indexes))
 
   return None # practically impossible
 ```
@@ -1059,17 +1061,18 @@ constant-sum index set it yields, or null if the counter is invalid.
   - `ADRS`: a 22-byte address.
   - `counter`: a 16-bit unsigned integer.
 - Output:
-  - a constant-sum set of hash chain indexes (`WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers), or null.
+  - a `WOTS_C_CHAIN_COUNT`-byte constant-sum array of chain indexes, each a
+    `WOTS_C_CHAIN_BITS`-bit unsigned integer, or null.
 
 This function is only used in the stateful path, and only by the verifier.
 
 ```py
-def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[list[int]]:
+def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[bytes]:
   ADRS[9] = SF_WOTS_C_GRIND
   hashed = H_grind(pk_seed, ADRS, message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
-    return indexes
+    return bytes(indexes)
   else:
     return None
 ```
