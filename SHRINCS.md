@@ -5,7 +5,7 @@
   Status: Draft
   Type: Specification
   Assigned: ?
-  License: BSD-3-Clause
+  License: CC0-1.0 or MIT
 ```
 
 ## Abstract

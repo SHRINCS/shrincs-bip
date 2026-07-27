@@ -9,7 +9,7 @@
            Jonas Nick <jonas@n-ck.net>
   Status: Draft
   Type: Specification
-  License: BSD-3-Clause
+  License: CC0-1.0 or MIT
   Created: 2026-04-07
   Version: 0.0.1
   Requires: 340, 341, 342, 360
