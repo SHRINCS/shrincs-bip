@@ -1,3 +1,12 @@
+# SHRINCS implementation
+#
+# WARNING: This implementation is for demonstration purposes only and _not_ to
+# be used in production environments. It exists to generate test vectors and to
+# serve as an executable specification to write independent implementations
+# against. It is naive, highly inefficient, and non-constant time. It does not
+# sample or protect secret key material, and it performs no state management at
+# all.
+
 from math import ceil, floor
 import hashlib
 from typing import Optional
