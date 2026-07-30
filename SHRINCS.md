@@ -10,7 +10,7 @@
 
 ## Abstract
 
-This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based signature scheme designed for transaction authorization in the Bitcoin protocol.
+This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based post-quantum signature scheme, for use in Bitcoin transaction authorization.
 
 SHRINCS combines compact stateful hash-based signatures with a stateless fallback[^hbsb]. It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security. A security proof is TODO.
 
@@ -29,7 +29,14 @@ This SHRINCS specification includes Python reference code and documentation defi
 
 ## Motivation
 
-<!-- TODO (Jonas): the motivation is that this spec allows a soft-fork BIP to add post-quantum transaction authorization rules to Bitcoin (this BIP is purely cryptographical); -->
+SHRINCS relies solely on the security of its underlying hash function.
+In this specification, that function is SHA256, which is already fundamental to Bitcoin's security.
+Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems.
+This conservatism gives hash-based signatures a distinct place in the post-quantum design space, even when schemes from other families offer better size or performance.
+
+SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes.
+SHRINCS achieves this reduction by leveraging the fact that a key pair in Bitcoin is typically used only a few times.
+The minimum combined size of a SHRINCS public key and signature is roughly TODO times smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and TODO times smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1).
 
 
 ## Overview
@@ -81,15 +88,10 @@ This document nonetheless respecifies these algorithms in full, rather than refe
 
 <!-- Jonas (TODO): SHRINCS covers many use cases but cannot optimize for all of them while keeping complexity manageable -->
 
-### Why hash-based signatures
-
-Among PQ signature families, hash-based schemes occupy a unique position: Their security relies solely on the security of the underlying hash function. This is, arguably, the most conservative and well-studied assumption available. In conditions where acceptance of a cryptographic signature requires a network-wide soft fork, conservatism in cryptographic assumptions is the most significant decision parameter.
-
 ### Why not SLH-DSA
 
-NIST-standardized SLH-DSA (the standardized version of SPHINCS+) produces a stateless signature ranging from 7856 bytes (SLH-DSA-SHA2-128s) at the 128-bit classical security level. In the Bitcoin context, where each witness byte affects the transaction fees and consumes scarce block space, these sizes are painful for routine/regular transactions.
-
-One can also construct the shortest suitable Post-Quantum sig+pub schemes (among lattice-, hash-based, and multivariate schemes) using hash-based designs.
+Standardized SLH-DSA cannot take advantage of the limited key reuse common in Bitcoin, so its signatures are much larger than SHRINCS's stateful signatures.
+SHRINCS therefore uses a variant of SLH-DSA as its stateless fallback.
 
 We could have used a modified set of algorithms too, which would have improved signature size by as much as 15% and improved code reusability, but this would come at the cost of breaking compatibility with NIST-compliant SLH-DSA implementations. Introducing new algorithms would also mandates a new security proof. By reusing SLH-DSA, we can lean on existing infrastructure, hardware, software, and security arguments.
 
