@@ -7,11 +7,17 @@
 # sample or protect secret key material, and it performs no state management at
 # all.
 
-from math import ceil, floor
 import hashlib
 from typing import Optional
 
 #  Helper functions
+
+def ceildiv(a: int, b: int) -> int:
+  """
+  Divides `a` by `b`, rounding the quotient up. Every call site passes a
+  non-negative `a` and a positive `b`.
+  """
+  return (a + b - 1) // b
 
 def repeat(b: int, n: int) -> bytes:
   return bytes((b for _ in range(n)))
@@ -35,7 +41,7 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
   parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
   of `x` are parsed, and so `x` must have accordingly sufficient length.
   """
-  assert len(x) >= ceil(outlen * b / 8)
+  assert len(x) >= ceildiv(outlen * b, 8)
 
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
@@ -72,12 +78,12 @@ FXMSS_HEIGHT         = 255
 WOTS_TW_CHAINS_SIZE      = WOTS_TW_CHAIN_COUNT * 16
 WOTS_TW_CHECKSUM_MAX     = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
 WOTS_C_CHAINS_SIZE       = WOTS_C_CHAIN_COUNT * 16
-WOTS_C_CONSTANT_SUM      = ceil(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
+WOTS_C_CONSTANT_SUM      = ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)
 SPHX_XMSS_SIGNATURE_SIZE = WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT
 HYPERTREE_SIGNATURE_SIZE = SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE
 FXMSS_SIGNATURE_SIZE_MIN = 2 + WOTS_C_CHAINS_SIZE + 16
 FXMSS_SIGNATURE_SIZE_MAX = 2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT
-FORS_DIGEST_SIZE         = ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)
+FORS_DIGEST_SIZE         = ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)
 FORS_SIGNATURE_SIZE      = 16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)
 SPHX_TREE_INDEX_BITS     = SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)
 SPHX_SIGNATURE_SIZE      = 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE
@@ -373,7 +379,7 @@ def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
   more complex FIPS-205 algorithm.
   """
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
-  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS / 8)
+  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
@@ -874,7 +880,7 @@ def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: byt
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
 
-  leaf_depth = floor(len(xmss_auth) / 16)
+  leaf_depth = len(xmss_auth) // 16
 
   # Ensure leaf_index describes a valid position in the FXMSS tree.
   assert leaf_index < 2 ** min(64, leaf_depth)
@@ -1064,10 +1070,10 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
   fors_digest = digest[:FORS_DIGEST_SIZE]
   offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceil(SPHX_TREE_INDEX_BITS / 8)]
+  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
   offset += len(tree_index_digest)
 
-  leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
+  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
