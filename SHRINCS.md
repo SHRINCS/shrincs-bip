@@ -88,14 +88,31 @@ This document nonetheless respecifies these algorithms in full, rather than refe
 
 <!-- Jonas (TODO): SHRINCS covers many use cases but cannot optimize for all of them while keeping complexity manageable -->
 
-### Why not SLH-DSA
+### Why reduce the SLH-DSA signing budget?
 
-Standardized SLH-DSA cannot take advantage of the limited key reuse common in Bitcoin, so its signatures are much larger than SHRINCS's stateful signatures.
-SHRINCS therefore uses a variant of SLH-DSA as its stateless fallback.
+Standardized SLH-DSA parameter sets have a signing budget of 2<sup>64</sup>.
+This is far beyond what could be exercised on-chain.
+With Bitcoin's current 4 MB block size limit, at most TODO stateless SHRINCS signatures could fit in one year of blocks, even if the blocks contained no other data, and at most TODO could fit in 200 years.
+Reducing the signing budget to 2<sup>40</sup> reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to TODO bytes.
 
-We could have used a modified set of algorithms too, which would have improved signature size by as much as 15% and improved code reusability, but this would come at the cost of breaking compatibility with NIST-compliant SLH-DSA implementations. Introducing new algorithms would also mandates a new security proof. By reusing SLH-DSA, we can lean on existing infrastructure, hardware, software, and security arguments.
+The 2<sup>40</sup> signing budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
 
-Still, we achieve a 25% reduction in signature size (a SHRINCS stateless signature is 2 kilobytes smaller) and a ~33% improvement in signing and verification performance compared to SLH-DSA-SHA2-128s by accepting a reduction in signature budget from 2<sup>64</sup> to 2<sup>40</sup>.
+Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain.
+A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
+
+An attacker who can request signatures can in principle exhaust any finite signing budget, but a smaller budget makes such an attack more practical.
+With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
+The time required to generate each signature limits how quickly the budget can be exhausted.
+Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
+
+### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
+
+To facilitate adoption, the stateless fallback retains the core SLH-DSA algorithms.
+An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work.
+This choice also retains the benefit of the review those algorithms received during standardization.
+
+Retaining the SLH-DSA algorithms gives up a further reduction in signature size.
+For the same 2<sup>40</sup> signing budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the fallback specified here.
 
 ### Why not a hybrid scheme
 
@@ -2375,6 +2392,7 @@ This document is licensed under the 3-clause BSD license.
 [^sphincs]: https://eprint.iacr.org/2014/795.pdf
 [^sphincs+]: https://sphincs.org/data/sphincs+-paper.pdf
 [^sphincs+c]: https://eprint.iacr.org/2022/778
+[^porsfp]: https://eprint.iacr.org/2025/2069
 [^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
 [^bop]: https://eprint.iacr.org/2025/1844
 [^bop-delving]: https://delvingbitcoin.org/t/bird-of-prey-2-non-malleable-schnorr-pq-signatures/2514
