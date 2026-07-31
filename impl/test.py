@@ -1,4 +1,10 @@
 from random import randbytes
+import shrincs
+import typecheck
+
+# Check every call against the value types declared in the signatures.
+typecheck.enforce(shrincs)
+
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
 from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
 
