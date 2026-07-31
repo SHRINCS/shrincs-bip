@@ -194,14 +194,14 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 ### Derived Constants
 
-The following constants are derived from the parameters above. We show formulas for how these are computed.
+The following constants are derived from the parameters above. We show formulas for how these are computed, using the integer operations defined under [Utilities](#utilities).
 
 #### Stateful Constants
 
 | Constant | Value | Formula | Description |
 |:-:|:-:|:-:|:-:|
 | `WOTS_C_CHAINS_SIZE` | <!-- CONST START WOTS_C_CHAINS_SIZE -->512<!-- CONST END WOTS_C_CHAINS_SIZE --> | `WOTS_C_CHAIN_COUNT * 16` | The byte size of a full set of concatenated WOTS chain hashes. |
-| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceil(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)` | The most likely sum for Winternitz hash chain indexes. |
+| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)` | The most likely sum for Winternitz hash chain indexes. |
 |`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
 |`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
 
@@ -215,12 +215,12 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 | `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | <!-- CONST START WOTS_TW_CHECKSUM_MAX -->480<!-- CONST END WOTS_TW_CHECKSUM_MAX --> | `WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)` | The maximum possible sum of Winternitz hash chain indexes. |
 | `SPHX_XMSS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_XMSS_SIGNATURE_SIZE -->704<!-- CONST END SPHX_XMSS_SIGNATURE_SIZE --> | `WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT` | The byte size of a serialized XMSS signature.  |
 | `HYPERTREE_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START HYPERTREE_SIGNATURE_SIZE -->3520<!-- CONST END HYPERTREE_SIGNATURE_SIZE --> | `SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE` | The byte size of a hypertree signature. |
-| `FORS_DIGEST_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
+| `FORS_DIGEST_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
 | `FORS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_SIGNATURE_SIZE -->2240<!-- CONST END FORS_SIGNATURE_SIZE --> | `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)` | The byte size of a FORS signature. |
 | `SPHX_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> | `16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE` | The byte size of an SLH-DSA signature. |
 | `SPHX_TREE_INDEX_BITS` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_TREE_INDEX_BITS -->36<!-- CONST END SPHX_TREE_INDEX_BITS --> | `SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)` | The number of bits needed to represent the index of an XMSS tree in the hypertree. |
 | <sub>(Not named in SHRINCS)</sub> | `h` | 45 | `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT` | The total height of the SLH-DSA hypertree. |
-| <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8) + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8) + ceil(SPHX_XMSS_HEIGHT / 8)` | The byte length of the message digest. |
+| <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceildiv(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT, 8) + ceildiv(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1), 8) + ceildiv(SPHX_XMSS_HEIGHT, 8)` | The byte length of the message digest. |
 
 
 ### Key Generation Inputs
@@ -246,14 +246,15 @@ To save computational effort, `PK.seed` is padded with zero bytes to a length of
 
 We make use of the following utility helper functions in specifying SHRINCS.
 
-- `ceil(x)`: rounds `x` up to the nearest whole number.
-- `floor(x)`: rounds `x` down to the nearest whole number.
+- `a // b`: divides the integer `a` by the integer `b`, rounding the quotient down.
+- `ceildiv(a, b)`: divides the integer `a` by the integer `b`, rounding the quotient up.
 - `sum(x)`: sums a sequence of numbers `x`.
-- `log2(x)`: returns the base-2 logarithm of `x` (a float/decimal).
 - `repeat(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
 - `zeros(n)`: returns a bytestring of  length `n` containing only repeated zero bytes.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates an array of byte strings.
+
+Every algorithm and every derived constant in this specification is computed with exact integer arithmetic. Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation. Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
 
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 
@@ -267,7 +268,7 @@ of `x` are parsed, and so `x` must have accordingly sufficient length.
 
 ```py
 def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
-  assert len(x) >= ceil(outlen * b / 8)
+  assert len(x) >= ceildiv(outlen * b, 8)
 
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
@@ -846,7 +847,7 @@ more complex FIPS-205 algorithm.
 ```py
 def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
-  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS / 8)
+  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
@@ -1001,7 +1002,7 @@ WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any mes
 The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
 
 ```py
-WOTS_C_CONSTANT_SUM = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
+WOTS_C_CONSTANT_SUM = ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)
 ```
 
 Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
@@ -1680,7 +1681,7 @@ def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: byt
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
 
-  leaf_depth = floor(len(xmss_auth) / 16)
+  leaf_depth = len(xmss_auth) // 16
 
   # Ensure leaf_index describes a valid position in the FXMSS tree.
   assert leaf_index < 2 ** min(64, leaf_depth)
@@ -1944,10 +1945,10 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
   fors_digest = digest[:FORS_DIGEST_SIZE]
   offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceil(SPHX_TREE_INDEX_BITS / 8)]
+  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
   offset += len(tree_index_digest)
 
-  leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
+  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
