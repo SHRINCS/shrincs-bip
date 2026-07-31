@@ -301,7 +301,7 @@ Every specification function annotates its inputs and its output with the size o
 - `Int64` is an integer in the two's complement range `[-2**63, 2**63)`. It is the only signed type the specification uses, and it appears only on the state counter, whose negative values explicitly select the stateless path. A bare `int` is a signed integer of unbounded width.
 - An address is one of the types listed under [ADRS](#adrs), each of which serializes to 22 bytes. Every address begins with a node position, and each type names only the payload words it gives meaning to, so a word a type does not name is zero by construction rather than by assignment.
 
-These sizes are normative: a conforming implementation must never construct a value which does not fit the annotation of the field it occupies. They are declared as [`typing.Annotated`](https://docs.python.org/3/library/typing.html#typing.Annotated) metadata rather than as prose, so that they can be checked mechanically.
+These sizes are normative: a conforming implementation must never construct a value which does not fit the annotation of the field it occupies. They are declared as [`typing.Annotated`](https://docs.python.org/3/library/typing.html#typing.Annotated) metadata rather than as prose, so that they can be checked mechanically. The reference test suite in `impl/test.py` checks every argument and every return value of every call it makes against them.
 
 <!-- TYPES START -->
 ```py
