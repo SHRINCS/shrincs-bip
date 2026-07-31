@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+import ast
 import inspect
 from argparse import ArgumentParser
 import shutil
@@ -14,23 +15,37 @@ into SHRINCS.md. We parse markdown comments as doc/const insert directives.
 from impl import shrincs
 
 with open('impl/shrincs.py') as fh:
-  shrincs_code_lines = [line.rstrip() for line in fh]
+  shrincs_source = fh.read()
 
-class SpecFunction:
+shrincs_code_lines = [line.rstrip() for line in shrincs_source.split('\n')]
+shrincs_ast = ast.parse(shrincs_source)
+
+#  Top-level function and class definitions, by name.
+definitions = {}
+for node in shrincs_ast.body:
+  if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+    definitions[node.name] = node
+
+class SpecDefinition:
   """
-  Data structure to document a SHRINCS specification function.
+  Data structure to document a SHRINCS specification function or class.
   """
-  def __init__(self, function_name: str):
-    fn = shrincs.__getattribute__(function_name)
-    positions = list(fn.__code__.co_positions())
-    def_line = positions[0][0] - 1
-    code_start_line = positions[1][0] - 1
-    code_end_line = positions[-1][0]
-    if fn.__doc__ is not None:
-      self.docstring = inspect.cleandoc(fn.__doc__)
+  def __init__(self, name: str):
+    node = definitions[name]
+
+    docstring = ast.get_docstring(node)
+    if docstring is not None:
+      docstring = inspect.cleandoc(docstring)
+    self.docstring = docstring
+
+    #  The definition's source code, with the docstring elided.
+    body_start = node.body[0]
+    signature = shrincs_code_lines[node.lineno - 1 : body_start.lineno - 1]
+    if isinstance(body_start, ast.Expr) and isinstance(body_start.value, ast.Constant):
+      body = shrincs_code_lines[body_start.end_lineno : node.end_lineno]
     else:
-      self.docstring = None
-    self.codestring = '\n'.join([shrincs_code_lines[def_line], *shrincs_code_lines[code_start_line : code_end_line]])
+      body = shrincs_code_lines[body_start.lineno - 1 : node.end_lineno]
+    self.codestring = '\n'.join(signature + body)
 
 
 regex_doc_start = r"^<!-- DOC START (\w+) -->$"
@@ -53,23 +68,23 @@ if __name__ == "__main__":
       doc_start_match = re.match(regex_doc_start, markdown_lines[i])
       const_start_match = re.search(regex_const, markdown_lines[i])
       if doc_start_match:
-        function_name = doc_start_match.group(1)
+        definition_name = doc_start_match.group(1)
         out.write(markdown_lines[i])
 
-        spec_fn = SpecFunction(function_name)
-        if spec_fn.docstring is not None:
-          out.write(spec_fn.docstring + '\n\n')
+        spec_definition = SpecDefinition(definition_name)
+        if spec_definition.docstring is not None:
+          out.write(spec_definition.docstring + '\n\n')
         out.write("```py" + '\n')
-        out.write(spec_fn.codestring + '\n')
+        out.write(spec_definition.codestring + '\n')
         out.write("```" + '\n')
 
         while True:
-          if re.match(r"^<!-- DOC END %s -->$" % function_name, markdown_lines[i]):
+          if re.match(r"^<!-- DOC END %s -->$" % definition_name, markdown_lines[i]):
             out.write(markdown_lines[i])
             break
           i += 1
           if i >= len(markdown_lines):
-            raise RuntimeError("failed to find closing <!-- DOC END %s --> comment" % function_name)
+            raise RuntimeError("failed to find closing <!-- DOC END %s --> comment" % definition_name)
 
       elif const_start_match:
         replacements = []

@@ -1311,6 +1311,7 @@ This function is only used in the stateless path, and only by the signer.
 
 ```py
 def xmss_sign(message: bytes, sk_seed: bytes, keypair_index: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  # Sign the message with WOTS-TW.
   ADRS[10:14] = keypair_index.to_bytes(4)
   sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
 
