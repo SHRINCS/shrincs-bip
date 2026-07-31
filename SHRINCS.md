@@ -822,15 +822,17 @@ As written this would be insecure: Adversaries could forge signatures by finding
 
 ### WOTS Algorithm
 
-Both WOTS schemes make use of the following common hash-chaining algorithm.
+Both WOTS schemes iterate their hash chains the same way, differing only in the `ADRS` type the
+steps are tweaked by. Each scheme therefore has its own chaining function, which sets that type
+itself rather than leaving it to every caller.
 
 
-#### `wots_chain_iter(...)`
+#### `wots_tw_chain_iter(...)`
 
-<!-- DOC START wots_chain_iter -->
-The WOTS hash chain iteration function. Iterates the hash chain from index `start` by `steps`
-steps, returning the node at index `start + steps`. The `ADRS` must be prefilled so the hashes
-are correctly tweaked.
+<!-- DOC START wots_tw_chain_iter -->
+The WOTS-TW hash chain iteration function. Iterates the hash chain from index `start` by `steps`
+steps, returning the node at index `start + steps`. The `ADRS` must be prefilled with the keypair
+and chain the node belongs to.
 
 - Inputs:
   - `node`: a 16-byte hash.
@@ -841,18 +843,50 @@ are correctly tweaked.
 - Output:
   - a 16-byte hash at index `start + steps`.
 
-This function is used in both stateful and stateless paths, and by both the signer and the verifier.
+This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def wots_chain_iter(
+def wots_tw_chain_iter(
     node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
 ) -> Bytes[16]:
+  ADRS[9] = SL_WOTS_TW_HASH
   for j in range(start, start+steps):
     ADRS[18:22] = j.to_bytes(4)
     node = F(pk_seed, ADRS, node)
   return node
 ```
-<!-- DOC END wots_chain_iter -->
+<!-- DOC END wots_tw_chain_iter -->
+
+
+#### `wots_c_chain_iter(...)`
+
+<!-- DOC START wots_c_chain_iter -->
+The WOTS+C hash chain iteration function. Iterates the hash chain from index `start` by `steps`
+steps, returning the node at index `start + steps`. The `ADRS` must be prefilled with the keypair
+and chain the node belongs to.
+
+- Inputs:
+  - `node`: a 16-byte hash.
+  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
+  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must not exceed `2**32`.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - a 16-byte hash at index `start + steps`.
+
+This function is only used in the stateful path, and by both the signer and the verifier.
+
+```py
+def wots_c_chain_iter(
+    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[16]:
+  ADRS[9] = SF_WOTS_C_HASH
+  for j in range(start, start+steps):
+    ADRS[18:22] = j.to_bytes(4)
+    node = F(pk_seed, ADRS, node)
+  return node
+```
+<!-- DOC END wots_c_chain_iter -->
 
 
 ### WOTS-TW
@@ -980,8 +1014,7 @@ def wots_tw_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) 
     ADRS[14:18] = i.to_bytes(4) # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
-    ADRS[9] = SL_WOTS_TW_HASH
-    wots_pk[i] = wots_chain_iter(sk, 0, 2**WOTS_TW_CHAIN_BITS - 1, pk_seed, ADRS)
+    wots_pk[i] = wots_tw_chain_iter(sk, 0, 2**WOTS_TW_CHAIN_BITS - 1, pk_seed, ADRS)
 
   ADRS[9] = SL_WOTS_TW_PK
   ADRS[14:22] = zeros(8)
@@ -1018,8 +1051,7 @@ def wots_tw_sign(
     ADRS[14:18] = i.to_bytes(4)  # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
-    ADRS[9] = SL_WOTS_TW_HASH
-    signature[i] = wots_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
+    signature[i] = wots_tw_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
   return concat(signature)
 ```
 <!-- DOC END wots_tw_sign -->
@@ -1051,7 +1083,7 @@ def wots_tw_pubkey_from_sig(
   for i in range(WOTS_TW_CHAIN_COUNT):
     ADRS[14:18] = i.to_bytes(4)
     steps = 2**WOTS_TW_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed, ADRS)
+    wots_pk[i] = wots_tw_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed, ADRS)
 
   ADRS[9] = SL_WOTS_TW_PK
   ADRS[14:22] = zeros(8)
@@ -1172,8 +1204,7 @@ def wots_c_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) -
     ADRS[14:18] = i.to_bytes(4) # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
-    ADRS[9] = SF_WOTS_C_HASH
-    wots_pk[i] = wots_chain_iter(sk, 0, 2**WOTS_C_CHAIN_BITS - 1, pk_seed, ADRS)
+    wots_pk[i] = wots_c_chain_iter(sk, 0, 2**WOTS_C_CHAIN_BITS - 1, pk_seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = zeros(8)
@@ -1216,8 +1247,7 @@ def wots_c_sign(
     ADRS[14:18] = i.to_bytes(4)  # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
-    ADRS[9] = SF_WOTS_C_HASH
-    signature[i] = wots_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
+    signature[i] = wots_c_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
   return counter.to_bytes(2) + concat(signature)
 ```
 <!-- DOC END wots_c_sign -->
@@ -1262,7 +1292,7 @@ def wots_c_pubkey_from_sig(
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[14:18] = i.to_bytes(4)
     steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_chain_iter(signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed, ADRS)
+    wots_pk[i] = wots_c_chain_iter(signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
   ADRS[14:22] = zeros(8)
