@@ -30,6 +30,19 @@ for node in shrincs_ast.body:
   if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
     definitions[node.name] = node
 
+#  The source lines declaring the value types: everything from `class LEN` up
+#  to the first definition which follows the declarations.
+def value_type_lines() -> list[str]:
+  block = []
+  for node in shrincs_ast.body:
+    if node is definitions['LEN']:
+      block.append(node)
+    elif block:
+      if not isinstance(node, (ast.ClassDef, ast.Assign)):
+        break
+      block.append(node)
+  return shrincs_code_lines[block[0].lineno - 1 : block[-1].end_lineno]
+
 
 #  Consistency check between the annotated signatures and the documentation.
 
@@ -52,6 +65,12 @@ def size_phrases(annotation: ast.expr, exact_only: bool = False) -> list[list[st
   variable-length output is a function of its inputs, which only prose can
   state.
   """
+  #  A union documents every size it admits, since a reader has to be told
+  #  which lengths are permitted, not merely that several are.
+  if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+    return (size_phrases(annotation.left, exact_only)
+            + size_phrases(annotation.right, exact_only))
+
   if isinstance(annotation, ast.Subscript):
     name = ast.unparse(annotation.value)
     if name == "Optional":
@@ -68,6 +87,9 @@ def size_phrases(annotation: ast.expr, exact_only: bool = False) -> list[list[st
   if isinstance(annotation, ast.Name):
     if annotation.id == "ADRS_T":
       return [["22-byte"]]
+    width = re.match(r'^(U?)Int(\d+)$', annotation.id)
+    if width:
+      return [["%s-bit %ssigned integer" % (width.group(2), "un" if width.group(1) else "")]]
 
   return []
 
@@ -144,6 +166,7 @@ def check_documentation(fn: ast.FunctionDef, docstring: str) -> list[str]:
 
   return problems
 
+
 class SpecDefinition:
   """
   Data structure to document a SHRINCS specification function or class.
@@ -175,6 +198,7 @@ problems = []
 regex_doc_start = r"^<!-- DOC START (\w+) -->$"
 regex_doc_end = r"^<!-- DOC END (\w+) -->$"
 regex_const = r"<!-- CONST START (\w+) -->\w*<!-- CONST END (\w+) -->"
+regex_types_start = r"^<!-- TYPES START -->$"
 
 if __name__ == "__main__":
   parser = ArgumentParser(description="SHRINCS.md templating script.")
@@ -191,6 +215,7 @@ if __name__ == "__main__":
     while i < len(markdown_lines):
       doc_start_match = re.match(regex_doc_start, markdown_lines[i])
       const_start_match = re.search(regex_const, markdown_lines[i])
+      types_start_match = re.match(regex_types_start, markdown_lines[i])
       if doc_start_match:
         definition_name = doc_start_match.group(1)
         out.write(markdown_lines[i])
@@ -209,6 +234,20 @@ if __name__ == "__main__":
           i += 1
           if i >= len(markdown_lines):
             raise RuntimeError("failed to find closing <!-- DOC END %s --> comment" % definition_name)
+
+      elif types_start_match:
+        out.write(markdown_lines[i])
+        out.write("```py" + '\n')
+        out.write('\n'.join(value_type_lines()) + '\n')
+        out.write("```" + '\n')
+
+        while True:
+          if re.match(r"^<!-- TYPES END -->$", markdown_lines[i]):
+            out.write(markdown_lines[i])
+            break
+          i += 1
+          if i >= len(markdown_lines):
+            raise RuntimeError("failed to find closing <!-- TYPES END --> comment")
 
       elif const_start_match:
         replacements = []
