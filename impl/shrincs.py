@@ -955,11 +955,11 @@ def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes,
 
   - Inputs:
     - `sk_seed`: a 16-byte secret.
-    - `pk_seed`: a 16-byte salt.
-    - `ADRS`: a 22-byte address.
     - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
       `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
     - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
   - Output:
     - a 16-byte FORS node hash.
 
