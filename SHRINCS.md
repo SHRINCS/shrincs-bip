@@ -1545,6 +1545,7 @@ For security and privacy we highly recommend signers stick to the two prescribed
 
 - Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
 - Some structures are fungible, such as any tree of depth 0 or depth 1 will be the same regardless of shape.
+- A tree of depth 0 has no stateful signatures, whatever its shape. Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it. Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path. The signature counts given for each shape above therefore apply only from depth 1 upwards.
 - Implementations must take care when using SHRINCS secret keys imported from untrusted sources, especially if depending on shape and depth bytes for security-critical logic.
 
 
@@ -2206,25 +2207,30 @@ next WOTS+C leaf for the given `structure` and `state_ctr`.
   - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
 
 Returns `None` if `state_ctr` is set to any negative number, or if `state_ctr + 1` exceeds the
-number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
+number of WOTS+C leaves in the FXMSS tree (as defined by its structure). A depth-zero tree has
+no usable leaf, so a depth-zero key signs only on the stateless path.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
 def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
   tree_shape, tree_depth = structure[0], structure[1]
+
+  # A depth-zero tree holds no usable WOTS+C leaf.
+  if tree_depth == 0:
+    return None
+
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    if state_ctr == tree_depth and tree_depth > 0:
+    if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if state_ctr >= 0 and state_ctr < tree_depth + 1:
+    if 0 <= state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr >= 0 and state_ctr < 2**tree_depth and tree_depth > 0:
+    if 0 <= state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
   # - unknown FXMSS tree shape
-  # - depth-zero tree
   # - no more signatures left
   # - state is negative
   return None
