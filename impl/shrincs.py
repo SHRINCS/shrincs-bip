@@ -83,10 +83,16 @@ SPHX_XMSS_SIGNATURE_SIZE = WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT
 HYPERTREE_SIGNATURE_SIZE = SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE
 FXMSS_SIGNATURE_SIZE_MIN = 2 + WOTS_C_CHAINS_SIZE + 16
 FXMSS_SIGNATURE_SIZE_MAX = 2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT
+SHRINCS_SF_SIGNATURE_SIZE_MIN = 16 + 8 + FXMSS_SIGNATURE_SIZE_MIN
+SHRINCS_SF_SIGNATURE_SIZE_MAX = 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX
 FORS_DIGEST_SIZE         = ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)
 FORS_SIGNATURE_SIZE      = 16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)
 SPHX_TREE_INDEX_BITS     = SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)
 SPHX_SIGNATURE_SIZE      = 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE
+
+# `shrincs_verify` tells the two signature shapes apart by length alone, so the
+# two length ranges must stay disjoint.
+assert SHRINCS_SF_SIGNATURE_SIZE_MAX < SPHX_SIGNATURE_SIZE
 
 #  FXMSS structure types
 FXMSS_SHAPE_UNBALANCED = 0
@@ -1298,7 +1304,8 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
     - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
       if omitted, the stateless path uses the deterministic variant of SLH-DSA).
   - Output:
-    - a variable-length SHRINCS signature.
+    - a `SPHX_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
+      `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes.
 
   This function is used only by the signer.
 
@@ -1347,13 +1354,15 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   The SHRINCS verification function. Returns true iff `signature` is a valid stateful or stateless
   SHRINCS signature on `message` under `shrincs_pubkey`.
 
-  Based on the length of `signature`, the verifier either recomputes `sf_root`
-  (stateful path) or recomputes `sl_root` (stateless path), and compares the result
-  against the public key.
+  The length of `signature` selects the path: exactly `SPHX_SIGNATURE_SIZE` bytes for the
+  stateless path, or `SHRINCS_SF_SIGNATURE_SIZE_MIN` to `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes
+  in steps of 16 for the stateful path. Any other length is not a signature, and is rejected.
+  The verifier recomputes `sl_root` on the stateless path and `sf_root` on the stateful path,
+  and compares the result against the public key.
 
   - Inputs:
     - `message`: a message of at most `2**61 - 128` bytes.
-    - `signature`: a purported SHRINCS signature of arbitrary length.
+    - `signature`: a candidate SHRINCS signature, of any length.
     - `shrincs_pubkey`: a 48-byte SHRINCS public key.
   - Output:
     - a boolean indicating if the signature is valid.
@@ -1369,34 +1378,35 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
     # Stateless signatures must be bound to the stateful keypair.
     return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
 
-  # Stateful verification path.
-  if len(signature) < 24:
+  # Stateful verification path. These bounds are the FXMSS bounds plus a 24-byte header.
+  elif SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
+    R = signature[0:16]
+    leaf_index = int.from_bytes(signature[16:24])
+    fxmss_signature = signature[24:len(signature)]
+
+    # The FXMSS part's length must be 2 more than a multiple of 16.
+    if (len(fxmss_signature) - 2) % 16 != 0:
+      return False
+
+    leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT
+    leaf_height = FXMSS_HEIGHT - leaf_depth
+
+    # Reject a leaf_index that names no position in a tree of this depth.
+    if leaf_index >= 2 ** min(64, leaf_depth):
+      return False
+
+    ADRS = bytearray(22)
+    ADRS[0] = leaf_height
+    ADRS[1:9] = leaf_index.to_bytes(8)
+
+    # Stateful signatures must be bound to the stateless keypair.
+    message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+    root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
+    if root is None:
+      return False
+
+    return root == sf_root
+
+  # A length matching neither shape is not a SHRINCS signature.
+  else:
     return False
-
-  R = signature[0:16]
-  leaf_index = int.from_bytes(signature[16:24])
-  fxmss_signature = signature[24:len(signature)]
-
-  # FXMSS signature length must fall within expected bounds.
-  if not FXMSS_SIGNATURE_SIZE_MIN <= len(fxmss_signature) <= FXMSS_SIGNATURE_SIZE_MAX:
-    return False
-
-  # Signature length must be 2 more than a multiple of 16.
-  if (len(fxmss_signature) - 2) % 16 != 0:
-    return False
-
-  leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT
-  leaf_height = FXMSS_HEIGHT - leaf_depth
-
-  # Reject a leaf_index that names no position in a tree of this depth.
-  if leaf_index >= 2 ** min(64, leaf_depth):
-    return False
-
-  ADRS = bytearray(22)
-  ADRS[0] = leaf_height
-  ADRS[1:9] = leaf_index.to_bytes(8)
-
-  # Stateful signatures must be bound to the stateless keypair.
-  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
-  root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
-  return root is not None and root == sf_root
