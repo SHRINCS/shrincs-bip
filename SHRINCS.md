@@ -29,14 +29,11 @@ This SHRINCS specification includes Python reference code and documentation defi
 
 ## Motivation
 
-SHRINCS relies solely on the security of its underlying hash function.
-In this specification, that function is SHA256, which is already fundamental to Bitcoin's security.
-Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems.
-This conservatism gives hash-based signatures a distinct place in the post-quantum design space, even when schemes from other families offer better size or performance.
+With companies promising effective quantum computers in the near future[^ibm-roadmap], and advances in AI producing effective attacks on other cryptosystems[^hawkattack], we see utility in proposing a compact signature scheme that depends on even weaker assumptions than those already deployed in popular use today (RSA, ECDSA, ML-DSA).
 
-SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes.
-SHRINCS achieves this reduction by leveraging the fact that a key pair in Bitcoin is typically used only a few times.
-The minimum combined size of a SHRINCS public key and signature is roughly TODO times smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and TODO times smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1).
+SHRINCS relies solely on the security of its underlying hash function. In this specification, that function is SHA256, which is already fundamental to Bitcoin's security. Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems. This conservatism gives hash-based signature schemes like SHRINCS a distinct place in the cryptographic design space, even when schemes from other families offer better size or performance.
+
+In Bitcoin, block space is scarce, and users pay fees for block space on a per-byte basis, so any signature scheme candidate for Bitcoin must prioritize compactness and balance that against other trade-offs. SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes. The minimum combined size of a SHRINCS public key and signature is roughly TODO times smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and TODO times smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1). SHRINCS achieves this reduction by leveraging the fact that a key pair in Bitcoin is typically used only a few times, and so signers can typically accept the burden of tracking state in exchange for much smaller signatures.
 
 
 ## Overview
@@ -86,35 +83,44 @@ This document nonetheless respecifies these algorithms in full, rather than refe
 
 ## Rationale
 
-<!-- Jonas (TODO): SHRINCS covers many use cases but cannot optimize for all of them while keeping complexity manageable -->
+SHRINCS covers many use cases but cannot optimize for all of them while keeping complexity manageable. In this section we describe why we chose to make the trade-offs used in SHRINCS' algorithmic design and parameter set.
 
-### Why reduce the SLH-DSA signing budget?
+### Why a hash-based signature scheme?
 
-Standardized SLH-DSA parameter sets have a signing budget of 2<sup>64</sup>.
-This is far beyond what could be exercised on-chain.
-With Bitcoin's current 4 MB block size limit, at most TODO stateless SHRINCS signatures could fit in one year of blocks, even if the blocks contained no other data, and at most TODO could fit in 200 years.
-Reducing the signing budget to 2<sup>40</sup> reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to TODO bytes.
+Hash-based signatures are an extremely conservative choice: They rely only on the security of an underlying hash function, with some assumptions made about how the hash function behaves with respect to multi-target attacks and other subtleties, which result in security equivalent to preimage resistance (i.e. `b` bits of security for `b`-bit hash function outputs).
+
+This extreme conservatism aims to provide users with a future-proof signature scheme that we hope can survive long periods (decades) of AI-accelerated cryptanalysis, or novel technologies like quantum computers. For example, any breakage in collision resistance of SHA256 should not affect SHRINCS, which explicitly does not require collision-resistance. In the context of Bitcoin, this long-range durability is of crucial importance, as Bitcoin UTXOs often sit untouched for years at a time before being claimed.
+
+### Why not use a stock SLH-DSA parameter set?
+
+Standardized SLH-DSA parameter sets have a signing budget of 2<sup>64</sup>. This is far beyond what could be exercised on-chain. With Bitcoin's current 4 MB block size limit, at most TODO stateless SHRINCS signatures could fit in one year of blocks, even if the blocks contained no other data, and at most TODO could fit in 200 years. Reducing the signing budget to 2<sup>40</sup> reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to TODO bytes.
 
 The 2<sup>40</sup> signing budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
 
-Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain.
-A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
+Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain. A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
 
-An attacker who can request signatures can in principle exhaust any finite signing budget, but a smaller budget makes such an attack more practical.
-With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
-The time required to generate each signature limits how quickly the budget can be exhausted.
-Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
+An attacker who can request signatures can in principle exhaust any finite signing budget, but a smaller budget makes such an attack more practical. With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful. The time required to generate each signature limits how quickly the budget can be exhausted. Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
 
 ### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
 
-To facilitate adoption, the stateless fallback retains the core SLH-DSA algorithms.
-An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work.
-This choice also retains the benefit of the review those algorithms received during standardization.
+To facilitate adoption, the stateless fallback retains the core SLH-DSA algorithms. An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work. This choice also retains the benefit of the review those algorithms received during standardization.
 
-Retaining the SLH-DSA algorithms gives up a further reduction in signature size.
-For the same 2<sup>40</sup> signing budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the fallback specified here.
+Retaining the SLH-DSA algorithms gives up a further reduction in signature size. For the same 2<sup>40</sup> signing budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the FIPS-205-compliant algorithms specified here. We reasoned that the security, convenience, and interoperability benefits of FIPS-205 compliance were worth the price of slightly more expensive stateless signatures.
 
-### Why not a hybrid scheme
+### Why these specific parameters?
+
+We chose the stateless parameters such that signing, key-generation, and verification costs remain bounded below that of the "short" SLH-DSA parameter sets (e.g. SLH-DSA-SHA2-128s), which we used as a yardstick for what is considered reasonable by standards bodies like NIST.
+
+We chose the stateful parameters to minimize the cost-per-byte of verifying SHRINCS signatures, while keeping the worst-case cost-per-byte relatively consistent across the stateful and stateless components, and allowing for the possibility for a witness discount to accompany SHRINCS deployment (we do not specifically require or endorse such a change).
+
+The most obvious change we could make to the stateful parameters would be to double `WOTS_C_CHAIN_BITS` and halve
+`WOTS_C_CHAIN_COUNT`. This would give us stateful signatures roughly half the size, but would increase key-generation and signing costs by almost a factor of 10x, while verification cost increases more than 4x, leading to a cost-per-byte of about 8x what we have with our proposed parameters.
+
+With a small change in algorithms, we could also set `WOTS_C_CHAIN_BITS = 5`, which would change `WOTS_C_CHAIN_COUNT` to not be a clean power of two. Since we do not care about FIPS-205 compliance this would be acceptable. This earns us \~20% smaller stateful signatures in exchange for a 2x slowdown in key-generation speed, a negligible 1.5x slowdown in signing speed, and a minor 1.1x slowdown in verification speed.
+
+TODO further explanations, perhaps reference https://mjthatch.github.io/SPHINCS-Parameters/site and benchmark verification against Schnorr using HW accel?
+
+### Why not a hybrid scheme?
 
 There exist _signature combiners_ such as Bird-of-Prey[^bop] which allow efficient hybridization of classical and post-quantum signature schemes. A hybrid scheme is at least as secure as either of the two base schemes, requiring successful attacks on both base schemes to be considered vulnerable as a whole. With a well-designed combiner, one can achieve stronger security notions than naive signature and public key concatenation. Well-designed signature combiners like BoP also reduce overall signature size compared to a naive combiner because the verifier can recover or reuse some components of the signature.[^bop-delving]
 
@@ -129,7 +135,7 @@ We thus conclude that deploying a unified hybrid scheme would not offer justifia
 
 Users who do find value in hedging against state reuse or implementation flaws in SHRINCS may do so using explicit multisignature which verifies each signature algorithm individually.
 
-### Why NIST security category 1
+### Why NIST security category 1?
 
 The SHRINCS verification algorithm consists mostly of evaluating a series of hash functions on the signature to recompute a certain hash. Ultimately the verifier recomputes one of the SHRINCS public key components: `PK.sf_root` or `PK.sl_root`.
 
@@ -139,25 +145,68 @@ While the definition of quantum security bits is less clear, the classical analo
 
 Having no concrete basis on which to select a level of quantum security against Grover's algorithm, we aim for SHRINCS to match BIP340's level of classical security, and so follow the NIST-I security category guidelines: 128 bits of classical security, and 64 bits of quantum security. We do so by using a 128-bit truncation of the SHA256 hash function to instantiate SHRINCS, and this mirrors the NIST FIPS-205 specification's reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.[^why128] We use SHA256 because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if collision resistance of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
 
-### Why use WOTS+C in the stateful path
+### Why use WOTS+C in the stateful path?
 
-SLH-DSA signs with WOTS, the Winternitz one-time signature scheme. The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces smaller signatures. WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
+SLH-DSA signs with WOTS-TW, the Winternitz one-time signature scheme with a checksum. The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces smaller signatures. WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
 
-### Statefulness
+An alternative choice would be to use WOTS-TW in the stateful path too, which would reduce code surface at the cost of signature size and verification time. Concretely, with the parameter set we chose, this would result in at most 6% larger stateful signatures, and slightly longer (and non-constant) verification time. We judged the additional code complexity to be worth the efficiency gains in this case: We expect the stateful component will be the primary one used in Bitcoin transactions, and thus was worth the optimization.
 
-<!-- TODO: cross-link the normative state-management rules in the "On Managing State" spec subsection. -->
+### Why statefulness?
 
-SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm.
+SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm. A stateful signature algorithm is one in which signers must keep track of how many messages they have previously signed. This "statefulness burden" introduces complexity into implementations, which must ensure state is managed correctly and consistently. See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
 
-- Discuss novel paradigms of stateful signature schemes.
-  - Prescribe best practices for stateful wallet devs
-  - Encourage fallback to stateless path if in doubt
+SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness: Approximately 10x smaller signatures, which require approximately 1/5th of the compute to verify (compared to the stateless component).
+
+SHRINCS singers who cannot manage state, or who do not yet have the time/energy to devote to properly implementing state management, can still generate valid SHRINCS keys and sign using the stateless component. Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of the current keypair's state counter.
+
+### Isn't statefulness unsafe?
+
+If used incorrectly, a stateful signature scheme admits trivial forgeries by anyone observing signatures that reuse the same state. Thankfully, because of the stateless fallback component, any SHRINCS signer can follow a prescribed set of implementation-level invariants to ensure such situations never occur, while always maintaining the ability to sign in an emergency scenario (lost or corrupted state). See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
+
+### Why does the stateful path use "flexible" XMSS?
+
+Supporting only one tree shape between balanced XMSS (BXMSS) or unbalanced XMSS (UXMSS) locks out some use-cases from using the stateful path. Balanced and unbalanced XMSS tree shapes have completely different usage profiles and trade-offs against one-another.
+
+| Property | UXMSS | BXMSS |
+|:-:|:-:|:-:|
+| Keygen Speed | Fast | Slow |
+| Budget | Sign only a few times | Sign many times |
+| Signature size | Compact, variable size signatures | Larger fixed-size signatures |
+| Primary use cases | Personal wallets; single-use certification; cooperative signing | Address reuse; L2 protocols; persistent identity |
+
+SHRINCS verifiers should therefore support either shape, so that the more-efficient stateful component can satisfy the needs of as many users as possible. After all, verifiers need not care about exactly how many signatures a keypair can produce - They need only validate that a signature is authentic against its public key.
+
+The naive way to support both balanced/unbalanced shapes would be to publish or commit a flag into each SHRINCS public key that identifies whether the stateful component uses balanced or unbalanced XMSS, and then react appropriately to that flag in the verifier.
+
+However, we found that the verifier could be made agnostic to the XMSS tree structure, which enables a single unified verifier code path that covers any tree structure. This "flexible XMSS" (FXMSS) verifier can accept signatures from other more complex XMSS tree structures as well as BXMSS and UXMSS. This means stateful SHRINCS XMSS trees can be designed to fit highly specialized use-cases e.g. a keypair which produces constant size signatures for the first $n$ signatures and then the size doubles; or a keypair which produces short signatures of increasing size a la UXMSS, until some threshold point where the signature size constant up to budget-exhaustion.
+
+We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourage further research into other tree shapes before suggesting their use in production. Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox tree shapes for the sake of forwards compatibility.
+
+
+### What about hardware wallets?
+
+Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.
+
+Thankfully signing with the stateful component of SHRINCS is very efficient and requires only a few hundred hash invocations per signature. Most of the work can be cached up-front during the stateful key-generation, which only requires about TODO SHA256 compressions at most for UXMSS - and even that can be reduced by decreasing the UXMSS tree depth.
+
+The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signing budget of the key from 2<sup>40</sup> to some arbitrary lower bound.
+
+Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signing budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
+
+>[!WARNING]
+> SHRINCS keys generated using hypertree pruning for the stateless component **are not compatible with SHRINCS implementations which do not support hypertree pruning.** In fact, importing key across such incompatible implementations may result in lost funds.[^pruning]
+
+
+
+### TODO
+
 - Explain SPHINCS parameter set choice and compare to NIST-standardized sets with absolute benchmarks: keygen/sign/verify SHA256 compression calls, plus compare key and sig sizes.
   - Privacy footnote: Multiple parameter sets would be a footgun. Devs could misunderstand or misuse them, and would degrade privacy for the entire network as wallet fingerprinting would be even easier.
 - Discuss upper sig limit parameter of SPHINCS security and explain our choice of this parameter.
   - Extrapolate the 'max repeated signing lifetime' using a worst-case single-signer scenario.
   - Graph the signature overuse security degradation curve.
 - Mention how quantum security bits are difficult to empirically measure. Unclear if 64 bits of quantum security is acceptable. TODO: find that link to DJB's critique of NIST….
+
 
 ## Specification
 
@@ -2416,6 +2465,8 @@ This document is licensed under the 3-clause BSD license.
 
 ## Footnotes
 
+[^ibm-roadmap]: https://web.archive.org/web/20260801191757/https://www.ibm.com/roadmaps/quantum/2030/
+[^hawkattack]: https://anthropic.com/document/hawk_key_recovery.pdf
 [^slhdsa]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf
 [^hbsb]: The underlying construction is sketched in the appendix of "Hash-based Signature Schemes for Bitcoin", https://eprint.iacr.org/2025/2203.
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
