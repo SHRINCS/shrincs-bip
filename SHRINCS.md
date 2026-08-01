@@ -189,7 +189,7 @@ Low-power signers, especially early-generation hardware wallets, typically lack 
 
 Thankfully signing with the stateful component of SHRINCS is very efficient and requires only a few hundred hash invocations per signature. Most of the work can be cached up-front during the stateful key-generation, which only requires about TODO SHA256 compressions at most for UXMSS - and even that can be reduced by decreasing the UXMSS tree depth.
 
-The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signing budget of the key from 2<sup>40</sup> to some arbitrary lower bound.
+The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signing budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
 Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signing budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
 
