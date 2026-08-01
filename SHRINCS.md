@@ -357,7 +357,7 @@ SHRINCS is a high-level construction built out of many smaller sub-schemes. To f
     /           \      /
    /             \    /
  FXMSS           SLH-DSA
-    \      (contains XMSS)
+    \        (contains XMSS)
      \           /
       \         /
        \       /
