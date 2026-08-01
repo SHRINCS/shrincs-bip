@@ -185,7 +185,7 @@ We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourag
 
 ### What about hardware wallets?
 
-Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.
+Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
 Thankfully signing with the stateful component of SHRINCS is very efficient and requires only a few hundred hash invocations per signature. Most of the work can be cached up-front during the stateful key-generation, which only requires about TODO SHA256 compressions at most for UXMSS - and even that can be reduced by decreasing the UXMSS tree depth.
 
@@ -2480,6 +2480,8 @@ This document is licensed under the 3-clause BSD license.
 [^sha256x8]: https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c
 [^vulkan]: https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
+[^ledger-bench]: https://youtu.be/V59OkKfATng?si=Q6MsI7VBm5NMdJWZ&t=2297
+[^trezor-bench]: https://github.com/trezor/trezor-firmware/pull/4901 and https://gist.github.com/onvej-sl/3851bdae7ae5aa1f2624ca769737ea2e
 [^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
 [^sphincs]: https://eprint.iacr.org/2014/795.pdf
 [^sphincs+]: https://sphincs.org/data/sphincs+-paper.pdf
