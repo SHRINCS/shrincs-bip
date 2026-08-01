@@ -10,7 +10,7 @@
 
 ## Abstract
 
-This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based signature scheme designed for transaction authorization in the Bitcoin protocol.
+This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based post-quantum signature scheme, for use in Bitcoin transaction authorization.
 
 SHRINCS combines compact stateful hash-based signatures with a stateless fallback[^hbsb]. It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security. A security proof is TODO.
 
@@ -29,7 +29,14 @@ This SHRINCS specification includes Python reference code and documentation defi
 
 ## Motivation
 
-<!-- TODO (Jonas): the motivation is that this spec allows a soft-fork BIP to add post-quantum transaction authorization rules to Bitcoin (this BIP is purely cryptographical); -->
+SHRINCS relies solely on the security of its underlying hash function.
+In this specification, that function is SHA256, which is already fundamental to Bitcoin's security.
+Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems.
+This conservatism gives hash-based signatures a distinct place in the post-quantum design space, even when schemes from other families offer better size or performance.
+
+SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes.
+SHRINCS achieves this reduction by leveraging the fact that a key pair in Bitcoin is typically used only a few times.
+The minimum combined size of a SHRINCS public key and signature is roughly TODO times smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and TODO times smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1).
 
 
 ## Overview
@@ -81,19 +88,31 @@ This document nonetheless respecifies these algorithms in full, rather than refe
 
 <!-- Jonas (TODO): SHRINCS covers many use cases but cannot optimize for all of them while keeping complexity manageable -->
 
-### Why hash-based signatures
+### Why reduce the SLH-DSA signing budget?
 
-Among PQ signature families, hash-based schemes occupy a unique position: Their security relies solely on the security of the underlying hash function. This is, arguably, the most conservative and well-studied assumption available. In conditions where acceptance of a cryptographic signature requires a network-wide soft fork, conservatism in cryptographic assumptions is the most significant decision parameter.
+Standardized SLH-DSA parameter sets have a signing budget of 2<sup>64</sup>.
+This is far beyond what could be exercised on-chain.
+With Bitcoin's current 4 MB block size limit, at most TODO stateless SHRINCS signatures could fit in one year of blocks, even if the blocks contained no other data, and at most TODO could fit in 200 years.
+Reducing the signing budget to 2<sup>40</sup> reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to TODO bytes.
 
-### Why not SLH-DSA
+The 2<sup>40</sup> signing budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
 
-NIST-standardized SLH-DSA (the standardized version of SPHINCS+) produces a stateless signature ranging from 7856 bytes (SLH-DSA-SHA2-128s) at the 128-bit classical security level. In the Bitcoin context, where each witness byte affects the transaction fees and consumes scarce block space, these sizes are painful for routine/regular transactions.
+Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain.
+A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
 
-One can also construct the shortest suitable Post-Quantum sig+pub schemes (among lattice-, hash-based, and multivariate schemes) using hash-based designs.
+An attacker who can request signatures can in principle exhaust any finite signing budget, but a smaller budget makes such an attack more practical.
+With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
+The time required to generate each signature limits how quickly the budget can be exhausted.
+Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
 
-We could have used a modified set of algorithms too, which would have improved signature size by as much as 15% and improved code reusability, but this would come at the cost of breaking compatibility with NIST-compliant SLH-DSA implementations. Introducing new algorithms would also mandates a new security proof. By reusing SLH-DSA, we can lean on existing infrastructure, hardware, software, and security arguments.
+### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
 
-Still, we achieve a 25% reduction in signature size (a SHRINCS stateless signature is 2 kilobytes smaller) and a ~33% improvement in signing and verification performance compared to SLH-DSA-SHA2-128s by accepting a reduction in signature budget from 2<sup>64</sup> to 2<sup>40</sup>.
+To facilitate adoption, the stateless fallback retains the core SLH-DSA algorithms.
+An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work.
+This choice also retains the benefit of the review those algorithms received during standardization.
+
+Retaining the SLH-DSA algorithms gives up a further reduction in signature size.
+For the same 2<sup>40</sup> signing budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the fallback specified here.
 
 ### Why not a hybrid scheme
 
@@ -175,14 +194,14 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 ### Derived Constants
 
-The following constants are derived from the parameters above. We show formulas for how these are computed.
+The following constants are derived from the parameters above. We show formulas for how these are computed, using the integer operations defined under [Utilities](#utilities).
 
 #### Stateful Constants
 
 | Constant | Value | Formula | Description |
 |:-:|:-:|:-:|:-:|
 | `WOTS_C_CHAINS_SIZE` | <!-- CONST START WOTS_C_CHAINS_SIZE -->512<!-- CONST END WOTS_C_CHAINS_SIZE --> | `WOTS_C_CHAIN_COUNT * 16` | The byte size of a full set of concatenated WOTS chain hashes. |
-| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceil(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)` | The most likely sum for Winternitz hash chain indexes. |
+| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)` | The most likely sum for Winternitz hash chain indexes. |
 |`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
 |`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
 |`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->554<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
@@ -198,12 +217,12 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 | `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | <!-- CONST START WOTS_TW_CHECKSUM_MAX -->480<!-- CONST END WOTS_TW_CHECKSUM_MAX --> | `WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)` | The maximum possible sum of Winternitz hash chain indexes. |
 | `SPHX_XMSS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_XMSS_SIGNATURE_SIZE -->704<!-- CONST END SPHX_XMSS_SIGNATURE_SIZE --> | `WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT` | The byte size of a serialized XMSS signature.  |
 | `HYPERTREE_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START HYPERTREE_SIGNATURE_SIZE -->3520<!-- CONST END HYPERTREE_SIGNATURE_SIZE --> | `SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE` | The byte size of a hypertree signature. |
-| `FORS_DIGEST_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
+| `FORS_DIGEST_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
 | `FORS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_SIGNATURE_SIZE -->2240<!-- CONST END FORS_SIGNATURE_SIZE --> | `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)` | The byte size of a FORS signature. |
 | `SPHX_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> | `16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE` | The byte size of an SLH-DSA signature. |
 | `SPHX_TREE_INDEX_BITS` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_TREE_INDEX_BITS -->36<!-- CONST END SPHX_TREE_INDEX_BITS --> | `SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)` | The number of bits needed to represent the index of an XMSS tree in the hypertree. |
 | <sub>(Not named in SHRINCS)</sub> | `h` | 45 | `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT` | The total height of the SLH-DSA hypertree. |
-| <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceil(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT / 8) + ceil(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1) / 8) + ceil(SPHX_XMSS_HEIGHT / 8)` | The byte length of the message digest. |
+| <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceildiv(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT, 8) + ceildiv(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1), 8) + ceildiv(SPHX_XMSS_HEIGHT, 8)` | The byte length of the message digest. |
 
 
 ### Key Generation Inputs
@@ -229,14 +248,15 @@ To save computational effort, `PK.seed` is padded with zero bytes to a length of
 
 We make use of the following utility helper functions in specifying SHRINCS.
 
-- `ceil(x)`: rounds `x` up to the nearest whole number.
-- `floor(x)`: rounds `x` down to the nearest whole number.
+- `a // b`: divides the integer `a` by the integer `b`, rounding the quotient down.
+- `ceildiv(a, b)`: divides the integer `a` by the integer `b`, rounding the quotient up.
 - `sum(x)`: sums a sequence of numbers `x`.
-- `log2(x)`: returns the base-2 logarithm of `x` (a float/decimal).
 - `repeat(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
 - `zeros(n)`: returns a bytestring of  length `n` containing only repeated zero bytes.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates an array of byte strings.
+
+Every algorithm and every derived constant in this specification is computed with exact integer arithmetic. Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation. Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
 
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 
@@ -250,7 +270,7 @@ of `x` are parsed, and so `x` must have accordingly sufficient length.
 
 ```py
 def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
-  assert len(x) >= ceil(outlen * b / 8)
+  assert len(x) >= ceildiv(outlen * b, 8)
 
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
@@ -829,7 +849,7 @@ more complex FIPS-205 algorithm.
 ```py
 def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
-  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS / 8)
+  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
@@ -984,7 +1004,7 @@ WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any mes
 The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
 
 ```py
-WOTS_C_CONSTANT_SUM = floor(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
+WOTS_C_CONSTANT_SUM = ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)
 ```
 
 Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
@@ -1009,7 +1029,7 @@ constant-sum index set, returning the lowest such counter and its index set.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> tuple[int, list[int]]:
+def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
@@ -1017,11 +1037,14 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
 
-  raise RuntimeError("Unreachable") # practically impossible
+  return None # practically impossible
 ```
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
 We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup>1000</sup>[^wotsgrind] - practically impossible.
+
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 #### `wots_c_map_digest(...)`
@@ -1105,8 +1128,12 @@ keypair location prefilled in `ADRS`.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
-  counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  if grinded is None:
+    return None # practically impossible
+
+  counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
   ADRS[10:14] = zeros(4) # zeros reserved
@@ -1120,6 +1147,9 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
   return counter.to_bytes(2) + concat(signature)
 ```
 <!-- DOC END wots_c_sign -->
+
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 #### `wots_c_pubkey_from_sig(...)`
@@ -1518,6 +1548,7 @@ For security and privacy we highly recommend signers stick to the two prescribed
 
 - Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
 - Some structures are fungible, such as any tree of depth 0 or depth 1 will be the same regardless of shape.
+- A tree of depth 0 has no stateful signatures, whatever its shape. Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it. Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path. The signature counts given for each shape above therefore apply only from depth 1 upwards.
 - Implementations must take care when using SHRINCS secret keys imported from untrusted sources, especially if depending on shape and depth bytes for security-critical logic.
 
 
@@ -1598,7 +1629,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> Optional[bytes]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
@@ -1612,6 +1643,8 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  if sig is None:
+    return None # practically impossible
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
@@ -1622,6 +1655,9 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   return sig
 ```
 <!-- DOC END fxmss_sign -->
+
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 #### `fxmss_pubkey_from_sig(...)`
@@ -1647,7 +1683,7 @@ def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: byt
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
 
-  leaf_depth = floor(len(xmss_auth) / 16)
+  leaf_depth = len(xmss_auth) // 16
 
   # Ensure leaf_index describes a valid position in the FXMSS tree.
   assert leaf_index < 2 ** min(64, leaf_depth)
@@ -1911,10 +1947,10 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
   fors_digest = digest[:FORS_DIGEST_SIZE]
   offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceil(SPHX_TREE_INDEX_BITS / 8)]
+  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
   offset += len(tree_index_digest)
 
-  leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
+  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
@@ -2174,25 +2210,30 @@ next WOTS+C leaf for the given `structure` and `state_ctr`.
   - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
 
 Returns `None` if `state_ctr` is set to any negative number, or if `state_ctr + 1` exceeds the
-number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
+number of WOTS+C leaves in the FXMSS tree (as defined by its structure). A depth-zero tree has
+no usable leaf, so a depth-zero key signs only on the stateless path.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
 def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
   tree_shape, tree_depth = structure[0], structure[1]
+
+  # A depth-zero tree holds no usable WOTS+C leaf.
+  if tree_depth == 0:
+    return None
+
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    if state_ctr == tree_depth and tree_depth > 0:
+    if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if state_ctr >= 0 and state_ctr < tree_depth + 1:
+    if 0 <= state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr >= 0 and state_ctr < 2**tree_depth and tree_depth > 0:
+    if 0 <= state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
   # - unknown FXMSS tree shape
-  # - depth-zero tree
   # - no more signatures left
   # - state is negative
   return None
@@ -2230,7 +2271,7 @@ This function is used only by the signer.
 > the stateless path.
 
 ```py
-def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> Optional[bytes]:
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
@@ -2256,12 +2297,16 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+  if fxmss_signature is None:
+    return None # practically impossible
 
   # TODO: compact encoding for leaf index
   return R + leaf_index.to_bytes(8) + fxmss_signature
 ```
 <!-- DOC END shrincs_sign -->
 
+> [!INFO]
+> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 #### `shrincs_verify(...)`
 
@@ -2331,6 +2376,15 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
 <!-- DOC END shrincs_verify -->
 
 
+## On Signing Fallibility
+
+The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` f the function fails. This originates from an edgecase condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+
+While this edgecase is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe. See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.
+
+Still, as this python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms. Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`, and `wots_c_grind_to_constant_sum` as infallible functions, provided all input invariants are satisfied.
+
+
 ## Reference Implementation
 
 We provide a naive, highly inefficient, and non-constant time pure Python 3 implementation of the SHRINCS algorithms in [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
@@ -2379,6 +2433,7 @@ This document is licensed under the 3-clause BSD license.
 [^sphincs]: https://eprint.iacr.org/2014/795.pdf
 [^sphincs+]: https://sphincs.org/data/sphincs+-paper.pdf
 [^sphincs+c]: https://eprint.iacr.org/2022/778
+[^porsfp]: https://eprint.iacr.org/2025/2069
 [^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
 [^bop]: https://eprint.iacr.org/2025/1844
 [^bop-delving]: https://delvingbitcoin.org/t/bird-of-prey-2-non-malleable-schnorr-pq-signatures/2514

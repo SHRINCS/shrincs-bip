@@ -7,11 +7,17 @@
 # sample or protect secret key material, and it performs no state management at
 # all.
 
-from math import ceil, floor
 import hashlib
 from typing import Optional
 
 #  Helper functions
+
+def ceildiv(a: int, b: int) -> int:
+  """
+  Divides `a` by `b`, rounding the quotient up. Every call site passes a
+  non-negative `a` and a positive `b`.
+  """
+  return (a + b - 1) // b
 
 def repeat(b: int, n: int) -> bytes:
   return bytes((b for _ in range(n)))
@@ -35,7 +41,7 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
   parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
   of `x` are parsed, and so `x` must have accordingly sufficient length.
   """
-  assert len(x) >= ceil(outlen * b / 8)
+  assert len(x) >= ceildiv(outlen * b, 8)
 
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
@@ -72,14 +78,14 @@ FXMSS_HEIGHT         = 255
 WOTS_TW_CHAINS_SIZE      = WOTS_TW_CHAIN_COUNT * 16
 WOTS_TW_CHECKSUM_MAX     = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
 WOTS_C_CHAINS_SIZE       = WOTS_C_CHAIN_COUNT * 16
-WOTS_C_CONSTANT_SUM      = ceil(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) / 2)
+WOTS_C_CONSTANT_SUM      = ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)
 SPHX_XMSS_SIGNATURE_SIZE = WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT
 HYPERTREE_SIGNATURE_SIZE = SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE
 FXMSS_SIGNATURE_SIZE_MIN = 2 + WOTS_C_CHAINS_SIZE + 16
 FXMSS_SIGNATURE_SIZE_MAX = 2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT
 SHRINCS_SF_SIGNATURE_SIZE_MIN = 16 + 8 + FXMSS_SIGNATURE_SIZE_MIN
 SHRINCS_SF_SIGNATURE_SIZE_MAX = 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX
-FORS_DIGEST_SIZE         = ceil(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT / 8)
+FORS_DIGEST_SIZE         = ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)
 FORS_SIGNATURE_SIZE      = 16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)
 SPHX_TREE_INDEX_BITS     = SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)
 SPHX_SIGNATURE_SIZE      = 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE
@@ -379,7 +385,7 @@ def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
   more complex FIPS-205 algorithm.
   """
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
-  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceil(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS / 8)
+  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
@@ -468,7 +474,7 @@ def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, AD
   wots_pk_hash = T_sl(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> tuple[int, list[int]]:
+def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
   """
   The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message_digest` to a
   constant-sum index set, returning the lowest such counter and its index set.
@@ -490,7 +496,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
       return (i, indexes)
 
-  raise RuntimeError("Unreachable") # practically impossible
+  return None # practically impossible
 
 def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[list[int]]:
   """
@@ -544,7 +550,7 @@ def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
   return wots_pk_hash
 
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
   """
   The WOTS+C signing function. Produces a WOTS+C signature on a 32-byte `message_digest`, at the
   keypair location prefilled in `ADRS`.
@@ -559,7 +565,11 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
 
   This function is only used in the stateful path, and only by the signer.
   """
-  counter, indexes = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  if grinded is None:
+    return None # practically impossible
+
+  counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
   ADRS[10:14] = zeros(4) # zeros reserved
@@ -821,7 +831,7 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
   ADRS[10:22] = zeros(12)
   return H(pk_seed, ADRS, lchild + rchild)
 
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> bytes:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> Optional[bytes]:
   """
   The FXMSS signing function. Produces a deterministic WOTS+C signature at the leaf given by
   `leaf_index`/`leaf_height` and appends the Merkle authentication path to form an FXMSS signature.
@@ -851,6 +861,8 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  if sig is None:
+    return None # practically impossible
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
@@ -880,7 +892,7 @@ def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: byt
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
 
-  leaf_depth = floor(len(xmss_auth) / 16)
+  leaf_depth = len(xmss_auth) // 16
 
   # Ensure leaf_index describes a valid position in the FXMSS tree.
   assert leaf_index < 2 ** min(64, leaf_depth)
@@ -1070,10 +1082,10 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
   fors_digest = digest[:FORS_DIGEST_SIZE]
   offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceil(SPHX_TREE_INDEX_BITS / 8)]
+  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
   offset += len(tree_index_digest)
 
-  leaf_index_digest = digest[offset : offset + ceil(SPHX_XMSS_HEIGHT / 8)]
+  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
@@ -1252,28 +1264,33 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[i
     - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
 
   Returns `None` if `state_ctr` is set to any negative number, or if `state_ctr + 1` exceeds the
-  number of WOTS+C leaves in the FXMSS tree (as defined by its structure).
+  number of WOTS+C leaves in the FXMSS tree (as defined by its structure). A depth-zero tree has
+  no usable leaf, so a depth-zero key signs only on the stateless path.
 
   This function is only used in the stateful path, and only by the signer.
   """
   tree_shape, tree_depth = structure[0], structure[1]
+
+  # A depth-zero tree holds no usable WOTS+C leaf.
+  if tree_depth == 0:
+    return None
+
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    if state_ctr == tree_depth and tree_depth > 0:
+    if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if state_ctr >= 0 and state_ctr < tree_depth + 1:
+    if 0 <= state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr >= 0 and state_ctr < 2**tree_depth and tree_depth > 0:
+    if 0 <= state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
   # - unknown FXMSS tree shape
-  # - depth-zero tree
   # - no more signatures left
   # - state is negative
   return None
 
-def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> bytes:
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> Optional[bytes]:
   """
   The SHRINCS signing function. Signs `message` with the serialized secret key `shrincs_seckey`:
   uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
@@ -1326,6 +1343,8 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+  if fxmss_signature is None:
+    return None # practically impossible
 
   # TODO: compact encoding for leaf index
   return R + leaf_index.to_bytes(8) + fxmss_signature
