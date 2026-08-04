@@ -721,6 +721,7 @@ The `H_msg_sl` message hash function. Produces the 32-byte signing digest for th
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
   - `sl_root`: the 16-byte stateless root hash.
+  - `sf_root`: the 16-byte stateful root hash.
   - `M`: a variable-length message.
 - Output:
   - a 32-byte hash.
@@ -730,8 +731,8 @@ This function is only used in the stateless path, and by both the signer and the
 Note that `pk_seed` is not padded in this keyed hash function.
 
 ```py
-def H_msg_sl(R: bytes, pk_seed: bytes, sl_root: bytes, M: bytes) -> bytes:
-  return sha256(R + pk_seed + sha256(R + pk_seed + sl_root + M) + zeros(4))
+def H_msg_sl(R: bytes, pk_seed: bytes, sl_root: bytes, sf_root: bytes, M: bytes) -> bytes:
+  return sha256(R + pk_seed + sha256(R + pk_seed + sl_root + sf_root + M) + zeros(4))
 ```
 <!-- DOC END H_msg_sl -->
 
@@ -746,6 +747,7 @@ The `H_msg_sf` message hash function. Produces the 32-byte signing digest for th
 - Inputs:
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte salt.
+  - `sl_root`: the 16-byte stateless root hash.
   - `sf_root`: the 16-byte stateful root hash.
   - `ADRS`: a 22-byte address.
   - `M`: a variable-length message.
@@ -757,8 +759,8 @@ This function is only used in the stateful path, and by both the signer and the 
 Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
-def H_msg_sf(R: bytes, pk_seed: bytes, sf_root: bytes, ADRS: bytearray, M: bytes) -> bytes:
-  return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + sf_root + ADRS[:9] + M))
+def H_msg_sf(R: bytes, pk_seed: bytes, sl_root: bytes, sf_root: bytes, ADRS: bytearray, M: bytes) -> bytes:
+  return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + sf_root + ADRS[:9] + sl_root + M))
 ```
 <!-- DOC END H_msg_sf -->
 
@@ -1991,7 +1993,7 @@ This function is only used in the stateless path, and by both the signer and the
 
 ```py
 def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> tuple[bytes, int, int]:
-  digest = H_msg_sl(R, pk_seed, sl_root, message)
+  digest = H_msg_sl(R, pk_seed, sl_root, message[:16], message[16:])
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
   offset = FORS_DIGEST_SIZE
@@ -2344,7 +2346,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   R = PRF_msg_sf(sk_prf, pk_seed, ADRS, bound_message)
 
   # Bind the stateful signature to the stateless keypair.
-  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
+  message_digest = H_msg_sf(R, pk_seed, sl_root, sf_root, ADRS, message)
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
   if fxmss_signature is None:
     return None # practically impossible
@@ -2411,7 +2413,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
     ADRS[1:9] = leaf_index.to_bytes(8)
 
     # Stateful signatures must be bound to the stateless keypair.
-    message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+    message_digest = H_msg_sf(R, pk_seed, sl_root, sf_root, ADRS, message)
     root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
     if root is None:
       return False
