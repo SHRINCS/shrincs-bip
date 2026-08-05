@@ -2253,19 +2253,22 @@ next WOTS+C leaf for the given `structure` and `state_ctr`.
 - Inputs:
   - `structure`: a 2-byte identifier describing the FXMSS tree structure.
   - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
-    previously issued.
+    previously issued, or `None`.
 - Outputs:
   - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
   - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
 
-Returns `None` if `state_ctr` is at least the number of WOTS+C leaves in the FXMSS tree (as
-defined by its structure). A depth-zero tree has no usable leaf, so a depth-zero key signs only
-on the stateless path.
+Returns `None` if `state_ctr` is `None`, or if it is at least the number of WOTS+C leaves in the
+FXMSS tree (as defined by its structure). A depth-zero tree has no usable leaf, so a depth-zero
+key signs only on the stateless path.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: Optional[int]) -> Optional[tuple[int, int]]:
+  if state_ctr is None:
+    return None
+
   tree_shape, tree_depth = structure[0], structure[1]
 
   # A depth-zero tree holds no usable WOTS+C leaf.
@@ -2324,10 +2327,7 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: Optional[int]
   sf_structure = shrincs_seckey[64:66]
   sf_root      = shrincs_seckey[66:82]
 
-  if state_ctr is None:
-    leaf_position = None
-  else:
-    leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
+  leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
 
   # Stateless signing path.
   if leaf_position is None:
