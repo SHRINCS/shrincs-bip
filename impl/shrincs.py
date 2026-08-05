@@ -344,7 +344,8 @@ def wots_tw_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS
   - Inputs:
     - `node`: a 16-byte hash.
     - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
-    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must not exceed `2**32`.
+    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must
+      not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
@@ -367,7 +368,8 @@ def wots_c_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS:
   - Inputs:
     - `node`: a 16-byte hash.
     - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
-    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must not exceed `2**32`.
+    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must
+      not exceed `2**WOTS_C_CHAIN_BITS - 1`.
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
