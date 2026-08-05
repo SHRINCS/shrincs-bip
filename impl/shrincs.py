@@ -1092,11 +1092,11 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
   return (fors_digest, tree_index, leaf_index)
 
 
-def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
+def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
   """
-  The SLH-DSA internal signing function. Signs `message` with `sk_seed`, salting all hashes with
-  `pk_seed`, deriving the randomizer from `sk_prf`/`opt_rand`, and binding the signature to
-  `sl_root`.
+  The SLH-DSA signing function. Signs `message` with `sk_seed`, prepending the context `ctx`;
+  salts all hashes with `pk_seed`, derives the randomizer from `sk_prf`/`opt_rand`, and binds the
+  signature to `sl_root`. Verifiers must use `slh_dsa_verify` with the same `ctx`.
 
   The optional additional data `opt_rand` is used to further salt the randomizer. If omitted,
   the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
@@ -1106,6 +1106,7 @@ def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed
 
   - Inputs:
     - `message`: a variable-length message.
+    - `ctx`: a context of at most 255 bytes.
     - `sk_seed`: a 16-byte secret.
     - `sk_prf`: a 16-byte secret.
     - `pk_seed`: a 16-byte salt.
@@ -1116,11 +1117,14 @@ def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed
 
   This function is only used in the stateless path, and only by the signer.
   """
+  assert len(ctx) < 256
+  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
+
   if opt_rand is None:
     opt_rand = pk_seed # deterministic mode
 
-  R = PRF_msg_sl(sk_prf, opt_rand, message)
-  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
+  R = PRF_msg_sl(sk_prf, opt_rand, contextualized_msg)
+  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, contextualized_msg)
 
   ADRS = bytearray(22)
   ADRS[1:9] = tree_index.to_bytes(8)
@@ -1132,14 +1136,16 @@ def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed
 
   return R + fors_signature + hypertree_signature
 
-def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
+def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
   """
-  The SLH-DSA internal verification function. Recovers the root-tree root from a `signature` on
-  `message` and checks it against `sl_root`.
+  The SLH-DSA verification function. Recovers the root-tree root from a `signature` on `message`
+  (with context `ctx`) and checks it against `sl_root`. Signatures must be produced via
+  `slh_dsa_sign` with the same `ctx`.
 
   - Inputs:
     - `message`: a variable-length message.
     - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
+    - `ctx`: a context of at most 255 bytes.
     - `pk_seed`: a 16-byte salt.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
   - Output:
@@ -1147,6 +1153,9 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
 
   This function is only used in the stateless path, and only by the verifier.
   """
+  assert len(ctx) < 256
+  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
+
   if len(signature) != SPHX_SIGNATURE_SIZE:
     return False
 
@@ -1154,7 +1163,7 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
   fors_signature = signature[16 : 16 + FORS_SIGNATURE_SIZE]
   hypertree_signature = signature[16 + FORS_SIGNATURE_SIZE : 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE]
 
-  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
+  fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, contextualized_msg)
 
   ADRS = bytearray(22)
   ADRS[1:9] = tree_index.to_bytes(8)
@@ -1162,55 +1171,6 @@ def slh_dsa_verify_internal(message: bytes, signature: bytes, pk_seed: bytes, sl
 
   fors_pubkey = fors_pubkey_from_sig(fors_signature, fors_digest, pk_seed, ADRS)
   return hypertree_verify(fors_pubkey, hypertree_signature, pk_seed, tree_index, leaf_index, sl_root)
-
-def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
-  """
-  The SLH-DSA external signing function. Signs `message` with `sk_seed`, prepending the context
-  `ctx`; salts all hashes with `pk_seed`, derives the randomizer from `sk_prf`/`opt_rand`, and
-  binds to `sl_root`.
-
-  - Inputs:
-    - `message`: a variable-length message.
-    - `ctx`: a context of at most 255 bytes.
-    - `sk_seed`: a 16-byte secret.
-    - `sk_prf`: a 16-byte secret.
-    - `pk_seed`: a 16-byte salt.
-    - `sl_root`: the 16-byte root hash of the stateless root tree.
-    - `opt_rand`: an optional 16-byte salt for the randomizer.
-  - Output:
-    - a `SPHX_SIGNATURE_SIZE`-byte signature.
-
-  This function is only used in the stateless path, and only by the signer.
-
-  This is a simple wrapper around `slh_dsa_sign_internal` which prepends an optional context
-  `ctx` to every message. Verifiers must use `slh_dsa_verify` with the same `ctx`.
-  """
-  assert len(ctx) < 256
-  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
-  return slh_dsa_sign_internal(contextualized_msg, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
-
-def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
-  """
-  The SLH-DSA verification function. Recovers the root-tree root from a `signature` on `message`
-  (with context `ctx`) and checks it against `sl_root`.
-
-  - Inputs:
-    - `message`: a variable-length message.
-    - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
-    - `ctx`: a context of at most 255 bytes.
-    - `pk_seed`: a 16-byte salt.
-    - `sl_root`: the 16-byte root hash of the stateless root tree.
-  - Output:
-    - a boolean indicating if the signature is valid.
-
-  This function is only used in the stateless path, and only by the verifier.
-
-  This is a simple wrapper around `slh_dsa_verify_internal` which prepends an optional context
-  `ctx` to every message. Signatures must be produced via `slh_dsa_sign` with the same `ctx`.
-  """
-  assert len(ctx) < 256
-  contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
-  return slh_dsa_verify_internal(contextualized_msg, signature, pk_seed, sl_root)
 
 
 #  SHRINCS algorithms
