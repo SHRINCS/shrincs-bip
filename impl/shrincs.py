@@ -1230,25 +1230,28 @@ def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
   shrincs_pubkey = pk_seed + sl_root + sf_root
   return (shrincs_seckey, shrincs_pubkey)
 
-def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[int, int]]:
+def shrincs_sf_leaf_select(structure: bytes, state_ctr: Optional[int]) -> Optional[tuple[int, int]]:
   """
   The SHRINCS stateful-path leaf-selection function. Computes the position `(index, height)` of the
   next WOTS+C leaf for the given `structure` and `state_ctr`.
 
   - Inputs:
     - `structure`: a 2-byte identifier describing the FXMSS tree structure.
-    - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-      previously issued (a negative value is permitted, and makes the function return `None`).
+    - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
+      previously issued, or `None`.
   - Outputs:
     - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
     - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
 
-  Returns `None` if `state_ctr` is set to any negative number, or if `state_ctr + 1` exceeds the
-  number of WOTS+C leaves in the FXMSS tree (as defined by its structure). A depth-zero tree has
-  no usable leaf, so a depth-zero key signs only on the stateless path.
+  Returns `None` if `state_ctr` is `None`, or if it is at least the number of WOTS+C leaves in the
+  FXMSS tree (as defined by its structure). A depth-zero tree has no usable leaf, so a depth-zero
+  key signs only on the stateless path.
 
   This function is only used in the stateful path, and only by the signer.
   """
+  if state_ctr is None:
+    return None
+
   tree_shape, tree_depth = structure[0], structure[1]
 
   # A depth-zero tree holds no usable WOTS+C leaf.
@@ -1258,19 +1261,18 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: int) -> Optional[tuple[i
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if 0 <= state_ctr < tree_depth:
+    if state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if 0 <= state_ctr < 2**tree_depth:
+    if state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
   # - unknown FXMSS tree shape
   # - no more signatures left
-  # - state is negative
   return None
 
-def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand: Optional[bytes]) -> Optional[bytes]:
+def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: Optional[int], opt_rand: Optional[bytes]) -> Optional[bytes]:
   """
   The SHRINCS signing function. Signs `message` with the serialized secret key `shrincs_seckey`:
   uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
@@ -1279,8 +1281,8 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   - Inputs:
     - `message`: a message of at most `2**61 - 128` bytes.
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
-    - `state_ctr`: a signed integer, the number of stateful signatures the keypair has
-      previously issued (a negative value is permitted, and forces the stateless path).
+    - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
+      previously issued, or `None` to sign statelessly.
     - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
       if omitted, the stateless path uses the deterministic variant of SLH-DSA).
   - Output:
@@ -1294,9 +1296,6 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   > a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
   > which increments and saves the state counter as `state_ctr + 1` on a persistent,
   > non-recoverable storage medium before the signature is returned to the caller.
-  >
-  > The only exception is for negative values of `state_ctr`, which explicitly force
-  > the stateless path.
   """
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
