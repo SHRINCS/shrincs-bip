@@ -17,6 +17,6 @@ if __name__ == "__main__":
     print(f'verified all stateful signatures for structure {sf_structure.hex()}')
 
     if i == len(structures) - 1:
-      sig = shrincs_sign(msg, sk, -1, None)
+      sig = shrincs_sign(msg, sk, None, None)
       assert shrincs_verify(msg, sig, pk)
       print(f'verified stateless signature')
