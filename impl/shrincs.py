@@ -83,7 +83,7 @@ SPHX_XMSS_SIGNATURE_SIZE = WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT
 HYPERTREE_SIGNATURE_SIZE = SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE
 FXMSS_SIGNATURE_SIZE_MIN = 2 + WOTS_C_CHAINS_SIZE + 16
 FXMSS_SIGNATURE_SIZE_MAX = 2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT
-SHRINCS_SF_SIGNATURE_SIZE_MIN = 16 + 8 + FXMSS_SIGNATURE_SIZE_MIN
+SHRINCS_SF_SIGNATURE_SIZE_MIN = 16 + 4 + FXMSS_SIGNATURE_SIZE_MIN
 SHRINCS_SF_SIGNATURE_SIZE_MAX = 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX
 FORS_DIGEST_SIZE         = ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)
 FORS_SIGNATURE_SIZE      = 16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)
@@ -1326,8 +1326,9 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
   if fxmss_signature is None:
     return None # practically impossible
 
-  # TODO: compact encoding for leaf index
-  return R + leaf_index.to_bytes(8) + fxmss_signature
+  leaf_index_bytes = leaf_index.to_bytes(4) if leaf_index < 2**32 else leaf_index.to_bytes(8)
+
+  return R + leaf_index_bytes + fxmss_signature
 
 def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> bool:
   """
@@ -1361,8 +1362,16 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   # Stateful verification path. These bounds are the FXMSS bounds plus a 24-byte header.
   elif SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
     R = signature[0:16]
-    leaf_index = int.from_bytes(signature[16:24])
-    fxmss_signature = signature[24:len(signature)]
+    leaf_index_len = (len(signature) - 16 - 2) % 16
+    leaf_index = int.from_bytes(signature[16 : 16+leaf_index_len])
+
+    # Ensure the leaf index was encoded canonically.
+    if leaf_index < 2**32 and leaf_index_len != 4:
+      return False
+    elif leaf_index_len != 8:
+      return False
+
+    fxmss_signature = signature[16+leaf_index_len : len(signature)]
 
     # The FXMSS part's length must be 2 more than a multiple of 16.
     if (len(fxmss_signature) - 2) % 16 != 0:
