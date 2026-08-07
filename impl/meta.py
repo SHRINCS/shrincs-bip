@@ -4,7 +4,7 @@
 from .shrincs import *
 from math import comb, floor, log2
 
-# Returns log2(Pr[sum(n random s-sided dice DON'T sum to p)]**tries).
+# Returns log2(Pr[sum(n random s-sided dice) != p]**tries).
 # Used to compute the probability of WOTS+C grinding failure.
 # Logic taken from https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
 def target_sum_fail_probability(n: int, s: int, p: int, tries: int):
