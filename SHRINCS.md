@@ -16,17 +16,6 @@ SHRINCS combines compact stateful hash-based signatures with a stateless fallbac
 
 This specification describes the key generation, signing, and verification algorithms of SHRINCS.
 
-## Templating (TODO: move)
-
-This SHRINCS specification includes Python reference code and documentation defined inline at [`impl/shrincs.py`](./impl/shrincs.py). The markdown file you are currently reading uses simple templating to pull Python code and docstrings from `shrincs.py`. If you wish to make changes to the specification of SHRINCS functions inside of a `<!-- DOC START xyz -->` ... `<!-- DOC END xyz -->` templating envelope, please make the changes directly in `shrincs.py` first, and then run the [`pydoc_insert.py` script](./pydoc_insert.py).
-
->[!WARNING]
-> Running the templating script will overwrite SHRINCS.md. Make sure you have saved and committed other important changes first!
-
-```sh
-./pydoc_insert.py
-```
-
 ## Motivation
 
 With companies promising effective quantum computers in the near future[^ibm-roadmap], and advances in AI producing effective attacks on other cryptosystems[^hawkattack], we see utility in proposing a compact signature scheme that depends on even weaker assumptions than those already deployed in popular use today (RSA, ECDSA, ML-DSA).
