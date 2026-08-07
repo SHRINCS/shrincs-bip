@@ -297,7 +297,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, sl_root: bytes, sf_root: bytes, ADRS: byt
   """
   return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + sf_root + ADRS[:9] + sl_root + M))
 
-def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
+def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, sf_root: bytes, M: bytes) -> bytes:
   """
   The `PRF_msg_sl` pseudorandom function. Derives the per-message randomizer (salt) for the stateless path via
   HMAC-SHA256.
@@ -315,9 +315,9 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases
   resistance to side-channel attacks).
   """
-  return hmac_sha256(key=sk_prf, message=opt_rand + M)[:16]
+  return hmac_sha256(key=sk_prf, message=opt_rand + sf_root + M)[:16]
 
-def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
+def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, sl_root: bytes, M: bytes) -> bytes:
   """
   The `PRF_msg_sf` function. Derives the per-message randomizer (salt) for the stateful path via
   HMAC-SHA256.
@@ -332,7 +332,7 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
 
   This function is only used in the stateful path, and only by the signer.
   """
-  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
+  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), message=pk_seed + ADRS[:9] + sl_root + M)[:16]
 
 
 #  Winternitz algorithms
@@ -1122,7 +1122,7 @@ def slh_dsa_sign_internal(message: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed
   if opt_rand is None:
     opt_rand = pk_seed # deterministic mode
 
-  R = PRF_msg_sl(sk_prf, opt_rand, message)
+  R = PRF_msg_sl(sk_prf, opt_rand, message[:16], message[16:])
   fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, message)
 
   ADRS = bytearray(22)
@@ -1336,12 +1336,11 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: int, opt_rand
     return slh_dsa_sign(sf_root + message, b"", sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
 
   # Stateful signing path.
-  bound_message = sl_root + message # Bind the stateful signature to the stateless keypair
   leaf_index, leaf_height = leaf_position
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, bound_message)
+  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, sl_root, message)
 
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sl_root, sf_root, ADRS, message)
