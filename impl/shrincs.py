@@ -1272,14 +1272,15 @@ def shrincs_sf_leaf_select(structure: bytes, state_ctr: Optional[int]) -> Option
   # - no more signatures left
   return None
 
-def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: Optional[int], opt_rand: Optional[bytes]) -> Optional[bytes]:
+def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: Optional[int], opt_rand: Optional[bytes]) -> Optional[bytes]:
   """
-  The SHRINCS signing function. Signs `message` with the serialized secret key `shrincs_seckey`:
+  The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`:
   uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
-  falls back to the stateless SLH-DSA path.
+  falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
 
   - Inputs:
     - `message`: a message of at most `2**61 - 128` bytes.
+    - `ctx`: a context of at most 255 bytes.
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
       previously issued, or `None` to sign statelessly.
@@ -1309,11 +1310,16 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: Optional[int]
   # Stateless signing path.
   if leaf_position is None:
     # Bind the stateless signature to the stateful keypair.
-    return slh_dsa_sign(sf_root + message, b"", sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+    return slh_dsa_sign(sf_root + message, ctx, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
 
   # Stateful signing path.
-  bound_message = sl_root + message # Bind the stateful signature to the stateless keypair
   leaf_index, leaf_height = leaf_position
+
+  # Bind the stateful signature to the stateless keypair and context in the
+  # same manner as the stateless component.
+  assert len(ctx) < 256
+  bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
+
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
@@ -1328,10 +1334,11 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: Optional[int]
   # TODO: compact encoding for leaf index
   return R + leaf_index.to_bytes(8) + fxmss_signature
 
-def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> bool:
+def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey: bytes) -> bool:
   """
   The SHRINCS verification function. Returns true iff `signature` is a valid stateful or stateless
-  SHRINCS signature on `message` under `shrincs_pubkey`.
+  SHRINCS signature on `message` under `shrincs_pubkey`. Signatures must be produced via
+  `shrincs_sign` with the same `ctx`.
 
   The length of `signature` selects the path: exactly `SPHX_SIGNATURE_SIZE` bytes for the
   stateless path, or `SHRINCS_SF_SIGNATURE_SIZE_MIN` to `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes
@@ -1342,6 +1349,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   - Inputs:
     - `message`: a message of at most `2**61 - 128` bytes.
     - `signature`: a candidate SHRINCS signature, of any length.
+    - `ctx`: a context of at most 255 bytes.
     - `shrincs_pubkey`: a 48-byte SHRINCS public key.
   - Output:
     - a boolean indicating if the signature is valid.
@@ -1355,7 +1363,7 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   # Stateless verification path.
   if len(signature) == SPHX_SIGNATURE_SIZE:
     # Stateless signatures must be bound to the stateful keypair.
-    return slh_dsa_verify(sf_root + message, signature, b"", pk_seed, sl_root)
+    return slh_dsa_verify(sf_root + message, signature, ctx, pk_seed, sl_root)
 
   # Stateful verification path. These bounds are the FXMSS bounds plus a 24-byte header.
   elif SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
@@ -1378,8 +1386,12 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
     ADRS[0] = leaf_height
     ADRS[1:9] = leaf_index.to_bytes(8)
 
-    # Stateful signatures must be bound to the stateless keypair.
-    message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, sl_root + message)
+    # Stateful signatures must be bound to the stateless keypair and context
+    # in the same manner as the stateless component.
+    assert len(ctx) < 256
+    bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
+
+    message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
     root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
     if root is None:
       return False
