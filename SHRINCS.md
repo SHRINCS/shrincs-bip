@@ -18,7 +18,7 @@ This specification describes the key generation, signing, and verification algor
 
 ## Motivation
 
-With companies promising effective quantum computers in the near future[^ibm-roadmap], and advances in AI producing effective attacks on other cryptosystems[^hawkattack], we see utility in proposing a compact signature scheme that depends on even weaker assumptions than those already deployed in popular use today (RSA, ECDSA, ML-DSA).
+We see long-term utility in offering users a compact signature scheme that depends on even weaker assumptions than those already deployed in popular use today (RSA, ECDSA, ML-DSA).
 
 SHRINCS relies solely on the security of its underlying hash function. In this specification, that function is SHA256, which is already fundamental to Bitcoin's security. Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems. This conservatism gives hash-based signature schemes like SHRINCS a distinct place in the cryptographic design space, even when schemes from other families offer better size or performance.
 
@@ -2429,8 +2429,6 @@ This document is licensed under the 3-clause BSD license.
 
 ## Footnotes
 
-[^ibm-roadmap]: https://web.archive.org/web/20260801191757/https://www.ibm.com/roadmaps/quantum/2030/
-[^hawkattack]: https://anthropic.com/document/hawk_key_recovery.pdf
 [^slhdsa]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.205.pdf
 [^hbsb]: The underlying construction is sketched in the appendix of "Hash-based Signature Schemes for Bitcoin", https://eprint.iacr.org/2025/2203.
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
