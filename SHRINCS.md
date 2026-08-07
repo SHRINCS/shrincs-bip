@@ -242,7 +242,7 @@ The following constants are derived from the parameters above. We show formulas 
 | `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)` | The most likely sum for Winternitz hash chain indexes. |
 |`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
 |`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
-|`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->554<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
+|`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->547<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
 |`SHRINCS_SF_SIGNATURE_SIZE_MAX`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4618<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MAX` | The maximum byte size of a stateful SHRINCS signature. Must stay below `SPHX_SIGNATURE_SIZE`, so that the two signature shapes remain distinguishable by length. |
 
 #### Stateless Constants
@@ -2313,8 +2313,9 @@ def shrincs_sign(message: bytes, shrincs_seckey: bytes, state_ctr: Optional[int]
   if fxmss_signature is None:
     return None # practically impossible
 
-  # TODO: compact encoding for leaf index
-  return R + leaf_index.to_bytes(8) + fxmss_signature
+  leaf_index_bytes = leaf_index.to_bytes(ceildiv(leaf_index.bit_length(), 8) or 1)
+
+  return R + leaf_index_bytes + fxmss_signature
 ```
 <!-- DOC END shrincs_sign -->
 
@@ -2356,8 +2357,14 @@ def shrincs_verify(message: bytes, signature: bytes, shrincs_pubkey: bytes) -> b
   # Stateful verification path. These bounds are the FXMSS bounds plus a 24-byte header.
   elif SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
     R = signature[0:16]
-    leaf_index = int.from_bytes(signature[16:24])
-    fxmss_signature = signature[24:len(signature)]
+    leaf_index_len = (len(signature) - 16 - 2) % 16
+    leaf_index = int.from_bytes(signature[16 : 16+leaf_index_len])
+
+    # Ensure the leaf index was encoded canonically.
+    if leaf_index_len != (ceildiv(leaf_index.bit_length(), 8) or 1):
+      return False
+
+    fxmss_signature = signature[16+leaf_index_len : len(signature)]
 
     # The FXMSS part's length must be 2 more than a multiple of 16.
     if (len(fxmss_signature) - 2) % 16 != 0:
