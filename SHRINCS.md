@@ -2144,7 +2144,7 @@ shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + structure + sf_root
 
 This encoding is chosen such that by slicing off the last 18 bytes (`structure + sf_root`), we may acquire a valid SLH-DSA secret key.
 
-TODO: diagrams
+<img src="./img/shrincs-keys.svg">
 
 #### On Managing State
 
