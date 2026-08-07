@@ -11,7 +11,7 @@ docstrings and exact python code for reference functions and constants
 into SHRINCS.md. We parse markdown comments as doc/const insert directives.
 """
 
-from impl import shrincs
+from impl import shrincs, meta
 
 with open('impl/shrincs.py') as fh:
   shrincs_code_lines = [line.rstrip() for line in fh]
@@ -79,7 +79,7 @@ if __name__ == "__main__":
           const_identifier = match.group(1)
           if match.group(2) != const_identifier:
             raise RuntimeError(f'failed to find CONST END for {const_identifier}', file=sys.stderr)
-          const_value = shrincs.__getattribute__(const_identifier)
+          const_value = meta.__getattribute__(const_identifier)
           substitution = f"<!-- CONST START {const_identifier} -->{const_value}<!-- CONST END {const_identifier} -->"
           line = line.replace(matched_string, substitution)
         out.write(line)
