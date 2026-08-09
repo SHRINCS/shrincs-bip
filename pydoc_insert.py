@@ -35,7 +35,7 @@ class SpecFunction:
 
 regex_doc_start = r"^<!-- DOC START (\w+) -->$"
 regex_doc_end = r"^<!-- DOC END (\w+) -->$"
-regex_const = r"<!-- CONST START (\w+) -->\w*<!-- CONST END (\w+) -->"
+regex_const = r"<!-- CONST START (\w+) -->\S*<!-- CONST END (\w+) -->"
 
 if __name__ == "__main__":
   parser = ArgumentParser(description="SHRINCS.md templating script.")
