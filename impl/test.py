@@ -12,11 +12,11 @@ if __name__ == "__main__":
 
     msg = b"foobar!"
     for j in range(16):
-      sig = shrincs_sign(msg, sk, j, None)
-      assert shrincs_verify(msg, sig, pk)
+      sig = shrincs_sign(msg, b"", sk, j, None)
+      assert shrincs_verify(msg, sig, b"", pk)
     print(f'verified all stateful signatures for structure {sf_structure.hex()}')
 
     if i == len(structures) - 1:
-      sig = shrincs_sign(msg, sk, None, None)
-      assert shrincs_verify(msg, sig, pk)
+      sig = shrincs_sign(msg, b"", sk, None, None)
+      assert shrincs_verify(msg, sig, b"", pk)
       print(f'verified stateless signature')
