@@ -2148,7 +2148,7 @@ TODO: diagrams
 
 #### Contexts
 
-The high-level `shrincs_sign` and `shrincs_verify` functions accept a context parameter `ctx`, which restricts signature validity to within a specific use-case, protocol, or other such zone of specificity. Signatures created by `shrincs_sign` when given a certain `ctx` are invalid if verified using `shrincs_verify` with any other context value. Typically `ctx` is set to some hard-coded constant value, to prevent misuse. For example, if a signer creates a signature with `ctx = b"twitter"`, this signature cannot be replayed with `ctx = b"banking"`.
+The high-level `shrincs_sign` and `shrincs_verify` functions accept a context parameter `ctx`, which restricts signature validity to within a specific use-case, protocol, or other such zone of specificity. Signatures created by `shrincs_sign` when given a certain `ctx` are invalid if verified using `shrincs_verify` with any other context value. Typically `ctx` is set to some hard-coded constant value, to prevent misuse. For example, if a signer creates a signature with `ctx = b"bitcoin-tx"`, this signature cannot be replayed with `ctx = b"auth-challenge"`.
 
 This mirrors the interface of SLH-DSA[^slhdsa], and in fact the stateless signing component passes `ctx` transparently through to the `slh_dsa_sign` and `slh_dsa_verify` functions.
 
