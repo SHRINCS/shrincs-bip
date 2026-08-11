@@ -74,19 +74,40 @@ STATEFUL_VERIFY_COMPRESSIONS_MIN = 4 + \
 # Maximum SHA256 compressions needed to verify a stateful SHRINCS signature.
 STATEFUL_VERIFY_COMPRESSIONS_MAX = STATEFUL_VERIFY_COMPRESSIONS_MIN + 254 # 254 additional H() calls
 
+# SHA256 compressions per byte for the stateful verifier (worst case).
+STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX = round(STATEFUL_VERIFY_COMPRESSIONS_MIN / SHRINCS_SF_SIGNATURE_SIZE_MIN, 3)
+
 # SHA256 compressions needed to verify a FORS signature.
 FORS_VERIFY_COMPRESSIONS = SPHX_FORS_COUNT + \
                            SPHX_FORS_COUNT * SPHX_FORS_HEIGHT + \
                            sha256_compressions(SPHX_FORS_COUNT * 16) # Combining FORS roots
 
+# Minimum SHA256 compressions needed to verify an XMSS signature.
+#
+# Recomputing WOTS (checksum) chain tips +
+# Combining WOTS chain tips +
+# H() invocations (merkle nodes)
+XMSS_VERIFY_COMPRESSIONS_MIN = WOTS_TW_CHAIN_COUNT2 * (2**WOTS_TW_CHAIN_BITS - 1) + \
+                               sha256_compressions(WOTS_TW_CHAIN_COUNT * 16) + \
+                               SPHX_XMSS_HEIGHT
+
 # Maximum SHA256 compressions needed to verify an XMSS signature.
 #
-# Recomputing WOTS chain tips +
+# Recomputing WOTS (non-checksum) chain tips +
 # Combining WOTS chain tips +
 # H() invocations (merkle nodes)
 XMSS_VERIFY_COMPRESSIONS_MAX = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1) + \
                                sha256_compressions(WOTS_TW_CHAIN_COUNT * 16) + \
                                SPHX_XMSS_HEIGHT
+
+# Minimum SHA256 compressions needed to verify a stateless SHRINCS signature.
+#
+# H_msg_sl call +
+# FORS +
+# hypertree verify
+STATELESS_VERIFY_COMPRESSIONS_MIN = 4 + \
+                                    FORS_VERIFY_COMPRESSIONS + \
+                                    SPHX_LAYER_COUNT * XMSS_VERIFY_COMPRESSIONS_MIN
 
 # Maximum SHA256 compressions needed to verify a stateless SHRINCS signature.
 #
@@ -96,6 +117,9 @@ XMSS_VERIFY_COMPRESSIONS_MAX = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1
 STATELESS_VERIFY_COMPRESSIONS_MAX = 4 + \
                                     FORS_VERIFY_COMPRESSIONS + \
                                     SPHX_LAYER_COUNT * XMSS_VERIFY_COMPRESSIONS_MAX
+
+# SHA256 compressions per byte for the stateless verifier (worst case).
+STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX = round(STATELESS_VERIFY_COMPRESSIONS_MAX / SPHX_SIGNATURE_SIZE, 3)
 
 # Comparison of worst-case stateful vs stateless signing performance.
 STATEFUL_VERIFY_SPEED_RATIO = round(STATELESS_VERIFY_COMPRESSIONS_MAX / STATEFUL_VERIFY_COMPRESSIONS_MAX, 2)

@@ -50,10 +50,10 @@ Verification recomputes the relevant component's root from the signature and che
 
 Public key and signature sizes are summarized below:
 
-| Item | Size |
+| Item | Size (min - max) |
 |:--|:--|
 | Public key | 48 bytes |
-| Stateful signature | ≥ <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->554<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> bytes |
+| Stateful signature | <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->554<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4618<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> bytes |
 | Stateless signature | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> bytes |
 
 ### Relation to SLH-DSA
@@ -65,6 +65,29 @@ The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the F
 This document nonetheless respecifies these algorithms in full, rather than referring to FIPS-205, in order to present both components of SHRINCS in one consistent notation. The exact correspondence is given in [the section on stateless parameters](#stateless-parameters).
 
 ## Performance
+
+As a hash-based signature scheme, the primary performance bottleneck in SHRINCS is in the computation of a hash function, namely SHA256. The faster a computer can perform SHA256 hashing, the faster it can create SHRINCS keys, issue new signatures, and/or verify signatures.
+
+In this section, we'll show the exact costs (in terms of SHA256 compressions) needed to run different SHRINCS algorithms. The computations used to generate the numbers below are shown in [`impl/meta.py`](./impl/meta.py).
+
+### Verification
+
+SHRINCS has very fast verification, especially with SHA256 hardware acceleration. In this table we show exact compression counts, and show the maximum _compressions per byte_ (C/B) needed to verify a SHRINCS stateful and stateless signature.
+
+| | Verify Cost in SHA256 Compressions (min - max) | C/B (max) |
+|-|-|-|
+| Stateful SHRINCS | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MIN -->255<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.46<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
+| Stateless SHRINCS | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MIN -->462<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2637<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.457<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
+
+The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
+
+### Key Generation
+
+TODO
+
+### Signing
+
+TODO
 
 TODO:
 - Note how SPHINCS verification is fast but keygen and signing are slow.
