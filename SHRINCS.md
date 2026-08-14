@@ -777,7 +777,7 @@ Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
 def H_msg_sf(R: bytes, pk_seed: bytes, sf_root: bytes, ADRS: bytearray, M: bytes) -> bytes:
-  return sha256(R + pk_seed + ADRS[:9] + sha256(R + pk_seed + sf_root + ADRS[:9] + M))
+  return sha256(R + pk_seed + sha256(R + pk_seed + sf_root + ADRS[:9] + M) + ADRS[:9])
 ```
 <!-- DOC END H_msg_sf -->
 
