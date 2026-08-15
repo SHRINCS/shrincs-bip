@@ -1142,7 +1142,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
 
 We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup><!-- CONST START WOTS_C_GRIND_FAIL_PROBABILITY_LOG -->1450<!-- CONST END WOTS_C_GRIND_FAIL_PROBABILITY_LOG --></sup>[^wotsgrind] - practically impossible.
 
-> [!INFO]
+> [!NOTE]
 > [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
@@ -1245,7 +1245,7 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
 ```
 <!-- DOC END wots_c_sign -->
 
-> [!INFO]
+> [!NOTE]
 > [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
@@ -1752,7 +1752,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
 ```
 <!-- DOC END fxmss_sign -->
 
-> [!INFO]
+> [!NOTE]
 > [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
@@ -2360,7 +2360,7 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
 ```
 <!-- DOC END shrincs_sign -->
 
-> [!INFO]
+> [!NOTE]
 > [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 #### `shrincs_verify(...)`
