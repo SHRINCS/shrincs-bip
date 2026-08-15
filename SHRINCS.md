@@ -22,7 +22,7 @@ We see long-term utility in offering users a compact signature scheme that depen
 
 SHRINCS relies solely on the security of its underlying hash function. In this specification, that function is SHA256, which is already fundamental to Bitcoin's security. Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems. This conservatism gives hash-based signature schemes like SHRINCS a distinct place in the cryptographic design space, even when schemes from other families offer better size or performance.
 
-In Bitcoin, block space is scarce, and users pay fees for block space on a per-byte basis, so any signature scheme candidate for Bitcoin must prioritize compactness and balance that against other trade-offs. SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes. The minimum combined size of a SHRINCS public key and (stateful) signature is roughly <!-- CONST START SLH_DSA_128S_SIZE_RATIO -->13.1<!-- CONST END SLH_DSA_128S_SIZE_RATIO -->x smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and <!-- CONST START ML_DSA_SIZE_RATIO -->6.2<!-- CONST END ML_DSA_SIZE_RATIO -->x smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1). SHRINCS achieves this reduction by leveraging the fact that a key pair in Bitcoin is typically used only a few times, and so signers can typically accept the burden of tracking state in exchange for much smaller signatures.
+In Bitcoin, block space is scarce, and users pay fees for block space on a per-byte basis, so any signature scheme candidate for Bitcoin must prioritize compactness and balance that against other trade-offs. SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes. The minimum combined size of a SHRINCS public key and (stateful) signature is roughly <!-- CONST START SLH_DSA_128S_SIZE_RATIO -->13.23<!-- CONST END SLH_DSA_128S_SIZE_RATIO -->x smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and <!-- CONST START ML_DSA_SIZE_RATIO -->6.26<!-- CONST END ML_DSA_SIZE_RATIO -->x smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1). SHRINCS achieves this reduction by leveraging the fact that a key pair in Bitcoin is typically used only a few times, and so signers can typically accept the burden of tracking state in exchange for much smaller signatures.
 
 
 ## Overview
@@ -53,8 +53,8 @@ Public key and signature sizes are summarized below:
 | Item | Size (min - max) |
 |:--|:--|
 | Public key | 48 bytes |
-| Stateful signature | <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->554<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4618<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> bytes |
-| Stateless signature | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> bytes |
+| Stateful signature | <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> bytes |
+| Stateless signature | <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes |
 
 ### Relation to SLH-DSA
 
@@ -76,8 +76,8 @@ SHRINCS has very fast verification, especially with SHA256 hardware acceleration
 
 | Signing Component | Verify Cost in SHA256 Compressions (min - max) | C/B (max) |
 |-|-|-|
-| Stateful SHRINCS | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MIN -->255<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.46<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
-| Stateless SHRINCS | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MIN -->462<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2637<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.457<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
+| Stateful SHRINCS | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MIN -->255<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.465<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
+| Stateless SHRINCS | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MIN -->462<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2637<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.456<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
 
 The variance in stateful verify compression count can be caused by signers supplying larger stateful signatures, which require additional hash invocations to verify. The variance in stateless compression count can be controlled by the signer with no change to signature size, and is owed to the fact that the signatures of the WOTS-TW subscheme have a non-constant verification cost which depends on a signer-controlled hash.
 
@@ -147,7 +147,7 @@ This extreme conservatism aims to provide users with a future-proof signature sc
 
 Standardized SLH-DSA parameter sets have a signing budget of 2<sup>64</sup>. This is far beyond what could be exercised on-chain. With Bitcoin's current 4 MB block size limit, at most <!-- CONST START SLH_DSA_SIGS_PER_BLOCK_MAX -->509<!-- CONST END SLH_DSA_SIGS_PER_BLOCK_MAX --> stateless SHRINCS signatures could fit in one block, even if the block contained no other data, and at most <!-- CONST START SLH_DSA_SIGS_PER_YEAR_MAX -->26753040<!-- CONST END SLH_DSA_SIGS_PER_YEAR_MAX --> could fit in a year's worth of blocks.
 
-Reducing the signing budget to 2<sup>40</sup> reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> bytes, a reduction by a factor of <!-- CONST START STATELESS_SIG_SIZE_RATIO -->1.36<!-- CONST END STATELESS_SIG_SIZE_RATIO -->x.
+Reducing the signing budget to 2<sup>40</sup> reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes, a reduction by a factor of <!-- CONST START STATELESS_SIG_SIZE_RATIO -->1.36<!-- CONST END STATELESS_SIG_SIZE_RATIO -->x.
 
 The 2<sup>40</sup> signing budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
 
@@ -212,7 +212,7 @@ An alternative choice would be to use WOTS-TW in the stateful path too, which wo
 
 SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm. A stateful signature algorithm is one in which signers must keep track of how many messages they have previously signed. This "statefulness burden" introduces complexity into implementations, which must ensure state is managed correctly and consistently. See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
 
-SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness: Approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.43<!-- CONST END STATEFUL_SIG_SIZE_RATIO -->x smaller signatures, which require approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.18<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO -->x less compute time to verify (compared to the stateless component).
+SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness: Approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO -->x smaller signatures, which require approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.18<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO -->x less compute time to verify (compared to the stateless component).
 
 SHRINCS singers who cannot manage state, or who do not yet have the time/energy to devote to properly implementing state management, can still generate valid SHRINCS keys and sign using the stateless component. Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of the current keypair's state counter.
 
@@ -307,8 +307,8 @@ The following constants are derived from the parameters above. We show formulas 
 | `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)` | The most likely sum for Winternitz hash chain indexes. |
 |`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
 |`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
-|`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->554<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
-|`SHRINCS_SF_SIGNATURE_SIZE_MAX`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4618<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MAX` | The maximum byte size of a stateful SHRINCS signature. Must stay below `SPHX_SIGNATURE_SIZE`, so that the two signature shapes remain distinguishable by length. |
+|`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
+|`SHRINCS_SF_SIGNATURE_SIZE_MAX`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> | `16 + 8 + FXMSS_SIGNATURE_SIZE_MAX` | The maximum byte size of a stateful SHRINCS signature. Must stay below `SPHX_SIGNATURE_SIZE`, so that the two signature shapes remain distinguishable by length. |
 
 #### Stateless Constants
 
@@ -326,6 +326,7 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 | `FORS_DIGEST_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
 | `FORS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_SIGNATURE_SIZE -->2240<!-- CONST END FORS_SIGNATURE_SIZE --> | `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)` | The byte size of a FORS signature. |
 | `SPHX_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> | `16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE` | The byte size of an SLH-DSA signature. |
+| `SHRINCS_SL_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> | `1 + SPHX_SIGNATURE_SIZE` | The byte size of a stateless SHRINCS signature. |
 | `SPHX_TREE_INDEX_BITS` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_TREE_INDEX_BITS -->36<!-- CONST END SPHX_TREE_INDEX_BITS --> | `SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)` | The number of bits needed to represent the index of an XMSS tree in the hypertree. |
 | <sub>(Not named in SHRINCS)</sub> | `h` | 45 | `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT` | The total height of the SLH-DSA hypertree. |
 | <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceildiv(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT, 8) + ceildiv(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1), 8) + ceildiv(SPHX_XMSS_HEIGHT, 8)` | The byte length of the message digest. |
@@ -1799,13 +1800,14 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
 
 <!-- DOC START fxmss_pubkey_from_sig -->
 The FXMSS verification function. Recovers an FXMSS root from a `signature` on a 32-byte
-`message_digest`. The signature length implies the leaf depth; `leaf_index` gives its
-left-to-right position.
+`message_digest`. The `leaf_height` and `leaf_index` arguments give the position of the
+WOTS+C leaf in the tree.
 
 - Inputs:
   - `leaf_index`: a 64-bit unsigned integer, the left-to-right position of the WOTS+C signing leaf.
-  - `signature`: a variable-length signature of at least `FXMSS_SIGNATURE_SIZE_MIN` bytes and at
-    most `FXMSS_SIGNATURE_SIZE_MAX` bytes, with length 2 more than a multiple of 16.
+  - `leaf_height`: an 8-bit unsigned integer, the height of the WOTS+C signing leaf.
+  - `signature`: a signature of length proportional to `leaf_height`. Specifically:
+    `len(signature) == 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
 - Output:
@@ -1814,16 +1816,16 @@ left-to-right position.
 This function is only used in the stateful path, and only by the verifier.
 
 ```py
-def fxmss_pubkey_from_sig(leaf_index: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
+def fxmss_pubkey_from_sig(leaf_index: int, leaf_height: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
+  leaf_depth = FXMSS_HEIGHT - leaf_height
 
-  leaf_depth = len(xmss_auth) // 16
+  # Ensure the XMSS path size matches leaf_depth.
+  assert len(xmss_auth) == leaf_depth * 16
 
   # Ensure leaf_index describes a valid position in the FXMSS tree.
   assert leaf_index < 2 ** min(64, leaf_depth)
-
-  leaf_height = FXMSS_HEIGHT - leaf_depth
 
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
@@ -2348,7 +2350,7 @@ falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` wi
   - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
     if omitted, the stateless path uses the deterministic variant of SLH-DSA).
 - Output:
-  - a `SPHX_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
+  - a `SHRINCS_SL_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
     `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes,
     or null.
 
@@ -2374,7 +2376,7 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
   # Stateless signing path.
   if leaf_position is None:
     # Bind the stateless signature to the stateful keypair.
-    return slh_dsa_sign(sf_root + message, ctx, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+    return bytes([FXMSS_HEIGHT]) + slh_dsa_sign(sf_root + message, ctx, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
 
   # Stateful signing path.
   leaf_index, leaf_height = leaf_position
@@ -2395,8 +2397,11 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
   if fxmss_signature is None:
     return None # practically impossible
 
-  # TODO: compact encoding for leaf index
-  return R + leaf_index.to_bytes(8) + fxmss_signature
+  # Encode the leaf index with a byte size proportional to its maximum = 2**min(64, leaf_depth)
+  leaf_depth = FXMSS_HEIGHT - leaf_height
+  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
+
+  return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
 ```
 <!-- DOC END shrincs_sign -->
 
@@ -2410,11 +2415,16 @@ The SHRINCS verification function. Returns true iff `signature` is a valid state
 SHRINCS signature on `message` under `shrincs_pubkey`. Signatures must be produced via
 `shrincs_sign` with the same `ctx`.
 
-The length of `signature` selects the path: exactly `SPHX_SIGNATURE_SIZE` bytes for the
-stateless path, or `SHRINCS_SF_SIGNATURE_SIZE_MIN` to `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes
-in steps of 16 for the stateful path. Any other length is not a signature, and is rejected.
+The first byte of `signature` is called the _indicator byte_ and it tells the verifier which signing
+component to use: Byte `b == FXMSS_HEIGHT` indicates a stateless signature, any other byte `b < FXMSS_HEIGHT`
+indicates a stateful signature using a WOTS+C leaf at height `b` (i.e. depth `FXMSS_HEIGHT - b`).
+
 The verifier recomputes `sl_root` on the stateless path and `sf_root` on the stateful path,
 and compares the result against the public key.
+
+This implementation validates the length of the entire signature against the indicator byte, but one
+could also stream the signature byte-by-byte during verification, allowing for signature validation
+in memory-constrained environments.
 
 - Inputs:
   - `message`: a message of at most `2**61 - 384` bytes.
@@ -2432,26 +2442,29 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
   sl_root = shrincs_pubkey[16:32]
   sf_root = shrincs_pubkey[32:48]
 
+  indicator = signature[0]
+
   # Stateless verification path.
-  if len(signature) == SPHX_SIGNATURE_SIZE:
+  if indicator == FXMSS_HEIGHT:
     # Stateless signatures must be bound to the stateful keypair.
-    return slh_dsa_verify(sf_root + message, signature, ctx, pk_seed, sl_root)
+    return slh_dsa_verify(sf_root + message, signature[1:], ctx, pk_seed, sl_root)
 
-  # Stateful verification path. These bounds are the FXMSS bounds plus a 24-byte header.
-  elif SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
-    R = signature[0:16]
-    leaf_index = int.from_bytes(signature[16:24])
-    fxmss_signature = signature[24:len(signature)]
-
-    # The FXMSS part's length must be 2 more than a multiple of 16.
-    if (len(fxmss_signature) - 2) % 16 != 0:
-      return False
-
-    leaf_depth = (len(fxmss_signature) - 2) // 16 - WOTS_C_CHAIN_COUNT
-    leaf_height = FXMSS_HEIGHT - leaf_depth
+  # Stateful verification path. The size bounds are the FXMSS bounds plus a variable-size header.
+  elif 0 <= indicator < FXMSS_HEIGHT and SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
+    R = signature[1:17]
+    leaf_height = indicator
+    leaf_depth = FXMSS_HEIGHT - leaf_height
+    leaf_index_size = ceildiv(min(leaf_depth, 64), 8)
+    leaf_index = int.from_bytes(signature[17 : 17+leaf_index_size])
 
     # Reject a leaf_index that names no position in a tree of this depth.
     if leaf_index >= 2 ** min(64, leaf_depth):
+      return False
+
+    fxmss_signature = signature[17+leaf_index_size:]
+
+    # The FXMSS part must be a WOTS+C signature plus leaf_depth merkle nodes.
+    if len(fxmss_signature) != 2 + WOTS_C_CHAINS_SIZE + leaf_depth * 16:
       return False
 
     ADRS = bytearray(22)
@@ -2464,13 +2477,13 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
     bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
 
     message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
-    root = fxmss_pubkey_from_sig(leaf_index, fxmss_signature, message_digest, pk_seed)
+    root = fxmss_pubkey_from_sig(leaf_index, leaf_height, fxmss_signature, message_digest, pk_seed)
     if root is None:
       return False
 
     return root == sf_root
 
-  # A length matching neither shape is not a SHRINCS signature.
+  # Negative indicator or invalid size, not a valid SHRINCS signature.
   else:
     return False
 ```
