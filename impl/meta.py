@@ -161,15 +161,58 @@ WOTS_C_KEYGEN_COMPRESSIONS = (WOTS_C_CHAIN_COUNT * 2**WOTS_C_CHAIN_BITS + sha256
 # Expected number of grinding attempts +
 # WOTS chain computation +
 # Regenerating other leaves
-UXMSS_SIGN_COMPRESSIONS_AVG = 2 + \
-                              4 + \
-                              EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
-                              WOTS_C_CONSTANT_SUM + \
-                              FXMSS_HEIGHT * WOTS_C_KEYGEN_COMPRESSIONS
+def uxmss_sign_compressions(depth: int) -> int:
+  return 2 + \
+          4 + \
+          EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
+          WOTS_C_CONSTANT_SUM + \
+          depth * WOTS_C_KEYGEN_COMPRESSIONS
 
-# SHA256 compressions needed to generate a UXMSS key.
+UXMSS_31_SIGN_COMPRESSIONS_AVG  = uxmss_sign_compressions(31)
+UXMSS_255_SIGN_COMPRESSIONS_AVG = uxmss_sign_compressions(255)
+
+# Average number of SHA256 compressions needed for BXMSS signing.
 #
-# Generating leaves +
+# PRF_msg_sf call +
+# H_msg_sf call +
+# Expected number of grinding attempts +
+# WOTS chain computation +
+# Regenerating other leaves +
 # H() invocations (merkle nodes)
-UXMSS_KEYGEN_COMPRESSIONS = (FXMSS_HEIGHT + 1) * WOTS_C_KEYGEN_COMPRESSIONS + \
-                            FXMSS_HEIGHT
+def bxmss_sign_compressions(depth: int) -> int:
+  return 2 + \
+          4 + \
+          EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
+          WOTS_C_CONSTANT_SUM + \
+          (2**depth - 1) * WOTS_C_KEYGEN_COMPRESSIONS + \
+          2**depth - 1 - depth
+
+BXMSS_5_SIGN_COMPRESSIONS  = bxmss_sign_compressions(5)
+BXMSS_8_SIGN_COMPRESSIONS  = bxmss_sign_compressions(8)
+BXMSS_10_SIGN_COMPRESSIONS = bxmss_sign_compressions(10)
+BXMSS_12_SIGN_COMPRESSIONS = bxmss_sign_compressions(12)
+BXMSS_16_SIGN_COMPRESSIONS = bxmss_sign_compressions(16)
+BXMSS_20_SIGN_COMPRESSIONS = bxmss_sign_compressions(20)
+
+# SHA256 compressions needed to generate a UXMSS key at various depths.
+#
+# Generating leaves + H() invocations (merkle nodes)
+def uxmss_keygen_compressions(depth: int) -> int:
+  return (depth + 1) * WOTS_C_KEYGEN_COMPRESSIONS + depth
+
+
+UXMSS_31_KEYGEN_COMPRESSIONS  = uxmss_keygen_compressions(31)
+UXMSS_255_KEYGEN_COMPRESSIONS = uxmss_keygen_compressions(255)
+
+# SHA256 compressions needed to generate a BXMSS key at various depths.
+#
+# Generating leaves + H() invocations (merkle nodes)
+def bxmss_keygen_compressions(depth: int) -> int:
+  return 2**depth * WOTS_C_KEYGEN_COMPRESSIONS + (2**depth - 1)
+
+BXMSS_5_KEYGEN_COMPRESSIONS  = bxmss_keygen_compressions(5)
+BXMSS_8_KEYGEN_COMPRESSIONS  = bxmss_keygen_compressions(8)
+BXMSS_10_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(10)
+BXMSS_12_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(12)
+BXMSS_16_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(16)
+BXMSS_20_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(20)

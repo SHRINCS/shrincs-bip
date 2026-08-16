@@ -74,26 +74,64 @@ In this section, we'll show the exact costs (in terms of SHA256 compressions) ne
 
 SHRINCS has very fast verification, especially with SHA256 hardware acceleration. In this table we show exact compression counts, and show the maximum _compressions per byte_ (C/B) needed to verify a SHRINCS stateful and stateless signature.
 
-| | Verify Cost in SHA256 Compressions (min - max) | C/B (max) |
+| Signing Component | Verify Cost in SHA256 Compressions (min - max) | C/B (max) |
 |-|-|-|
 | Stateful SHRINCS | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MIN -->255<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.46<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
 | Stateless SHRINCS | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MIN -->462<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2637<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.457<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
+
+The variance in stateful verify compression count can be caused by signers supplying larger stateful signatures, which require additional hash invocations to verify. The variance in stateless compression count can be controlled by the signer with no change to signature size, and is owed to the fact that the signatures of the WOTS-TW subscheme have a non-constant verification cost which depends on a signer-controlled hash.
 
 The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
 
 ### Key Generation
 
-TODO
+SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes. The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation. In general, putting more up-front work into key-generation allows the key a larger stateful signing budget.
+
+Here we have illustrated several examples of key generation costs for different stateful structures.
+
+| Structure | Key Generation Cost in SHA256 Compressions | Stateful Signing Budget |
+|-|-|-|
+| UXMSS; depth 31 | <!-- CONST START UXMSS_31_KEYGEN_COMPRESSIONS -->16703<!-- CONST END UXMSS_31_KEYGEN_COMPRESSIONS --> | 32 |
+| UXMSS; depth 255 | <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS --> | 256 |
+| BXMSS; depth 5 | <!-- CONST START BXMSS_5_KEYGEN_COMPRESSIONS -->16703<!-- CONST END BXMSS_5_KEYGEN_COMPRESSIONS --> | 2<sup>5</sup> |
+| BXMSS; depth 8 | <!-- CONST START BXMSS_8_KEYGEN_COMPRESSIONS -->133631<!-- CONST END BXMSS_8_KEYGEN_COMPRESSIONS --> | 2<sup>8</sup> |
+| BXMSS; depth 10 | <!-- CONST START BXMSS_10_KEYGEN_COMPRESSIONS -->534527<!-- CONST END BXMSS_10_KEYGEN_COMPRESSIONS --> | 2<sup>10</sup> |
+| BXMSS; depth 12 | <!-- CONST START BXMSS_12_KEYGEN_COMPRESSIONS -->2138111<!-- CONST END BXMSS_12_KEYGEN_COMPRESSIONS --> | 2<sup>12</sup> |
+| BXMSS; depth 16 | <!-- CONST START BXMSS_16_KEYGEN_COMPRESSIONS -->34209791<!-- CONST END BXMSS_16_KEYGEN_COMPRESSIONS --> | 2<sup>16</sup> |
+| BXMSS; depth 20 | <!-- CONST START BXMSS_20_KEYGEN_COMPRESSIONS -->547356671<!-- CONST END BXMSS_20_KEYGEN_COMPRESSIONS --> | 2<sup>20</sup> |
+
+The best known way to improve SHRINCS key-generation performance is either using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
+
+One can also improve SHRINCS key-generation performance at the cost of stateless signing budget, using hypertree pruning[^pruning].
 
 ### Signing
 
-TODO
+SHRINCS signing performance depends on whether the signer uses the stateful or stateless component.
+
+- In the stateless component, signing performance is constant.
+- In the stateful component, signing performance differs vastly depending on the structure used for the stateful FXMSS tree.
+
+| Signature Type | Signing Cost in SHA256 Compressions | Stateful Signing Budget |
+|-|-|-|
+| Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> (constant) |
+| Stateful (UXMSS; depth 31) | <!-- CONST START UXMSS_31_SIGN_COMPRESSIONS_AVG -->16442<!-- CONST END UXMSS_31_SIGN_COMPRESSIONS_AVG --> (average) | 32 |
+| Stateful (UXMSS; depth 255) | <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> (average) | 256 |
+| Stateful (BXMSS; depth 5) | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS -->16468<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS --> (average) | 2<sup>5</sup> |
+| Stateful (BXMSS; depth 8) | <!-- CONST START BXMSS_8_SIGN_COMPRESSIONS -->133393<!-- CONST END BXMSS_8_SIGN_COMPRESSIONS --> (average) | 2<sup>8</sup> |
+| Stateful (BXMSS; depth 10) | <!-- CONST START BXMSS_10_SIGN_COMPRESSIONS -->534287<!-- CONST END BXMSS_10_SIGN_COMPRESSIONS --> (average) | 2<sup>10</sup> |
+| Stateful (BXMSS; depth 12) | <!-- CONST START BXMSS_12_SIGN_COMPRESSIONS -->2137869<!-- CONST END BXMSS_12_SIGN_COMPRESSIONS --> (average) | 2<sup>12</sup> |
+| Stateful (BXMSS; depth 16) | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS -->34209545<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS --> (average) | 2<sup>16</sup> |
+| Stateful (BXMSS; depth 20) | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS -->547356421<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS --> (average) | 2<sup>20</sup> |
+
+One can improve SHRINCS signing performance significantly using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
+
+To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#FXMSS) tree which are produced during key-generation or prior signing attempts. Caching reduces the fraction of the FXMSS tree which the signer must regenerate on each signing attempt, which is by far the greatest computational cost in stateful signing. Caching can therefore result in very significant (orders of magnitude) speedups, depending on the stateful tree structure.
+
+The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signing budget, using hypertree pruning[^pruning].
 
 TODO:
-- Note how SPHINCS verification is fast but keygen and signing are slow.
-- XMSS signing and keygen are relatively fast depending on tree depth. Verification is very fast (probably faster than ECDSA, TODO fact check).
-- Table of compression costs and compressions/byte for stateful/stateless verification, signing, etc.
-- Mention [verification speed benchmarks](https://conduition.io/code/fast-slh-dsa-verification/) and [CPU/GPU optimizations for signing/keygen](https://conduition.io/code/fast-slh-dsa/).
+- compare verification costs to Schnorr?
+- describe stateful caching strategies?
 
 ## Rationale
 
@@ -206,7 +244,7 @@ We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourag
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
-Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_KEYGEN_COMPRESSIONS -->133631<!-- CONST END UXMSS_KEYGEN_COMPRESSIONS --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
+Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
 
 The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> SHA256 compressions to sign. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signing budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
@@ -2487,6 +2525,7 @@ This document is licensed under the 3-clause BSD license.
 [^simd_arm]: https://arm-software.github.io/acle/neon_intrinsics/advsimd.html
 [^sha_ni]: https://en.wikipedia.org/wiki/SHA_instruction_set
 [^sha_ni_bench]: https://conduition.io/code/fast-slh-dsa/#Hardware-Acceleration
+[^simd_bench]: https://conduition.io/code/fast-slh-dsa/#Vectorized-Hashing
 [^sha256x8]: https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c
 [^vulkan]: https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
