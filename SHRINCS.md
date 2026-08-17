@@ -357,7 +357,7 @@ We make use of the following utility helper functions in specifying SHRINCS.
 - `a // b`: divides the integer `a` by the integer `b`, rounding the quotient down.
 - `ceildiv(a, b)`: divides the integer `a` by the integer `b`, rounding the quotient up.
 - `sum(x)`: sums a sequence of numbers `x`.
-- `repeat(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
+- `replicate(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
 - `zeros(n)`: returns a bytestring of  length `n` containing only repeated zero bytes.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates an array of byte strings.
@@ -678,8 +678,8 @@ The `hmac_sha256` keyed hash function.
 def hmac_sha256(key: bytes, message: bytes) -> bytes:
   assert len(key) <= 64
   padded_key = key + zeros(64 - len(key))
-  inner = sha256(xor(padded_key, repeat(0x36, 64)) + message)
-  return sha256(xor(padded_key, repeat(0x5C, 64)) + inner)
+  inner = sha256(xor(padded_key, replicate(0x36, 64)) + message)
+  return sha256(xor(padded_key, replicate(0x5C, 64)) + inner)
 ```
 <!-- DOC END hmac_sha256 -->
 
@@ -754,7 +754,7 @@ This function is only used in the stateful path, and only by the signer.
 
 ```py
 def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
-  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
+  return hmac_sha256(key=sk_prf + replicate(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
 ```
 <!-- DOC END PRF_msg_sf -->
 

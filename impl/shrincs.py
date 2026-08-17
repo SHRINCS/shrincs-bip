@@ -19,11 +19,11 @@ def ceildiv(a: int, b: int) -> int:
   """
   return (a + b - 1) // b
 
-def repeat(b: int, n: int) -> bytes:
+def replicate(b: int, n: int) -> bytes:
   return bytes((b for _ in range(n)))
 
 def zeros(n: int) -> bytes:
-  return repeat(0, n)
+  return replicate(0, n)
 
 def concat(array: list[bytes]) -> bytes:
   return b''.join(array)
@@ -138,8 +138,8 @@ def hmac_sha256(key: bytes, message: bytes) -> bytes:
   """
   assert len(key) <= 64
   padded_key = key + zeros(64 - len(key))
-  inner = sha256(xor(padded_key, repeat(0x36, 64)) + message)
-  return sha256(xor(padded_key, repeat(0x5C, 64)) + inner)
+  inner = sha256(xor(padded_key, replicate(0x36, 64)) + message)
+  return sha256(xor(padded_key, replicate(0x5C, 64)) + inner)
 
 
 # Tweaked hash functions
@@ -330,7 +330,7 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
 
   This function is only used in the stateful path, and only by the signer.
   """
-  return hmac_sha256(key=sk_prf + repeat(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
+  return hmac_sha256(key=sk_prf + replicate(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
 
 
 #  Winternitz algorithms
