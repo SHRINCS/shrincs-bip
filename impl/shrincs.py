@@ -1181,7 +1181,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 
   R = signature[0:16]
   fors_signature = signature[16 : 16 + FORS_SIGNATURE_SIZE]
-  hypertree_signature = signature[16 + FORS_SIGNATURE_SIZE : 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE]
+  hypertree_signature = signature[16 + FORS_SIGNATURE_SIZE : SPHX_SIGNATURE_SIZE]
 
   fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, contextualized_msg)
 
