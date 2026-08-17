@@ -2450,7 +2450,11 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
     return slh_dsa_verify(sf_root + message, signature[1:], ctx, pk_seed, sl_root)
 
   # Stateful verification path. The size bounds are the FXMSS bounds plus a variable-size header.
-  elif 0 <= indicator < FXMSS_HEIGHT and SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
+  elif 0 <= indicator < FXMSS_HEIGHT:
+    # Signature must have correct length.
+    if not SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
+      return False
+
     R = signature[1:17]
     leaf_height = indicator
     leaf_depth = FXMSS_HEIGHT - leaf_height
@@ -2483,7 +2487,7 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
 
     return root == sf_root
 
-  # Negative indicator or invalid size, not a valid SHRINCS signature.
+  # Negative indicator, not a valid SHRINCS signature.
   else:
     return False
 ```
