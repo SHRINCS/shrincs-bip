@@ -2235,7 +2235,7 @@ If correct state is not available for any reason, such as when restoring from a 
 
 #### Maximum Message Length
 
-Every message SHRINCS hashes is bounded in length, because it is ultimately absorbed by SHA-256, which accepts at most `2**61 - 1` bytes (or `2**61 - 1 - 64` bytes when it is reached through HMAC-SHA256). `shrincs_sign` and `shrincs_verify` cap `message` at `2**61 - 128` bytes. This cap is set by the tighter stateless path, where the message reaches the innermost hash behind `98` bytes of fixed prefixes (the 64-byte HMAC block, the 16-byte `opt_rand`, the 2-byte SLH-DSA message prefix, and the 16-byte `sf_root`). SHA-256's limit then gives an exact maximum of `2**61 - 99` bytes, which we round down to `2**61 - 128`, the largest multiple of SHA-256's 64-byte block size that stays within this limit. The intermediate functions in between accept *a variable-length message*. Its length still carries an upper bound, just an implicit one, set by the primitive bounds above rather than stated at each function: a SHRINCS `message` is already capped, and each intermediate prepends only a fixed number of bytes to it, so every hash input stays within SHA-256's limit by construction. No realistic message will ever approach this cap.
+Every message SHRINCS hashes is bounded in length, because it is ultimately absorbed by SHA-256, which accepts at most `2**61 - 1` bytes. `shrincs_sign` and `shrincs_verify` cap `message` at `2**61 - 384` bytes. This cap is set by the longest prefix a message can sit behind. On the stateless path it reaches the innermost hash behind `98` bytes of fixed prefixes (the 64-byte HMAC block, the 16-byte `opt_rand`, the 2-byte SLH-DSA message prefix, and the 16-byte `sf_root`); on the stateful path, behind `107` (the 64-byte HMAC block, the 16-byte `pk_seed`, the 9-byte leaf position, the 2-byte binding prefix, and the 16-byte `sl_root`), which is the longer of the two. The caller's `ctx` is prepended on either path, adding up to a further 255 bytes, so the longest prefix any message sits behind is `362`. SHA-256's limit then gives an exact maximum of `2**61 - 363` bytes, which we round down to `2**61 - 384`, the largest multiple of SHA-256's 64-byte block size that stays within this limit. The intermediate functions in between accept *a variable-length message*. Its length still carries an upper bound, just an implicit one, set by the primitive bounds above rather than stated at each function: a SHRINCS `message` is already capped, and each intermediate prepends at most a known number of bytes to it, so every hash input stays within SHA-256's limit by construction. No realistic message will ever approach this cap.
 
 #### SHRINCS Algorithms
 
@@ -2339,7 +2339,7 @@ uses the stateful FXMSS path when `state_ctr` is valid for the key's tree struct
 falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 128` bytes.
+  - `message`: a message of at most `2**61 - 384` bytes.
   - `ctx`: a context of at most 255 bytes.
   - `shrincs_seckey`: an 82-byte SHRINCS secret key.
   - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
@@ -2415,7 +2415,7 @@ The verifier recomputes `sl_root` on the stateless path and `sf_root` on the sta
 and compares the result against the public key.
 
 - Inputs:
-  - `message`: a message of at most `2**61 - 128` bytes.
+  - `message`: a message of at most `2**61 - 384` bytes.
   - `signature`: a candidate SHRINCS signature, of any length.
   - `ctx`: a context of at most 255 bytes.
   - `shrincs_pubkey`: a 48-byte SHRINCS public key.

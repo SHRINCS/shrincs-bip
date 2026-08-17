@@ -1279,7 +1279,7 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
   falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 128` bytes.
+    - `message`: a message of at most `2**61 - 384` bytes.
     - `ctx`: a context of at most 255 bytes.
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
@@ -1347,7 +1347,7 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
   and compares the result against the public key.
 
   - Inputs:
-    - `message`: a message of at most `2**61 - 128` bytes.
+    - `message`: a message of at most `2**61 - 384` bytes.
     - `signature`: a candidate SHRINCS signature, of any length.
     - `ctx`: a context of at most 255 bytes.
     - `shrincs_pubkey`: a 48-byte SHRINCS public key.
