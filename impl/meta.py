@@ -194,25 +194,32 @@ BXMSS_12_SIGN_COMPRESSIONS = bxmss_sign_compressions(12)
 BXMSS_16_SIGN_COMPRESSIONS = bxmss_sign_compressions(16)
 BXMSS_20_SIGN_COMPRESSIONS = bxmss_sign_compressions(20)
 
-# SHA256 compressions needed to generate a UXMSS key at various depths.
+# Generating leaves +
+# H() invocations (merkle nodes)
+STATELESS_KEYGEN_COMPRESSIONS = 2**SPHX_XMSS_HEIGHT * (WOTS_TW_KEYGEN_COMPRESSIONS + sha256_compressions(16 * WOTS_TW_CHAIN_COUNT)) + \
+                                2**SPHX_XMSS_HEIGHT - 1
+
+# SHA256 compressions needed to generate a SHRINCS key with UXMSS at various depths.
 #
 # Generating leaves + H() invocations (merkle nodes)
 def uxmss_keygen_compressions(depth: int) -> int:
   return (depth + 1) * WOTS_C_KEYGEN_COMPRESSIONS + depth
 
 
-UXMSS_31_KEYGEN_COMPRESSIONS  = uxmss_keygen_compressions(31)
-UXMSS_255_KEYGEN_COMPRESSIONS = uxmss_keygen_compressions(255)
+UXMSS_31_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + uxmss_keygen_compressions(31)
+UXMSS_255_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + uxmss_keygen_compressions(255)
 
-# SHA256 compressions needed to generate a BXMSS key at various depths.
+UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY = uxmss_keygen_compressions(255)
+
+# SHA256 compressions needed to generate a SHRINCS key with BXMSS at various depths.
 #
 # Generating leaves + H() invocations (merkle nodes)
 def bxmss_keygen_compressions(depth: int) -> int:
   return 2**depth * WOTS_C_KEYGEN_COMPRESSIONS + (2**depth - 1)
 
-BXMSS_5_KEYGEN_COMPRESSIONS  = bxmss_keygen_compressions(5)
-BXMSS_8_KEYGEN_COMPRESSIONS  = bxmss_keygen_compressions(8)
-BXMSS_10_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(10)
-BXMSS_12_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(12)
-BXMSS_16_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(16)
-BXMSS_20_KEYGEN_COMPRESSIONS = bxmss_keygen_compressions(20)
+BXMSS_5_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(5)
+BXMSS_8_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(8)
+BXMSS_10_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(10)
+BXMSS_12_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(12)
+BXMSS_16_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(16)
+BXMSS_20_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(20)

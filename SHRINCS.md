@@ -87,18 +87,18 @@ The best known way to improve SHRINCS verification performance is to use SHA256 
 
 SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes. The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation. In general, putting more up-front work into key-generation allows the key a larger stateful signing budget.
 
-Here we have illustrated several examples of key generation costs for different stateful structures.
+Here we have illustrated several examples of SHRINCS key generation costs for different stateful structures.
 
-| Structure | Key Generation Cost in SHA256 Compressions | Stateful Signing Budget |
+| Stateful Structure | Total Key Generation Cost in SHA256 Compressions | Stateful Signing Budget |
 |-|-|-|
-| UXMSS; depth 31 | <!-- CONST START UXMSS_31_KEYGEN_COMPRESSIONS -->16703<!-- CONST END UXMSS_31_KEYGEN_COMPRESSIONS --> | 32 |
-| UXMSS; depth 255 | <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS --> | 256 |
-| BXMSS; depth 5 | <!-- CONST START BXMSS_5_KEYGEN_COMPRESSIONS -->16703<!-- CONST END BXMSS_5_KEYGEN_COMPRESSIONS --> | 2<sup>5</sup> |
-| BXMSS; depth 8 | <!-- CONST START BXMSS_8_KEYGEN_COMPRESSIONS -->133631<!-- CONST END BXMSS_8_KEYGEN_COMPRESSIONS --> | 2<sup>8</sup> |
-| BXMSS; depth 10 | <!-- CONST START BXMSS_10_KEYGEN_COMPRESSIONS -->534527<!-- CONST END BXMSS_10_KEYGEN_COMPRESSIONS --> | 2<sup>10</sup> |
-| BXMSS; depth 12 | <!-- CONST START BXMSS_12_KEYGEN_COMPRESSIONS -->2138111<!-- CONST END BXMSS_12_KEYGEN_COMPRESSIONS --> | 2<sup>12</sup> |
-| BXMSS; depth 16 | <!-- CONST START BXMSS_16_KEYGEN_COMPRESSIONS -->34209791<!-- CONST END BXMSS_16_KEYGEN_COMPRESSIONS --> | 2<sup>16</sup> |
-| BXMSS; depth 20 | <!-- CONST START BXMSS_20_KEYGEN_COMPRESSIONS -->547356671<!-- CONST END BXMSS_20_KEYGEN_COMPRESSIONS --> | 2<sup>20</sup> |
+| UXMSS; depth 31 | <!-- CONST START UXMSS_31_KEYGEN_COMPRESSIONS -->313150<!-- CONST END UXMSS_31_KEYGEN_COMPRESSIONS --> | 32 |
+| UXMSS; depth 255 | <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS -->430078<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS --> | 256 |
+| BXMSS; depth 5 | <!-- CONST START BXMSS_5_KEYGEN_COMPRESSIONS -->313150<!-- CONST END BXMSS_5_KEYGEN_COMPRESSIONS --> | 2<sup>5</sup> |
+| BXMSS; depth 8 | <!-- CONST START BXMSS_8_KEYGEN_COMPRESSIONS -->430078<!-- CONST END BXMSS_8_KEYGEN_COMPRESSIONS --> | 2<sup>8</sup> |
+| BXMSS; depth 10 | <!-- CONST START BXMSS_10_KEYGEN_COMPRESSIONS -->830974<!-- CONST END BXMSS_10_KEYGEN_COMPRESSIONS --> | 2<sup>10</sup> |
+| BXMSS; depth 12 | <!-- CONST START BXMSS_12_KEYGEN_COMPRESSIONS -->2434558<!-- CONST END BXMSS_12_KEYGEN_COMPRESSIONS --> | 2<sup>12</sup> |
+| BXMSS; depth 16 | <!-- CONST START BXMSS_16_KEYGEN_COMPRESSIONS -->34506238<!-- CONST END BXMSS_16_KEYGEN_COMPRESSIONS --> | 2<sup>16</sup> |
+| BXMSS; depth 20 | <!-- CONST START BXMSS_20_KEYGEN_COMPRESSIONS -->547653118<!-- CONST END BXMSS_20_KEYGEN_COMPRESSIONS --> | 2<sup>20</sup> |
 
 The best known way to improve SHRINCS key-generation performance is either using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
 
@@ -244,7 +244,7 @@ We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourag
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
-Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
+Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
 
 The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> SHA256 compressions to sign. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signing budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
