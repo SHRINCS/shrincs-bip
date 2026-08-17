@@ -2,6 +2,13 @@
 
 set -e
 
+# `pydoc_insert.py` takes each docstring from the imported module while reading the code
+# around it from the source file. Python considers cached bytecode current when the
+# source's size and mtime-second are unchanged, which a reordering edit can satisfy, so a
+# stale cache yields fresh code beside a stale docstring. This check would then compare
+# `SHRINCS.md` against that and report it in sync.
+rm -rf impl/__pycache__ __pycache__
+
 ./pydoc_insert.py --dry-run || (
   echo "Template script failed!"
   exit 1
