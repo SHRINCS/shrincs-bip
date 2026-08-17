@@ -1695,14 +1695,14 @@ These algorithms are used only for the stateful FXMSS sub-scheme.
 
 <!-- DOC START fxmss_node -->
 The FXMSS internal node computation function. Recursively computes the FXMSS node at the given
-`node_index` and `node_height` for the tree `structure`.
+`node_index` and `node_height` for the tree `sf_structure`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
   - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
   - `pk_seed`: a 16-byte salt.
-  - `structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte FXMSS node hash.
@@ -1710,9 +1710,9 @@ The FXMSS internal node computation function. Recursively computes the FXMSS nod
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, structure: bytes, ADRS: bytearray) -> bytes:
+def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, sf_structure: bytes, ADRS: bytearray) -> bytes:
   node_depth = FXMSS_HEIGHT - node_height
-  tree_shape, tree_depth = structure[0], structure[1]
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
 
   is_uxmss_leaf = tree_shape == FXMSS_SHAPE_UNBALANCED and (node_index == 1 or node_depth == tree_depth)
   is_bxmss_leaf = tree_shape == FXMSS_SHAPE_BALANCED and node_depth == tree_depth
@@ -1731,8 +1731,8 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
-  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, structure, ADRS)
-  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, structure, ADRS)
+  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, sf_structure, ADRS)
+  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, sf_structure, ADRS)
 
   # Compute and return the parent node.
   ADRS[0] = node_height
@@ -1756,18 +1756,18 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
   - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
   - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
   - `pk_seed`: a 16-byte salt.
-  - `structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
 - Output:
   - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, structure: bytes) -> Optional[bytes]:
+def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes) -> Optional[bytes]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
-  tree_shape, tree_depth = structure[0], structure[1]
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     assert leaf_index == 1 or leaf_depth == tree_depth
   if tree_shape == FXMSS_SHAPE_BALANCED:
@@ -1784,7 +1784,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   for j in range(leaf_depth):
     sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
-    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, structure, ADRS)
+    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, sf_structure, ADRS)
 
   return sig
 ```
@@ -2194,7 +2194,7 @@ As described earler in the [overview](#Overview), SHRINCS combines FXMSS (statef
 
 A SHRINCS key pair starts its life at key-generation, which the caller seeds with 48 random bytes. These 48 random bytes are partitioned into 3 x 16-byte chunks: `sk_seed`, `sk_prf`, and `pk_seed`.
 
-From `sk_seed` and `pk_seed`, the key-generation procedure derives the roots of two merkle trees: `sl_root` and `sf_root`. These represent the stateless and stateful keypairs respectively. No additional parameters are needed to derive `sl_root`, but to derive `sf_root` the caller needs to know which `structure` to apply in FXMSS (see [the section on FXMSS](#FXMSS) for more details).
+From `sk_seed` and `pk_seed`, the key-generation procedure derives the roots of two merkle trees: `sl_root` and `sf_root`. These represent the stateless and stateful keypairs respectively. No additional parameters are needed to derive `sl_root`, but to derive `sf_root` the caller needs to know which `sf_structure` to apply in FXMSS (see [the section on FXMSS](#FXMSS) for more details).
 
 Once both roots are generated, the caller combines them with `pk_seed` to form the SHRINCS public key:
 
@@ -2207,10 +2207,10 @@ This encoding is chosen such that by slicing off the last 16 bytes (`sf_root`), 
 The SHRINCS secret key is encoded as:
 
 ```py
-shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + structure + sf_root
+shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
 ```
 
-This encoding is chosen such that by slicing off the last 18 bytes (`structure + sf_root`), we may acquire a valid SLH-DSA secret key.
+This encoding is chosen such that by slicing off the last 18 bytes (`sf_structure + sf_root`), we may acquire a valid SLH-DSA secret key.
 
 <img src="./img/shrincs-keys.svg">
 
@@ -2287,10 +2287,10 @@ def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
 
 <!-- DOC START shrincs_sf_leaf_select -->
 The SHRINCS stateful-path leaf-selection function. Computes the position `(index, height)` of the
-next WOTS+C leaf for the given `structure` and `state_ctr`.
+next WOTS+C leaf for the given `sf_structure` and `state_ctr`.
 
 - Inputs:
-  - `structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
   - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
     previously issued, or `None`.
 - Outputs:
@@ -2304,11 +2304,11 @@ key signs only on the stateless path.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def shrincs_sf_leaf_select(structure: bytes, state_ctr: Optional[int]) -> Optional[tuple[int, int]]:
+def shrincs_sf_leaf_select(sf_structure: bytes, state_ctr: Optional[int]) -> Optional[tuple[int, int]]:
   if state_ctr is None:
     return None
 
-  tree_shape, tree_depth = structure[0], structure[1]
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
 
   # A depth-zero tree holds no usable WOTS+C leaf.
   if tree_depth == 0:
