@@ -50,12 +50,12 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
 
   for i in range(outlen):
     while bits_filled < b:
-      acc = (acc << 8) + x[j]
+      acc = acc * 256 + x[j]
       j += 1
       bits_filled += 8
 
     bits_filled -= b
-    baseb[i] = acc >> bits_filled
+    baseb[i] = acc // 2**bits_filled
     acc %= 2**bits_filled # prevent accumulator from overflowing
 
   return baseb
@@ -117,7 +117,8 @@ SF_WOTS_C_GRIND = 22
 #
 #  Every quantity here is a mathematical integer and every operation on one is
 #  exact: nothing wraps, saturates, or is truncated. The annotations state where
-#  a value lies, not how it is stored.
+#  a value lies, not how it is stored. Nothing here is shifted or masked in
+#  place of arithmetic.
 
 class LEN:
   """
@@ -486,7 +487,7 @@ def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAI
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
     checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
-    checksum >>= WOTS_TW_CHAIN_BITS
+    checksum = checksum // 2**WOTS_TW_CHAIN_BITS
 
   return msg_indexes + checksum_indexes
 
@@ -498,7 +499,7 @@ def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Array[UInt16, WOTS_TW_
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
   SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
-  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
+  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) * 2**SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
   checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
   return msg_indexes + checksum_indexes
@@ -888,7 +889,7 @@ def hypertree_sign(
     if j < SPHX_LAYER_COUNT - 1:
       message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-      tree_index >>= SPHX_XMSS_HEIGHT
+      tree_index = tree_index // 2**SPHX_XMSS_HEIGHT
     sig += layer_sig
 
   return sig
@@ -926,7 +927,7 @@ def hypertree_verify(
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
     if j < SPHX_LAYER_COUNT - 1:
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-      tree_index >>= SPHX_XMSS_HEIGHT
+      tree_index = tree_index // 2**SPHX_XMSS_HEIGHT
   return message == sl_root
 
 
