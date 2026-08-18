@@ -8,7 +8,7 @@
 # all.
 
 import hashlib
-from typing import Optional
+from typing import Annotated, Optional, Union
 
 #  Helper functions
 
@@ -111,6 +111,40 @@ SF_WOTS_C_PK    = 17
 SF_FXMSS_TREE   = 18
 SF_WOTS_C_PRF   = 21
 SF_WOTS_C_GRIND = 22
+
+
+#  Value types
+
+class LEN:
+  """
+  The metadata behind a `Bytes` annotation: an exact `size`, or a range
+  bounded below by `min` and above by `max`.
+  """
+  def __init__(self, size: Optional[int] = None, min: int = 0, max: Optional[int] = None):
+    self.size, self.min, self.max = size, min, max
+
+class UINT:
+  """
+  The metadata behind `UInt8` and its siblings, carrying the width in `bits`.
+  What the annotation requires is stated under Value Types.
+  """
+  def __init__(self, bits: int):
+    self.bits = bits
+
+class Bytes:
+  """
+  Builds the annotation `Bytes[n]` and `Bytes[a:b]` stand for. What they
+  require is stated under Value Types.
+  """
+  def __class_getitem__(cls, size: Union[int, slice]):
+    if isinstance(size, slice):
+      return Annotated[bytes, LEN(min = size.start or 0, max = size.stop)]
+    return Annotated[bytes, LEN(size)]
+
+UInt8  = Annotated[int, UINT(8)]
+UInt16 = Annotated[int, UINT(16)]
+UInt32 = Annotated[int, UINT(32)]
+UInt64 = Annotated[int, UINT(64)]
 
 
 #  Primitive cryptographic functions
