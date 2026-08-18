@@ -160,6 +160,36 @@ UInt32 = Annotated[int, UINT(32)]
 UInt64 = Annotated[int, UINT(64)]
 
 
+#  Node index helpers
+
+def sibling_of(node_index: int) -> int:
+  """
+  Returns the index of the other child of the same parent: the next index up
+  from an even node, the previous from an odd one. An odd index is at least
+  one, so the difference is never taken below zero, and an even index is below
+  the top of its range, so the sum stays in it.
+  """
+  if node_index % 2 == 0:
+    return node_index + 1
+  else:
+    return node_index - 1
+
+
+def ancestor_of(node_index: int, levels: int) -> int:
+  """
+  Returns the index of the node `levels` above the node at `node_index`.
+  Each layer is half as wide as the one below it, so climbing a level halves the
+  index, and an index halved past zero stays there. The result is
+  `node_index // 2**levels`, but not computed that way: `levels` reaches
+  `FXMSS_HEIGHT`, past the width of the index it climbs, where languages differ
+  on what a shift that far means.
+  """
+  for _ in range(levels):
+    node_index = node_index // 2
+
+  return node_index
+
+
 #  Primitive cryptographic functions
 
 def sha256(message: Bytes[:2**61 - 1]) -> Bytes[32]:
@@ -776,7 +806,7 @@ def xmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(SPHX_XMSS_HEIGHT):
-    sibling_index = (keypair_index >> j) ^ 1
+    sibling_index = sibling_of(ancestor_of(keypair_index, j))
     sig += xmss_node(sk_seed, sibling_index, j, pk_seed, ADRS)
 
   return sig
@@ -815,9 +845,9 @@ def xmss_pubkey_from_sig(
 
   for k in range(SPHX_XMSS_HEIGHT):
     ADRS[14:18] = (k + 1).to_bytes(4)
-    ADRS[18:22] = (keypair_index >> (k+1)).to_bytes(4)
+    ADRS[18:22] = ancestor_of(keypair_index, k + 1).to_bytes(4)
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (keypair_index >> k) & 1 == 1:
+    if ancestor_of(keypair_index, k) % 2 == 1:
       node = H(pk_seed, ADRS, sibling + node)
     else:
       node = H(pk_seed, ADRS, node + sibling)
@@ -1013,7 +1043,7 @@ def fxmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
-    sibling_index = (leaf_index >> j) ^ 1
+    sibling_index = sibling_of(ancestor_of(leaf_index, j))
     sibling_height = leaf_height + j
     sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth, ADRS)
 
@@ -1065,9 +1095,9 @@ def fxmss_pubkey_from_sig(
 
   for k in range(leaf_depth):
     ADRS[0] += 1
-    ADRS[1:9] = (leaf_index >> (k+1)).to_bytes(8)
+    ADRS[1:9] = ancestor_of(leaf_index, k + 1).to_bytes(8)
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index >> k) & 1 == 1:
+    if ancestor_of(leaf_index, k) % 2 == 1:
       node = H(pk_seed, ADRS, sibling + node)
     else:
       node = H(pk_seed, ADRS, node + sibling)
@@ -1167,7 +1197,7 @@ def fors_sign(
     leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, ADRS, leaf_index)
     for j in range(SPHX_FORS_HEIGHT):
-      sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + ((index_set[i] >> j) ^ 1)
+      sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + sibling_of(ancestor_of(index_set[i], j))
       sig += fors_node(sk_seed, sibling_index, j, pk_seed, ADRS)
   return sig
 
@@ -1207,12 +1237,12 @@ def fors_pubkey_from_sig(
     node = F(pk_seed, ADRS, preimage)
     for j in range(SPHX_FORS_HEIGHT):
       ADRS[14:18] = (j + 1).to_bytes(4)
-      ADRS[18:22] = (tree_index >> (j+1)).to_bytes(4)
+      ADRS[18:22] = ancestor_of(tree_index, j + 1).to_bytes(4)
 
       sibling = signature[offset : offset+16]
       offset += 16
 
-      if (index_set[i] >> j) & 1 == 1:
+      if ancestor_of(index_set[i], j) % 2 == 1:
         node = H(pk_seed, ADRS, sibling + node)
       else:
         node = H(pk_seed, ADRS, node + sibling)
