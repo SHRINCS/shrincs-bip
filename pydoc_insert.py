@@ -2,6 +2,7 @@
 
 import re
 import ast
+import inspect
 from argparse import ArgumentParser
 import shutil
 
@@ -16,6 +17,7 @@ from impl import shrincs, meta
 with open('impl/shrincs.py') as fh:
   shrincs_source = fh.read()
 
+shrincs_source_lines = shrincs_source.splitlines(keepends = True)
 shrincs_code_lines = [line.rstrip() for line in shrincs_source.split('\n')]
 shrincs_ast = ast.parse(shrincs_source)
 
@@ -24,6 +26,19 @@ definitions = {}
 for node in shrincs_ast.body:
   if isinstance(node, ast.FunctionDef):
     definitions[node.name] = node
+
+#  The first source line of a definition. A decorator is not part of the
+#  node's own extent, and the `@` may sit on a line above the expression it
+#  applies to.
+def start_line(node: ast.stmt) -> int:
+  decorators = getattr(node, 'decorator_list', [])
+  if not decorators:
+    return node.lineno - 1
+  line = min(decorator.lineno for decorator in decorators) - 1
+  while not shrincs_code_lines[line].lstrip().startswith('@'):
+    line -= 1
+  return line
+
 
 class SpecFunction:
   """
@@ -36,10 +51,20 @@ class SpecFunction:
 
     #  The signature, then the body with any docstring elided.
     body_start = node.body[0]
+    starts_at = start_line(node)
     body_from = body_start.end_lineno if self.docstring is not None else body_start.lineno - 1
 
-    signature = shrincs_code_lines[node.lineno - 1 : body_start.lineno - 1]
-    self.codestring = '\n'.join(signature + shrincs_code_lines[body_from : node.end_lineno])
+    #  `inspect.getblock` finds where the definition really ends, including
+    #  any trailing comment, which is not a node and so has no `end_lineno`.
+    #  It also keeps a comment which introduces whatever follows, so stop at
+    #  the blank line which separates one from the body it would follow.
+    block_end = starts_at + len(inspect.getblock(shrincs_source_lines[starts_at:]))
+    ends_at = node.end_lineno
+    while ends_at < block_end and shrincs_code_lines[ends_at].strip():
+      ends_at += 1
+
+    signature = shrincs_code_lines[starts_at : body_start.lineno - 1]
+    self.codestring = '\n'.join(signature + shrincs_code_lines[body_from : ends_at])
 
 
 regex_doc_start = r"^<!-- DOC START (\w+) -->$"
