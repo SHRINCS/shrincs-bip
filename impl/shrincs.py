@@ -114,6 +114,10 @@ SF_WOTS_C_GRIND = 22
 
 
 #  Value types
+#
+#  Every quantity here is a mathematical integer and every operation on one is
+#  exact: nothing wraps, saturates, or is truncated. The annotations state where
+#  a value lies, not how it is stored.
 
 class LEN:
   """
