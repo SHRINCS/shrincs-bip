@@ -424,6 +424,37 @@ To save computational effort, `PK.seed` is padded with zero bytes to a length of
 This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
 
 
+### Value Types
+
+A function signature states the size of each value it takes and returns, in the notation below.
+`impl/shrincs.py` declares that notation as [`typing.Annotated`](https://docs.python.org/3/library/typing.html#typing.Annotated) metadata, so that it can be checked mechanically.
+They are inert in the implementation, and the sizes they state are requirements on any implementation.
+
+- `Bytes[n]` is a byte string of exactly `n` bytes.
+  `n` may be an arithmetic expression over the constants this document defines, evaluated for the parameter set in force, as in `Bytes[2 + WOTS_C_CHAINS_SIZE]`.
+- `Bytes[a:b]` is a byte string of at least `a` and at most `b` bytes.
+  Both bounds are inclusive, unlike a Python slice.
+  Either may be omitted: `Bytes[a:]` is at least `a` bytes, and `Bytes[:b]` at most `b`.
+- A bare `bytes` is bounded only by its callers.
+- `UInt8`, `UInt16`, `UInt32` and `UInt64` are integers in the ranges `[0, 2**8)`, `[0, 2**16)`, `[0, 2**32)` and `[0, 2**64)` respectively, serialized as described in [Utilities](#utilities).
+  A bare `int` is an integer of unbounded width, and no value in this specification is negative.
+- `Array[T, n]` is a sequence of exactly `n` values of type `T`.
+  `n` may be an arithmetic expression over the constants this document defines, as it may in `Bytes[n]`.
+- `list[T]` is a sequence of values of type `T`, as many of them as the paragraph beneath the signature states.
+- `tuple[...]` is a fixed group of values of the given types, in that order, returned by the functions which produce more than one.
+  Each element is written into the field its caller gives it, so the group has no size of its own.
+- `Union[T, U]` is a value of one of the given types.
+  Where this specification returns one, its length tells the reader which.
+- `Optional[T]` is either a `T` or the absence of one.
+- `bool` is true or false, and is never serialized.
+- `bytearray` is the 22-byte address described under [ADRS](#adrs).
+  It is the one value a function modifies in place, which is why it is not given a size here.
+
+These sizes are normative.
+A value is written into a field wide enough to hold it.
+Writing one into a narrower field is an error rather than a value reduced to fit, and every field this specification writes is wide enough for every value which can reach it.
+
+
 ### Utilities
 
 We make use of the following utility helper functions in specifying SHRINCS.
