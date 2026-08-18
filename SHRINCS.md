@@ -380,18 +380,21 @@ These sizes are normative. A value is written into a field wide enough to hold i
 We make use of the following utility helper functions in specifying SHRINCS.
 
 - `a // b`: divides the integer `a` by the integer `b`, rounding the quotient down.
+- `a % b`: the remainder `a - b * (a // b)`. In every use below `a` is non-negative and `b` is positive, so the result lies in `[0, b)`.
 - `ceildiv(a, b)`: divides the integer `a` by the integer `b`, rounding the quotient up.
+- `a ** b`: raises the integer `a` to the power of the non-negative integer `b`.
+- `xor(s1, s2)`: the bytewise exclusive or of two byte strings of equal length.
 - `sum(x)`: sums a sequence of numbers `x`.
 - `replicate(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
 - `zeros(n)`: returns a bytestring of  length `n` containing only repeated zero bytes.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates an array of byte strings.
 
-Every algorithm and every derived constant in this specification is computed with exact integer arithmetic. Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation. Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
+Every algorithm and every derived constant in this specification is computed with exact integer arithmetic. Division in them appears only as `a // b`, `a % b` and `ceildiv(a, b)`, and in every use the operands are non-negative, so floored and truncated division agree and the specification never leaves a rounding decision to the implementation. Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
 
-Every quantity in this specification denotes a mathematical integer, and every operation on one is exact. Nothing overflows, underflows, wraps, is reduced modulo a word size, saturates, or is truncated; a difference is never clamped at zero, and the only rounding is that of the two division forms above. An operation whose result would fall outside the range this specification gives that value does not yield some other value instead: it violates the specification.
+Every quantity in this specification denotes a mathematical integer, and every operation on one is exact. Nothing overflows, underflows, wraps, is reduced modulo a word size, saturates, or is truncated; a difference is never clamped at zero, and the only rounding is that of `a // b` and `ceildiv(a, b)`. An operation whose result would fall outside the range this specification gives that value does not yield some other value instead: it violates the specification.
 
-The [value types](#value-types) above are therefore refinements, not representations. `UInt8` through `UInt64` assert that a value lies in `[0, 2**8)` through `[0, 2**64)`. They do not make it a machine word, and no arithmetic is ever performed modulo `2**bits`.
+The [value types](#value-types) above are therefore refinements, not representations. `UInt8` through `UInt64` assert that a value lies in `[0, 2**8)` through `[0, 2**64)`. They do not make it a machine word, and no arithmetic is ever performed modulo `2**bits`. No quantity is ever shifted or masked in place of arithmetic.
 
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 
@@ -414,12 +417,12 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
 
   for i in range(outlen):
     while bits_filled < b:
-      acc = (acc << 8) + x[j]
+      acc = acc * 256 + x[j]
       j += 1
       bits_filled += 8
 
     bits_filled -= b
-    baseb[i] = acc >> bits_filled
+    baseb[i] = acc // 2**bits_filled
     acc %= 2**bits_filled # prevent accumulator from overflowing
 
   return baseb
@@ -1050,7 +1053,7 @@ def wots_tw_message_to_indexes(message: Bytes[16]) -> Bytes[WOTS_TW_CHAIN_COUNT]
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
     checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
-    checksum >>= WOTS_TW_CHAIN_BITS
+    checksum = checksum // 2**WOTS_TW_CHAIN_BITS
 
   return bytes(msg_indexes + checksum_indexes)
 ```
@@ -1065,7 +1068,7 @@ def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Bytes[WOTS_TW_CHAIN_CO
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
   SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
-  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
+  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) * 2**SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
   checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
   return bytes(msg_indexes + checksum_indexes)
@@ -1074,7 +1077,7 @@ def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Bytes[WOTS_TW_CHAIN_CO
 
 This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.**
 
-Note especially how the _low-order_ bits of the checksum are shifted off first, and they are inserted snugly at the very end of the checksum indexes, with some padding bits which are always zero in between them and the message indexes. The checksum bits are NOT appended directly to the message indexes.
+Note especially how the _low-order_ bits of the checksum are divided out first, and they are inserted snugly at the very end of the checksum indexes, with some padding bits which are always zero in between them and the message indexes. The checksum bits are NOT appended directly to the message indexes.
 
 
 ##### Example
@@ -1652,7 +1655,7 @@ def hypertree_sign(
     if j < SPHX_LAYER_COUNT - 1:
       message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-      tree_index >>= SPHX_XMSS_HEIGHT
+      tree_index = tree_index // 2**SPHX_XMSS_HEIGHT
     sig += layer_sig
 
   return sig
@@ -1696,7 +1699,7 @@ def hypertree_verify(
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
     if j < SPHX_LAYER_COUNT - 1:
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-      tree_index >>= SPHX_XMSS_HEIGHT
+      tree_index = tree_index // 2**SPHX_XMSS_HEIGHT
   return message == sl_root
 ```
 <!-- DOC END hypertree_verify -->
