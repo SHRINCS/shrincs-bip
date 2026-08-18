@@ -509,6 +509,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
   - Outputs:
     - the smallest valid grinding `counter`: a 16-bit unsigned integer.
     - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
+    - or null, in place of both.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -583,7 +584,7 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
     - `pk_seed`: a 16-byte salt.
     - `ADRS`: a 22-byte address.
   - Output:
-    - a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
+    - a `2 + WOTS_C_CHAINS_SIZE`-byte signature, or null.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -864,7 +865,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
     - `pk_seed`: a 16-byte salt.
     - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
   - Output:
-    - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature.
+    - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
 
   This function is only used in the stateful path, and only by the signer.
   """
@@ -1288,7 +1289,8 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
       if omitted, the stateless path uses the deterministic variant of SLH-DSA).
   - Output:
     - a `SPHX_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
-      `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes.
+      `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes,
+      or null.
 
   This function is used only by the signer.
 

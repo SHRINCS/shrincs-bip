@@ -1162,6 +1162,7 @@ constant-sum index set, returning the lowest such counter and its index set.
 - Outputs:
   - the smallest valid grinding `counter`: a 16-bit unsigned integer.
   - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
+  - or null, in place of both.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -1259,7 +1260,7 @@ keypair location prefilled in `ADRS`.
   - `pk_seed`: a 16-byte salt.
   - `ADRS`: a 22-byte address.
 - Output:
-  - a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
+  - a `2 + WOTS_C_CHAINS_SIZE`-byte signature, or null.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -1758,7 +1759,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
   - `pk_seed`: a 16-byte salt.
   - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
 - Output:
-  - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature.
+  - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -2348,7 +2349,8 @@ falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` wi
     if omitted, the stateless path uses the deterministic variant of SLH-DSA).
 - Output:
   - a `SPHX_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
-    `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes.
+    `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes,
+    or null.
 
 This function is used only by the signer.
 
