@@ -389,6 +389,10 @@ We make use of the following utility helper functions in specifying SHRINCS.
 
 Every algorithm and every derived constant in this specification is computed with exact integer arithmetic. Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation. Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
 
+Every quantity in this specification denotes a mathematical integer, and every operation on one is exact. Nothing overflows, underflows, wraps, is reduced modulo a word size, saturates, or is truncated; a difference is never clamped at zero, and the only rounding is that of the two division forms above. An operation whose result would fall outside the range this specification gives that value does not yield some other value instead: it violates the specification.
+
+The [value types](#value-types) above are therefore refinements, not representations. `UInt8` through `UInt64` assert that a value lies in `[0, 2**8)` through `[0, 2**64)`. They do not make it a machine word, and no arithmetic is ever performed modulo `2**bits`.
+
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 
 
