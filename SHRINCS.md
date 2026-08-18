@@ -1993,14 +1993,16 @@ These algorithms are used only for the stateful FXMSS sub-scheme.
 
 <!-- DOC START fxmss_node -->
 The FXMSS internal node computation function. Recursively computes the FXMSS node at the given
-`node_index` and `node_height` for the tree `sf_structure`.
+`node_index` and `node_height` for a tree of the given shape and depth.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
   - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
   - `pk_seed`: a 16-byte public seed.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+    unbalanced (UXMSS) tree.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte FXMSS node hash.
@@ -2013,32 +2015,36 @@ def fxmss_node(
     node_index: UInt64,
     node_height: UInt8,
     pk_seed: Bytes[16],
-    sf_structure: Bytes[2],
+    tree_balanced: bool,
+    tree_depth: UInt8,
     ADRS: bytearray,
 ) -> Bytes[16]:
   node_depth = FXMSS_HEIGHT - node_height
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
 
-  is_uxmss_leaf = tree_shape == FXMSS_SHAPE_UNBALANCED and (node_index == 1 or node_depth == tree_depth)
-  is_bxmss_leaf = tree_shape == FXMSS_SHAPE_BALANCED and node_depth == tree_depth
+  is_uxmss_leaf = not tree_balanced and (node_index == 1 or node_depth == tree_depth)
+  is_bxmss_leaf = tree_balanced and node_depth == tree_depth
 
   if is_uxmss_leaf or is_bxmss_leaf:
+    if tree_balanced:
+      tree_shape = FXMSS_SHAPE_BALANCED
+    else:
+      tree_shape = FXMSS_SHAPE_UNBALANCED
     ADRS[0] = node_height
     ADRS[1:9] = node_index.to_bytes(8)
-    ADRS[10:14] = sf_structure + zeros(2)
+    ADRS[10:14] = tree_shape.to_bytes(1) + tree_depth.to_bytes(1) + zeros(2)
     return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
 
   # Catch and throw if control would enter an infinite recursive loop.
-  if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    assert node_index == 0
-  elif tree_shape == FXMSS_SHAPE_BALANCED:
+  if tree_balanced:
     assert node_depth < tree_depth
+  else:
+    assert node_index == 0
 
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
-  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, sf_structure, ADRS)
-  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, sf_structure, ADRS)
+  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, tree_balanced, tree_depth, ADRS)
+  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, tree_balanced, tree_depth, ADRS)
 
   # Compute and return the parent node.
   ADRS[0] = node_height
@@ -2062,7 +2068,9 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
   - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
   - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
   - `pk_seed`: a 16-byte public seed.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+    unbalanced (UXMSS) tree.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
   - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
 
@@ -2075,21 +2083,26 @@ def fxmss_sign(
     leaf_index: UInt64,
     leaf_height: UInt8,
     pk_seed: Bytes[16],
-    sf_structure: Bytes[2],
+    tree_balanced: bool,
+    tree_depth: UInt8,
 ) -> Optional[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX]]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    assert leaf_index == 1 or leaf_depth == tree_depth
-  if tree_shape == FXMSS_SHAPE_BALANCED:
+  if tree_balanced:
     assert leaf_depth == tree_depth
+  else:
+    assert leaf_index == 1 or leaf_depth == tree_depth
+
+  if tree_balanced:
+    tree_shape = FXMSS_SHAPE_BALANCED
+  else:
+    tree_shape = FXMSS_SHAPE_UNBALANCED
 
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  ADRS[10:14] = sf_structure + zeros(2)
+  ADRS[10:14] = tree_shape.to_bytes(1) + tree_depth.to_bytes(1) + zeros(2)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
   if sig is None:
     return None # practically impossible
@@ -2098,7 +2111,7 @@ def fxmss_sign(
   for j in range(leaf_depth):
     sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
-    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, sf_structure, ADRS)
+    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth, ADRS)
 
   return sig
 ```
@@ -2641,7 +2654,9 @@ and the stateful tree `sf_structure`.
 
 - Inputs:
   - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
-  - `sf_structure`: a 2-byte identifier describing the shape and depth of the stateful FXMSS tree.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
+    must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
+    depths for each shape in [Tree Shapes](#tree-shapes).
 - Outputs:
   - an 82-byte SHRINCS secret key.
   - a 48-byte SHRINCS public key.
@@ -2650,13 +2665,15 @@ This function is used only during key generation.
 
 > [!WARNING]
 > The `sf_structure` argument must come from a trusted source or else be validated.
-> If an adversary can control `sf_structure`, they may cause key-generation to fail, or hang
-> consuming compute resources by making the implementation generate a very large BXMSS tree.
+> If an adversary can control it, they may cause key-generation to fail, or hang consuming compute
+> resources: a balanced tree of depth `sf_structure[1]` costs `2**sf_structure[1]` WOTS+C key
+> generations, so implementations SHOULD reject a depth they cannot afford to compute.
 
 ```py
 def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
   assert len(seed) == 48
   assert len(sf_structure) == 2
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
@@ -2665,7 +2682,8 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   ADRS = bytearray(22)
   ADRS[0] = SPHX_LAYER_COUNT - 1
   sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, ADRS)
-  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, sf_structure, bytearray(22))
+  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1], bytearray(22))
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root
@@ -2791,7 +2809,8 @@ def shrincs_sign(
 
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
-  fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
+  fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, tree_balanced, sf_structure[1])
   if fxmss_signature is None:
     return None # practically impossible
 
