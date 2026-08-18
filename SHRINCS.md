@@ -406,24 +406,22 @@ Decomposes the bytes `x` into `outlen` groups of `b` bits which are each
 parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
 of `x` are parsed, and so `x` must have accordingly sufficient length.
 
+A group spans at most `ceildiv(b, 8) + 1` bytes of `x`, three at the widest
+group this specification uses.
+
 ```py
 def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
+  assert b >= 1
   assert len(x) >= ceildiv(outlen * b, 8)
 
   baseb = [0] * outlen # output array
-  j = 0                # counts the bytes read from the input x.
-  acc = 0              # accumulator, collects bits from x
-  bits_filled = 0      # counts the bits accumulated
 
   for i in range(outlen):
-    while bits_filled < b:
-      acc = acc * 256 + x[j]
-      j += 1
-      bits_filled += 8
-
-    bits_filled -= b
-    baseb[i] = acc // 2**bits_filled
-    acc %= 2**bits_filled # prevent accumulator from overflowing
+    first = (i * b) // 8            # the first byte of x holding a bit of group i
+    after = ceildiv((i + 1) * b, 8) # one past the last byte holding a bit of group i
+    window = int.from_bytes(x[first : after])
+    bits_below = after * 8 - (i + 1) * b
+    baseb[i] = (window // 2**bits_below) % 2**b
 
   return baseb
 ```
