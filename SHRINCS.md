@@ -477,7 +477,7 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `SL_WOTS_TW_HASH` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: hash index | | `SF_WOTS_C_HASH` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: hash index |
 | `SL_WOTS_TW_PK` | 4 bytes: key pair index <br> 8 bytes: zero padding | | `SF_WOTS_C_PK` | 12 bytes: zero padding |
 | `SL_XMSS_TREE` | 4 bytes: zero padding <br> 4 bytes: tree height <br> 4 bytes: tree index | | `SF_FXMSS_TREE` | 12 bytes: zero padding |
-| `SL_FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index | | `SF_WOTS_C_PRF` | 4 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
+| `SL_FORS_TREE` | 4 bytes: key pair index <br> 4 bytes: tree height <br> 4 bytes: tree index | | `SF_WOTS_C_PRF` | 2 bytes: tree structure <br> 2 bytes: zero padding <br> 4 bytes: chain index <br> 4 bytes: zero padding |
 | `SL_FORS_ROOTS` | 4 bytes: key pair index <br> 8 bytes: zero padding | | `SF_WOTS_C_GRIND` | 12 bytes: zero padding |
 | `SL_WOTS_TW_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding | | | |
 | `SL_FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index | | | |
@@ -1233,12 +1233,12 @@ This function is only used in the stateful path, and only by the signer.
 ```py
 def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
-  ADRS[10:14] = zeros(4) # zeros reserved
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[9] = SF_WOTS_C_PRF
     ADRS[14:18] = i.to_bytes(4) # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
+    ADRS[10:14] = zeros(4)
     wots_pk[i] = wots_c_chain_iter(sk, 0, 2**WOTS_C_CHAIN_BITS - 1, pk_seed, ADRS)
 
   ADRS[9] = SF_WOTS_C_PK
@@ -1274,12 +1274,12 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
   counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
-  ADRS[10:14] = zeros(4) # zeros reserved
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[9] = SF_WOTS_C_PRF
     ADRS[14:18] = i.to_bytes(4)  # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
+    ADRS[10:14] = zeros(4)
     signature[i] = wots_c_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
   return counter.to_bytes(2) + concat(signature)
 ```
@@ -1722,6 +1722,7 @@ def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes
   if is_uxmss_leaf or is_bxmss_leaf:
     ADRS[0] = node_height
     ADRS[1:9] = node_index.to_bytes(8)
+    ADRS[10:14] = sf_structure + zeros(2)
     return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
 
   # Catch and throw if control would enter an infinite recursive loop.
@@ -1778,6 +1779,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
+  ADRS[10:14] = sf_structure + zeros(2)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
   if sig is None:
     return None # practically impossible
