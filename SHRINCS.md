@@ -18,11 +18,17 @@ This specification describes the key generation, signing, and verification algor
 
 ## Motivation
 
-We see long-term utility in offering users a compact signature scheme that depends on even weaker assumptions than those already deployed in popular use today (RSA, ECDSA, ML-DSA).
+SHRINCS offers compact post-quantum signatures under conservative cryptographic assumptions.
+It relies solely on the security of its underlying hash function.
+In this specification, that function is SHA256, which is already fundamental to Bitcoin's security.
+Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems.
+This conservatism gives hash-based signature schemes like SHRINCS a distinct place in the cryptographic design space, even when schemes from other families offer better size or performance.
 
-SHRINCS relies solely on the security of its underlying hash function. In this specification, that function is SHA256, which is already fundamental to Bitcoin's security. Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems. This conservatism gives hash-based signature schemes like SHRINCS a distinct place in the cryptographic design space, even when schemes from other families offer better size or performance.
-
-In Bitcoin, block space is scarce, and users pay fees for block space on a per-byte basis, so any signature scheme candidate for Bitcoin must prioritize compactness and balance that against other trade-offs. SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes. The minimum combined size of a SHRINCS public key and (stateful) signature is roughly <!-- CONST START SLH_DSA_128S_SIZE_RATIO -->13.23<!-- CONST END SLH_DSA_128S_SIZE_RATIO -->x smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and <!-- CONST START ML_DSA_SIZE_RATIO -->6.26<!-- CONST END ML_DSA_SIZE_RATIO -->x smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1). SHRINCS achieves this reduction by leveraging the fact that a key pair in Bitcoin is typically used only a few times, and so signers can typically accept the burden of tracking state in exchange for much smaller signatures.
+Signature size is particularly important in Bitcoin because signatures consume scarce block space.
+SHRINCS therefore offers signers a stateful signing path at the cost of additional implementation complexity.
+This path allows SHRINCS to leverage the fact that a key pair in Bitcoin is typically used only a few times.
+As a result, stateful SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes.
+The minimum combined size of a SHRINCS public key and stateful signature is roughly <!-- CONST START SLH_DSA_128S_SIZE_RATIO -->13.23<!-- CONST END SLH_DSA_128S_SIZE_RATIO -->x smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and <!-- CONST START ML_DSA_SIZE_RATIO -->6.26<!-- CONST END ML_DSA_SIZE_RATIO -->x smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1).
 
 
 ## Overview
