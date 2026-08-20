@@ -1421,3 +1421,25 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
   # Negative indicator, not a valid SHRINCS signature.
   else:
     return False
+
+#  Cache management
+
+def xmss_leaf_cache_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> list[bytes]:
+  """
+  The XMSS cache generation function. Computes the WOTS-TW public keys of every leaf in the XMSS tree 
+  at the location prefilled in `ADRS`, for reuse across signatures as a leaf cache.
+
+  - Inputs:
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - a list of `2**SPHX_XMSS_HEIGHT` 16-byte WOTS-TW public key hashes, ordered by leaf index.
+
+  This function is only used in the stateless path, and only by the signer.
+  """
+  leaf_cache = [b''] * 2**SPHX_XMSS_HEIGHT
+  for leaf_index in range(2**SPHX_XMSS_HEIGHT):
+    ADRS[10:14] = leaf_index.to_bytes(4)
+    leaf_cache[leaf_index] = wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
+  return leaf_cache
