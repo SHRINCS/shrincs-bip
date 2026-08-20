@@ -1443,3 +1443,35 @@ def xmss_leaf_cache_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> list
     ADRS[10:14] = leaf_index.to_bytes(4)
     leaf_cache[leaf_index] = wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
   return leaf_cache
+
+def xmss_node_from_cache(leaf_cache: list[bytes], node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  """
+  The cached XMSS node calculation function. Similar to `xmss_node`, but reads WOTS-TW public
+  keys from `leaf_cache` instead of regenerating them, and requires no secret key.
+
+  - Inputs:
+    - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
+    - `node_index`: a 32-bit unsigned integer, the index (from the left) of the node in the XMSS layer.
+    - `node_height`: a 32-bit unsigned integer, the height (from the bottom) of the node in the XMSS layer.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - a 16-byte XMSS node hash.
+
+  This function is only used in the stateless path, and only by the signer.
+  """
+  if node_height == 0: # Bottom layer: read the WOTS-TW pubkey hash from the cache.
+    return leaf_cache[node_index]
+
+  # Recursively derive the left/right child nodes.
+  lchild_index = 2 * node_index
+  child_height = node_height - 1
+  lchild = xmss_node_from_cache(leaf_cache, lchild_index, child_height, pk_seed, ADRS)
+  rchild = xmss_node_from_cache(leaf_cache, lchild_index + 1, child_height, pk_seed, ADRS)
+
+  # Compute and return the parent node.
+  ADRS[9] = SL_XMSS_TREE
+  ADRS[10:14] = zeros(4)
+  ADRS[14:18] = node_height.to_bytes(4)
+  ADRS[18:22] = node_index.to_bytes(4)
+  return H(pk_seed, ADRS, lchild + rchild)
