@@ -2,7 +2,7 @@ from random import randbytes
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
 from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
 
-if __name__ == "__main__":
+def test_shrincs():
   structures = [
     bytes([FXMSS_SHAPE_BALANCED, 4]),
     bytes([FXMSS_SHAPE_UNBALANCED, 16])
@@ -20,3 +20,6 @@ if __name__ == "__main__":
       sig = shrincs_sign(msg, b"", sk, None, None)
       assert shrincs_verify(msg, sig, b"", pk)
       print(f'verified stateless signature')
+
+if __name__ == "__main__":
+  test_shrincs()
