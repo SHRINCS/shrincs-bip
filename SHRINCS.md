@@ -2250,7 +2250,7 @@ If correct state is not available for any reason, such as when restoring from a 
 Most of the computational cost of SHRINCS signing includes regenerating Merkle nodes and WOTS public keys, which do not change for the same key pair. A signer may keep a _cache_ of these values, computed during key generation and/or prior signing operations. The signer can reuse the cache for the next signature instead of recomputing values from scratch. Caching is a signer-only optimization: it has no effect on the signatures or the verification procedure.
 
 We specify three cache constructions:
-- A **Stateless Cache**, which stores the WOTS-TW leaves of the top-layer XMSS tree in the variant of SLH-DSA.
+- A [**Stateless Cache**](#the-stateless-cache), which stores the WOTS-TW leaves of the top-layer XMSS tree in the variant of SLH-DSA.
 - A **UXMSS Cache**, which stores the WOTS+C public keys on every layer of a UXMSS tree.
 - The **BXMSS Cache** with the usage of BDS tree traversal algorithm[^bds], which schedules the computation of upcoming authentication path nodes across signatures, so each following signature requires regenerating only a fraction of the tree.
 
@@ -2262,6 +2262,108 @@ Unlike the state counter, a cache is not so critical. Every cached value is a de
 Note that although a bad cache cannot compromise security, it can still waste the signing budget. The state counter must be incremented for every stateful signing attempt, including one that produced an invalid signature. Because a corrupted cache surfaces only in the signatures it invalidates, signers using caches SHOULD verify their own stateful signatures before releasing them - and regenerate the cache if verification fails.
 
 The BDS traversal state is also recomputable from the secret key and the state counter, but unlike the passive caches, it must be recalculated for each signature. A BDS state that fails must be regenerated (repeated) before stateful signing can resume.
+
+##### The Stateless Cache
+
+Every stateless signature contains a top-layer tree signature. A cold signer regenerates this tree per each stateless signature: `2**SPHX_XMSS_HEIGHT` WOTS-TW leaves.
+
+The stateless cache stores the WOTS-TW public keys of the top-layer tree: `2**SPHX_XMSS_HEIGHT` hashes of 16 bytes each, or <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes in total. The cache is filled once by `xmss_leaf_cache_gen` (naturally at key-generation time).
+
+To use the cache, the signer substitutes `xmss_sign_from_cache` for `xmss_sign` at the top layer of `hypertree_sign` (that is, when `j == SPHX_LAYER_COUNT - 1`). The internal Merkle nodes above the cached leaves are recomputed on demand by `xmss_node_from_cache`. This reduces the cost of signing the top layer from <!-- CONST START XMSS_SIGN_COMPRESSIONS -->291839<!-- CONST END XMSS_SIGN_COMPRESSIONS --> to at most <!-- CONST START STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS -->1017<!-- CONST END STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS --> compressions, and the total cost of a stateless signature from <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> to <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS -->1414132<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS --> compressions -a speedup of <!-- CONST START STATELESS_SIGN_CACHED_SPEED_RATIO -->1.21<!-- CONST END STATELESS_SIGN_CACHED_SPEED_RATIO -->x.
+
+##### `xmss_leaf_cache_gen(...)`
+
+<!-- DOC START xmss_leaf_cache_gen -->
+The XMSS cache generation function. Computes the WOTS-TW public keys of every leaf in the XMSS tree 
+at the location prefilled in `ADRS`, for reuse across signatures as a leaf cache.
+
+- Inputs:
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - a list of `2**SPHX_XMSS_HEIGHT` 16-byte WOTS-TW public key hashes, ordered by leaf index.
+
+This function is only used in the stateless path, and only by the signer.
+
+```py
+def xmss_leaf_cache_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> list[bytes]:
+  leaf_cache = [b''] * 2**SPHX_XMSS_HEIGHT
+  for leaf_index in range(2**SPHX_XMSS_HEIGHT):
+    ADRS[10:14] = leaf_index.to_bytes(4)
+    leaf_cache[leaf_index] = wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
+  return leaf_cache
+```
+<!-- DOC END xmss_leaf_cache_gen -->
+
+##### `xmss_node_from_cache(...)`
+
+<!-- DOC START xmss_node_from_cache -->
+The cached XMSS node calculation function. Similar to `xmss_node`, but reads WOTS-TW public
+keys from `leaf_cache` instead of regenerating them, and requires no secret key.
+
+- Inputs:
+  - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
+  - `node_index`: a 32-bit unsigned integer, the index (from the left) of the node in the XMSS layer.
+  - `node_height`: a 32-bit unsigned integer, the height (from the bottom) of the node in the XMSS layer.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - a 16-byte XMSS node hash.
+
+This function is only used in the stateless path, and only by the signer.
+
+```py
+def xmss_node_from_cache(leaf_cache: list[bytes], node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  if node_height == 0: # Bottom layer: read the WOTS-TW pubkey hash from the cache.
+    return leaf_cache[node_index]
+
+  # Recursively derive the left/right child nodes.
+  lchild_index = 2 * node_index
+  child_height = node_height - 1
+  lchild = xmss_node_from_cache(leaf_cache, lchild_index, child_height, pk_seed, ADRS)
+  rchild = xmss_node_from_cache(leaf_cache, lchild_index + 1, child_height, pk_seed, ADRS)
+
+  # Compute and return the parent node.
+  ADRS[9] = SL_XMSS_TREE
+  ADRS[10:14] = zeros(4)
+  ADRS[14:18] = node_height.to_bytes(4)
+  ADRS[18:22] = node_index.to_bytes(4)
+  return H(pk_seed, ADRS, lchild + rchild)
+```
+<!-- DOC END xmss_node_from_cache -->
+
+##### `xmss_sign_from_cache(...)`
+
+<!-- DOC START xmss_sign_from_cache -->
+XMSS signing from cache. Equivalent to `xmss_sign`, but computes the Merkle
+authentication path from `leaf_cache` instead of regenerating every WOTS-TW leaf.
+
+- Inputs:
+  - `message`: a 16-byte message to sign.
+  - `sk_seed`: a 16-byte secret.
+  - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
+  - `pk_seed`: a 16-byte salt.
+  - `ADRS`: a 22-byte address.
+- Output:
+  - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
+
+This function is only used in the stateless path, and only by the signer.
+
+```py
+def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes], keypair_index: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  ADRS[10:14] = keypair_index.to_bytes(4)
+  sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
+
+  # Append the Merkle authentication path.
+  for j in range(SPHX_XMSS_HEIGHT):
+    sibling_index = (keypair_index >> j) ^ 1
+    sig += xmss_node_from_cache(leaf_cache, sibling_index, j, pk_seed, ADRS)
+
+  return sig
+```
+<!-- DOC END xmss_sign_from_cache -->
 
 #### Maximum Message Length
 
