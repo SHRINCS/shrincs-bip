@@ -1475,3 +1475,31 @@ def xmss_node_from_cache(leaf_cache: list[bytes], node_index: int, node_height: 
   ADRS[14:18] = node_height.to_bytes(4)
   ADRS[18:22] = node_index.to_bytes(4)
   return H(pk_seed, ADRS, lchild + rchild)
+
+def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes], keypair_index: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+  """
+  XMSS signing from cache. Equivalent to `xmss_sign`, but computes the Merkle
+  authentication path from `leaf_cache` instead of regenerating every WOTS-TW leaf.
+
+  - Inputs:
+    - `message`: a 16-byte message to sign.
+    - `sk_seed`: a 16-byte secret.
+    - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
+    - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
+    - `pk_seed`: a 16-byte salt.
+    - `ADRS`: a 22-byte address.
+  - Output:
+    - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
+
+  This function is only used in the stateless path, and only by the signer.
+  """
+  # Sign the message with WOTS-TW.
+  ADRS[10:14] = keypair_index.to_bytes(4)
+  sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
+
+  # Append the Merkle authentication path.
+  for j in range(SPHX_XMSS_HEIGHT):
+    sibling_index = (keypair_index >> j) ^ 1
+    sig += xmss_node_from_cache(leaf_cache, sibling_index, j, pk_seed, ADRS)
+
+  return sig
