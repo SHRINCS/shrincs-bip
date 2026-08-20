@@ -223,3 +223,23 @@ BXMSS_10_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_comp
 BXMSS_12_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(12)
 BXMSS_16_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(16)
 BXMSS_20_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(20)
+
+#  Cache management. See "On Managing Caches" in SHRINCS.md.
+
+# Stateless cache, in bytes: 16-byte (WOTS-TW public key) per leaf of the top-layer XMSS.
+SL_LEAF_CACHE_SIZE = 2**SPHX_XMSS_HEIGHT * 16
+
+# Maximum SHA256 compressions needed to sign with the top-layer XMSS tree using the leaf cache.
+#
+# WOTS-TW signing: 
+#   One PRF call per chain, plus at most WOTS_TW_CHECKSUM_MAX chain steps in total +
+#   Internal nodes from cached leaves: the sibling subtree at height j costs 2**j - 1 calls
+STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS = WOTS_TW_CHAIN_COUNT + WOTS_TW_CHECKSUM_MAX + \
+                                          (2**SPHX_XMSS_HEIGHT - 1 - SPHX_XMSS_HEIGHT)
+
+# Compressions needed to sign with the stateless part when the top-layer leaf cache is available.
+STATELESS_SIGN_CACHED_COMPRESSIONS = STATELESS_SIGN_COMPRESSIONS - XMSS_SIGN_COMPRESSIONS + \
+                                     STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS
+
+# Speedup of stateless signing with the top-layer leaf cache.
+STATELESS_SIGN_CACHED_SPEED_RATIO = round(STATELESS_SIGN_COMPRESSIONS / STATELESS_SIGN_CACHED_COMPRESSIONS, 2)
