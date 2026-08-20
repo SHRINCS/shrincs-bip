@@ -135,9 +135,10 @@ To improve stateful signing performance further at the cost of memory, one can c
 
 The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signing budget, using hypertree pruning[^pruning].
 
+Recommended cache constructions for both signature parts, together the storage requirements, are specified under [On Managing Caches](#on-managing-caches).
+
 TODO:
 - compare verification costs to Schnorr?
-- describe stateful caching strategies?
 
 ## Rationale
 
@@ -2244,6 +2245,24 @@ It is **absolutely critical for security that signers manage state counters extr
 
 If correct state is not available for any reason, such as when restoring from a static backup, then a SHRINCS implementation MUST refuse to sign with the stateful path, and utilize only the stateless signing path.
 
+#### On Managing Caches
+
+Most of the computational cost of SHRINCS signing includes regenerating Merkle nodes and WOTS public keys, which do not change for the same key pair. A signer may keep a _cache_ of these values, computed during key generation and/or prior signing operations. The signer can reuse the cache for the next signature instead of recomputing values from scratch. Caching is a signer-only optimization: it has no effect on the signatures or the verification procedure.
+
+We specify three cache constructions:
+- A **Stateless Cache**, which stores the WOTS-TW leaves of the top-layer XMSS tree in the variant of SLH-DSA.
+- A **UXMSS Cache**, which stores the WOTS+C public keys on every layer of a UXMSS tree.
+- The **BXMSS Cache** with the usage of BDS tree traversal algorithm[^bds], which schedules the computation of upcoming authentication path nodes across signatures, so each following signature requires regenerating only a fraction of the tree.
+
+Unlike the state counter, a cache is not so critical. Every cached value is a deterministic function of the secret key, so a signer can regenerate its cache from scratch at any time. The rules defined in [On Managing State](#on-managing-state) do not apply to caches:
+
+- Caches may be backed up and restored. They can be stored in the mutable storage, and may be exported and imported safely.
+- A stale, corrupted, or even adversarially modified cache cannot cause WOTS key reuse, because the signing leaf is selected only by the state counter and the tree structure. The worst outcome is an invalid signature.
+
+Note that although a bad cache cannot compromise security, it can still waste the signing budget. The state counter must be incremented for every stateful signing attempt, including one that produced an invalid signature. Because a corrupted cache surfaces only in the signatures it invalidates, signers using caches SHOULD verify their own stateful signatures before releasing them - and regenerate the cache if verification fails.
+
+The BDS traversal state is also recomputable from the secret key and the state counter, but unlike the passive caches, it must be recalculated for each signature. A BDS state that fails must be regenerated (repeated) before stateful signing can resume.
+
 #### Maximum Message Length
 
 Every message SHRINCS hashes is bounded in length, because it is ultimately absorbed by SHA-256, which accepts at most `2**61 - 1` bytes. `shrincs_sign` and `shrincs_verify` cap `message` at `2**61 - 384` bytes. This cap is set by the longest prefix a message can sit behind. On the stateless path it reaches the innermost hash behind `98` bytes of fixed prefixes (the 64-byte HMAC block, the 16-byte `opt_rand`, the 2-byte SLH-DSA message prefix, and the 16-byte `sf_root`); on the stateful path, behind `107` (the 64-byte HMAC block, the 16-byte `pk_seed`, the 9-byte leaf position, the 2-byte binding prefix, and the 16-byte `sl_root`), which is the longer of the two. The caller's `ctx` is prepended on either path, adding up to a further 255 bytes, so the longest prefix any message sits behind is `362`. SHA-256's limit then gives an exact maximum of `2**61 - 363` bytes, which we round down to `2**61 - 384`, the largest multiple of SHA-256's 64-byte block size that stays within this limit. The intermediate functions in between accept *a variable-length message*. Its length still carries an upper bound, just an implicit one, set by the primitive bounds above rather than stated at each function: a SHRINCS `message` is already capped, and each intermediate prepends at most a known number of bytes to it, so every hash input stays within SHA-256's limit by construction. No realistic message will ever approach this cap.
@@ -2526,7 +2545,6 @@ TODO: optimized implementation
 
 - Because SLH-DSA and XMSS have different signature sizes, the SHRINCS signature size is variable.
 - Mention Vulkan[^vulkan] for signing/keygen.
-- Discuss XMSS tree caching.
 - Should we permit depth-zero script trees?
 - Consider future-proofing the WOTS+C addressing scheme/layout for XMSS^MT.
 - Specify which `ADRS` fields should be prefilled and when.
@@ -2546,6 +2564,7 @@ This document is licensed under the 3-clause BSD license.
 [^hbsb]: The underlying construction is sketched in the appendix of "Hash-based Signature Schemes for Bitcoin", https://eprint.iacr.org/2025/2203.
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
 [^xmss]: https://www.rfc-editor.org/rfc/rfc8391.html
+[^bds]: https://doi.org/10.1007/978-3-540-88403-3_5 - "Merkle Tree Traversal Revisited" by Buchmann, Dahmen, and Schneider.
 [^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
 [^hmac]: https://datatracker.ietf.org/doc/html/rfc2104
 [^simd_x86]: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
