@@ -22,6 +22,7 @@ SHRINCS offers compact post-quantum signatures under conservative cryptographic 
 It relies solely on the security of its underlying hash function.
 In this specification, that function is SHA256, which is already fundamental to Bitcoin's security.
 Signature schemes from other post-quantum families also rely on hash-function security but additionally require separate hardness assumptions, such as the hardness of lattice problems.
+Bitcoin outputs may remain unspent for long periods, making conservative cryptographic assumptions particularly valuable.
 This conservatism gives hash-based signature schemes like SHRINCS a distinct place in the cryptographic design space, even when schemes from other families offer better size or performance.
 
 Signature size is particularly important in Bitcoin because signatures consume scarce block space.
@@ -140,14 +141,6 @@ TODO:
 - describe stateful caching strategies?
 
 ## Rationale
-
-SHRINCS covers many use cases but cannot optimize for all of them while keeping complexity manageable. In this section we describe why we chose to make the trade-offs used in SHRINCS' algorithmic design and parameter set.
-
-### Why a hash-based signature scheme?
-
-Hash-based signatures are an extremely conservative choice: They rely only on the security of an underlying hash function, with some assumptions made about how the hash function behaves with respect to multi-target attacks and other subtleties, which result in security equivalent to preimage resistance (i.e. `b` bits of security for `b`-bit hash function outputs).
-
-This extreme conservatism aims to provide users with a future-proof signature scheme that we hope can survive long periods (decades) of AI-accelerated cryptanalysis, or novel technologies like quantum computers. For example, any breakage in collision resistance of SHA256 should not affect SHRINCS, which explicitly does not require collision-resistance. In the context of Bitcoin, this long-range durability is of crucial importance, as Bitcoin UTXOs often sit untouched for years at a time before being claimed.
 
 ### Why not use a stock SLH-DSA parameter set?
 
