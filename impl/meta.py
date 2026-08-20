@@ -47,12 +47,20 @@ SHRINCS_MIN_KEY_PLUS_SIG_SIZE = SHRINCS_SF_SIGNATURE_SIZE_MIN + 48
 SLH_DSA_128S_SIZE_RATIO = round((7856+32) / SHRINCS_MIN_KEY_PLUS_SIG_SIZE, 2)
 ML_DSA_SIZE_RATIO = round((2420+1312) / SHRINCS_MIN_KEY_PLUS_SIG_SIZE, 2)
 
-# Bitcoin-specific throughput numbers.
-SLH_DSA_SIGS_PER_BLOCK_MAX = (4_000_000 // 7856)
-SLH_DSA_SIGS_PER_YEAR_MAX = 365 * 144 * SLH_DSA_SIGS_PER_BLOCK_MAX
+# Comparison against SLH-DSA-SHA2-128s.
+SLH_DSA_128S_SIGNATURE_SIZE = 7856
+SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT = round(
+  100 * (SLH_DSA_128S_SIGNATURE_SIZE - SHRINCS_SL_SIGNATURE_SIZE) /
+  SLH_DSA_128S_SIGNATURE_SIZE
+)
 
-# Comparison against SLH-DSA
-STATELESS_SIG_SIZE_RATIO = round(7856 / SHRINCS_SL_SIGNATURE_SIZE, 2)
+# Maximum percentage of the stateless signature budget that could appear in
+# 200 years of blocks, assuming every block byte is a stateless signature made
+# under the same public key.
+SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT = round(
+  100 * 200 * 365 * 144 * (4_000_000 // SHRINCS_SL_SIGNATURE_SIZE) / 2**40,
+  2
+)
 
 # Comparing stateful/stateless signature sizes.
 STATEFUL_SIG_SIZE_RATIO = round(SHRINCS_SL_SIGNATURE_SIZE / SHRINCS_SF_SIGNATURE_SIZE_MIN, 2)

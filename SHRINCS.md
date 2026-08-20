@@ -92,11 +92,11 @@ The best known way to improve SHRINCS verification performance is to use SHA256 
 
 ### Key Generation
 
-SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes. The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation. In general, putting more up-front work into key-generation allows the key a larger stateful signing budget.
+SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes. The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation. In general, putting more up-front work into key-generation allows the key a larger stateful signature budget.
 
 Here we have illustrated several examples of SHRINCS key generation costs for different stateful structures.
 
-| Stateful Structure | Total Key Generation Cost in SHA256 Compressions | Stateful Signing Budget |
+| Stateful Structure | Total Key Generation Cost in SHA256 Compressions | Stateful Signature Budget |
 |-|-|-|
 | UXMSS; depth 31 | <!-- CONST START UXMSS_31_KEYGEN_COMPRESSIONS -->313150<!-- CONST END UXMSS_31_KEYGEN_COMPRESSIONS --> | 32 |
 | UXMSS; depth 255 | <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS -->430078<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS --> | 256 |
@@ -109,7 +109,7 @@ Here we have illustrated several examples of SHRINCS key generation costs for di
 
 The best known way to improve SHRINCS key-generation performance is either using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
 
-One can also improve SHRINCS key-generation performance at the cost of stateless signing budget, using hypertree pruning[^pruning].
+One can also improve SHRINCS key-generation performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
 ### Signing
 
@@ -118,7 +118,7 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 - In the stateless component, signing performance is constant.
 - In the stateful component, signing performance differs vastly depending on the structure used for the stateful FXMSS tree.
 
-| Signature Type | Signing Cost in SHA256 Compressions | Stateful Signing Budget |
+| Signature Type | Signing Cost in SHA256 Compressions | Stateful Signature Budget |
 |-|-|-|
 | Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> (constant) |
 | Stateful (UXMSS; depth 31) | <!-- CONST START UXMSS_31_SIGN_COMPRESSIONS_AVG -->16442<!-- CONST END UXMSS_31_SIGN_COMPRESSIONS_AVG --> (average) | 32 |
@@ -134,7 +134,7 @@ One can improve SHRINCS signing performance significantly using vectorized instr
 
 To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#FXMSS) tree which are produced during key-generation or prior signing attempts. Caching reduces the fraction of the FXMSS tree which the signer must regenerate on each signing attempt, which is by far the greatest computational cost in stateful signing. Caching can therefore result in very significant (orders of magnitude) speedups, depending on the stateful tree structure.
 
-The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signing budget, using hypertree pruning[^pruning].
+The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
 TODO:
 - compare verification costs to Schnorr?
@@ -142,27 +142,27 @@ TODO:
 
 ## Rationale
 
-### Why not use a stock SLH-DSA parameter set?
+### Why not use a standardized SLH-DSA parameter set?
 
-Standardized SLH-DSA parameter sets have a signing budget of 2<sup>64</sup>. This is far beyond what could be exercised on-chain. With Bitcoin's current 4 MB block size limit, at most <!-- CONST START SLH_DSA_SIGS_PER_BLOCK_MAX -->509<!-- CONST END SLH_DSA_SIGS_PER_BLOCK_MAX --> stateless SHRINCS signatures could fit in one block, even if the block contained no other data, and at most <!-- CONST START SLH_DSA_SIGS_PER_YEAR_MAX -->26753040<!-- CONST END SLH_DSA_SIGS_PER_YEAR_MAX --> could fit in a year's worth of blocks.
+The stateless fallback uses a non-standard SLH-DSA parameter set primarily to reduce the signature budget from 2<sup>64</sup> to 2<sup>40</sup> signatures per public key.
+Reducing the signature budget reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes, a reduction of <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->26<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->%.
 
-Reducing the signing budget to 2<sup>40</sup> reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes, a reduction by a factor of <!-- CONST START STATELESS_SIG_SIZE_RATIO -->1.36<!-- CONST END STATELESS_SIG_SIZE_RATIO -->x.
+The reduced signature budget remains far beyond what could be exercised on-chain.
+With Bitcoin's current 4 MB block size limit, 200 years of blocks would consume approximately <!-- CONST START SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->0.66<!-- CONST END SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->% of a key's signature budget if all block space were used for stateless SHRINCS signatures under that public key.
 
-The 2<sup>40</sup> signing budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
+The 2<sup>40</sup> signature budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
 
 Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain. A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
 
-An attacker who can request signatures can in principle exhaust any finite signing budget, but a smaller budget makes such an attack more practical. With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
-
+An attacker who can request signatures can in principle exhaust any finite signature budget, but a smaller budget makes such an attack more practical. With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
 The time required to generate each signature limits how quickly the budget can be exhausted. Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
-
-Even without rate-limiting, assuming an attacker can trick a signer into creating one signature every millisecond (much faster than is possible with our proposed parameter set on today's hardware[^vulkan]), this would still require over 30 years of continuous signing to create 2<sup>40</sup> signatures.
+At a sustained rate of 1,000 signatures per second, producing 2<sup>40</sup> signatures would take approximately 35 years.[^vulkan]
 
 ### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
 
 To facilitate adoption, the stateless fallback retains the core SLH-DSA algorithms. An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work. This choice also retains the benefit of the review those algorithms received during standardization.
 
-Retaining the SLH-DSA algorithms gives up a further reduction in signature size. For the same 2<sup>40</sup> signing budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the FIPS-205-compliant algorithms specified here. We reasoned that the security, convenience, and interoperability benefits of FIPS-205 compliance were worth the price of slightly more expensive stateless signatures.
+Retaining the SLH-DSA algorithms gives up a further reduction in signature size. For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the FIPS-205-compliant algorithms specified here. We reasoned that the security, convenience, and interoperability benefits of FIPS-205 compliance were worth the price of slightly more expensive stateless signatures.
 
 ### Why these specific parameters?
 
@@ -245,9 +245,9 @@ Low-power signers, especially early-generation hardware wallets, typically lack 
 
 Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
 
-The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> SHA256 compressions to sign. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signing budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
+The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> SHA256 compressions to sign. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signature budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
-Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signing budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
+Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signature budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
 
 >[!WARNING]
 > SHRINCS keys generated using hypertree pruning for the stateless component **are not compatible with SHRINCS implementations which do not support hypertree pruning.** In fact, importing key across such incompatible implementations may result in lost funds.[^pruning]
@@ -2547,7 +2547,7 @@ This document is licensed under the 3-clause BSD license.
 [^sha_ni_bench]: https://conduition.io/code/fast-slh-dsa/#Hardware-Acceleration
 [^simd_bench]: https://conduition.io/code/fast-slh-dsa/#Vectorized-Hashing
 [^sha256x8]: https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c
-[^vulkan]: https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA
+[^vulkan]: For comparison, a 2025 benchmark of a [Vulkan implementation of SLH-DSA-SHA2-128s](https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA) reports a signing time of 2.67 ms on a commodity RTX 3060 Ti GPU.
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
 [^ledger-bench]: https://youtu.be/V59OkKfATng?si=Q6MsI7VBm5NMdJWZ&t=2297
 [^trezor-bench]: https://github.com/trezor/trezor-firmware/pull/4901 and https://gist.github.com/onvej-sl/3851bdae7ae5aa1f2624ca769737ea2e
