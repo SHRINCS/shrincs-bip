@@ -1377,6 +1377,9 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
   sl_root = shrincs_pubkey[16:32]
   sf_root = shrincs_pubkey[32:48]
 
+  if len(signature) == 0:
+    return False
+
   indicator = signature[0]
 
   # Stateless verification path.
