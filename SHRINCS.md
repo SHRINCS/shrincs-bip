@@ -1350,7 +1350,7 @@ In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful a
                 O = inner Merkle node    L = WOTS leaf (OTS keypair)
 ```
 
-Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key. They differ only in shape: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
+Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key. Their tree structures differ: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
 
 - In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SLH-DSA hypertree, and to certify FORS public keys.
 - In the stateful component, Flexible XMSS (FXMSS) is used with WOTS+C to sign messages directly.
