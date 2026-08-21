@@ -1589,9 +1589,9 @@ def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_inde
 
 ### FXMSS
 
-FXMSS is the stateful signing path of SHRINCS. FXMSS offers a unique paradigm in the genre of XMSS: Unlike most related schemes, FXMSS allows the signer to pick (almost[^fxmss_node_index]) any arbitrary tree structure. By tree structure, we mean the choice of which positions in the FXMSS tree are used by the signer as WOTS+C leaf nodes.
+FXMSS is the stateful signature component used by SHRINCS. An FXMSS signer selects a tree structure at key generation, subject to the addressing constraints described below.[^fxmss_node_index] The tree structure determines which positions in the FXMSS tree contain WOTS+C public keys.
 
-The FXMSS verifier does not care about the positions of unused WOTS+C leaf nodes - The verifier only cares about the WOTS+C leaf whose signature is attached in the FXMSS signature. This makes the verifier simpler to implement, and frees signers to select their XMSS tree structure at key generation time to suit their use-case.
+The FXMSS verifier is agnostic to the positions of WOTS+C public keys other than the one used for the signature. It recomputes the FXMSS root from the WOTS+C signature, the position of the corresponding public key, and the Merkle authentication path. This allows signers to select their FXMSS tree structure at key generation without changing the verifier.
 
 Because of this flexibility, it is necessary for signers to remember what structure of FXMSS tree they created at key generation time. To encourage interoperability, we define an encoding for FXMSS tree structures which will be stored in the SHRINCS signer's serialized secret key as two additional bytes.
 
@@ -1600,14 +1600,14 @@ A _tree structure_ for FXMSS is encoded as a tuple of two numbers: ***shape*** a
 - ***Shape*** is a flag byte that defines which FXMSS nodes are to be WOTS+C leaves. We will describe two recommended tree shapes below.
 - ***Depth*** is an 8-bit unsigned integer describing the height of the FXMSS tree, or more precisely, the distance from the root node to the deepest leaf node.
 
-These two parameters define the _structure_ of the FXMSS stateful path.
+These two parameters define the FXMSS _tree structure_.
 
 The shape and depth bytes will be encoded in the serialized SHRINCS secret key so that implementations which import the key have a clear directive for how to build the same FXMSS tree in the SHRINCS stateful path. Implementations which import SHRINCS keys MUST respect the shape and depth bytes - doing otherwise would be unsafe and may lead to forgeries and theft.
 
 
 #### Tree Shapes
 
-We prescribe and define two FXMSS tree shapes: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**. For clarity: We use the terms UXMSS and BXMSS in the context of signing and key-generation, while FXMSS refers more generally to the verifier, which is decoupled from tree shape.
+This specification prescribes two FXMSS tree shapes: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**. Both shapes use the same FXMSS verifier. They differ in how WOTS+C public keys are placed in the tree and selected for signing.
 
 The two shapes are identified by their respective constants.
 
