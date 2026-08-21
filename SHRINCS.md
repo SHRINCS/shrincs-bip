@@ -2238,9 +2238,12 @@ A SHRINCS secret key is not complete without its accompanying state. Every SHRIN
 It is **absolutely critical for security that signers manage state counters extremely carefully.** Implementors must take note to avoid many dangerous state management practices which lead to state reuse:
 
 - State counters must not be backed up and restored by any mechanism.
-- State counters must not live in mutable storage (e.g. shared memory, a user-accessible folder, etc).
+- State counters must not live in unprotected storage (e.g. shared memory, a user-accessible folder, etc).
 - State counters must not be exported and imported into other software.
+- Implementations must not allow concurrent signing.
 - Signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
+
+Signers are highly encouraged to store state counters only in durable, persistent, rollback-resistant storage which is protected against unauthorized modification.
 
 If correct state is not available for any reason, such as when restoring from a static backup, then a SHRINCS implementation MUST refuse to sign with the stateful path, and utilize only the stateless signing path.
 
