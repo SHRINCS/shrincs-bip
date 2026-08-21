@@ -1671,12 +1671,11 @@ When the shape byte is set to `FXMSS_SHAPE_BALANCED`, signers use a balanced bin
 leaf leaf leaf leaf  leaf leaf leaf leaf
 ```
 
-This FXMSS tree shape allows signers to generate a larger quantity of stateful signatures. Unlike UXMSS, stateful SHRINCS signatures using a BXMSS tree will have a consistent size, up until the stateful path is exhausted (after `2 ** depth` signatures), because all WOTS+C leaves will use the same merkle authentication path length.
+This FXMSS tree shape allows signers to generate a larger quantity of stateful signatures. Unlike UXMSS, stateful SHRINCS signatures using a BXMSS tree will have a consistent size, up until the stateful path is exhausted, because all WOTS+C leaves will use the same merkle authentication path length.
 
 The `depth` of the BXMSS tree at key generation time has a significant impact on the performance of the SHRINCS stateful signing path. The exact size of the constant-size signatures is also dictated by `depth`: each step further from the root node we take, we must add 16 bytes to the FXMSS signature. Furthermore, each step doubles the number of leaf nodes, and so doubles the signature budget, but also doubles the amount of computational work needed for BXMSS key generation and/or signing.
 
 Signer implementations may specify any height for BXMSS trees depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
-
 
 ##### Custom Shapes
 
@@ -1687,6 +1686,7 @@ For security and privacy we highly recommend signers stick to the two prescribed
 
 ##### Caveats
 
+- Only nodes with index less than `2**64` are indexable in FXMSS.[^fxmss_node_index]
 - Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
 - Some structures are fungible, such as any tree of depth 0 or depth 1 will be the same regardless of shape.
 - A tree of depth 0 has no stateful signatures, whatever its shape. Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it. Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path. The signature counts given for each shape above therefore apply only from depth 1 upwards.
