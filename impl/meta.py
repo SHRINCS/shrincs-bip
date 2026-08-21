@@ -7,7 +7,7 @@ from math import comb, floor, log2
 # Returns log2(Pr[sum(n random s-sided dice) != p]**tries).
 # Used to compute the probability of WOTS+C grinding failure.
 # Logic taken from https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
-def target_sum_fail_probability(n: int, s: int, p: int, tries: int) -> float:
+def target_sum_fail_probability_log2(n: int, s: int, p: int, tries: int) -> float:
   # The total number of possible combinations rolling n dice with s sides each is:
   d = s**n
 
@@ -30,7 +30,7 @@ def target_sum_fail_probability(n: int, s: int, p: int, tries: int) -> float:
   return log2(r) * tries
 
 WOTS_C_GRIND_FAIL_PROBABILITY_LOG = floor(
-  -target_sum_fail_probability(
+  -target_sum_fail_probability_log2(
     WOTS_C_CHAIN_COUNT,                         # Number of WOTS+C chains
     2**WOTS_C_CHAIN_BITS,                       # WOTS+C chain length
     WOTS_C_CONSTANT_SUM + WOTS_C_CHAIN_COUNT,   # Target WOTS+C sum is modified because of non-zero dice rolls.
@@ -76,7 +76,7 @@ STATEFUL_SIG_SIZE_RATIO = round(SHRINCS_SL_SIGNATURE_SIZE / SHRINCS_SF_SIGNATURE
 STATEFUL_VERIFY_COMPRESSIONS_MIN = 4 + \
                                    1 + \
                                    (WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) - WOTS_C_CONSTANT_SUM) + \
-                                   sha256_compressions(WOTS_C_CHAIN_COUNT * 16) + \
+                                   sha256_compressions(22 + WOTS_C_CHAIN_COUNT * 16) + \
                                    1
 
 # Maximum SHA256 compressions needed to verify a stateful SHRINCS signature.
@@ -88,25 +88,24 @@ STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX = round(STATEFUL_VERIFY_COMPRESSIONS_M
 # SHA256 compressions needed to verify a FORS signature.
 FORS_VERIFY_COMPRESSIONS = SPHX_FORS_COUNT + \
                            SPHX_FORS_COUNT * SPHX_FORS_HEIGHT + \
-                           sha256_compressions(SPHX_FORS_COUNT * 16) # Combining FORS roots
+                           sha256_compressions(22 + SPHX_FORS_COUNT * 16) # Combining FORS roots
 
 # Minimum SHA256 compressions needed to verify an XMSS signature.
 #
-# Recomputing WOTS (checksum) chain tips +
-# Combining WOTS chain tips +
-# H() invocations (merkle nodes)
-XMSS_VERIFY_COMPRESSIONS_MIN = WOTS_TW_CHAIN_COUNT2 * (2**WOTS_TW_CHAIN_BITS - 1) + \
-                               sha256_compressions(WOTS_TW_CHAIN_COUNT * 16) + \
+# WOTS verify cost + H() invocations (merkle nodes)
+XMSS_VERIFY_COMPRESSIONS_MIN = sum((2**WOTS_TW_CHAIN_BITS - i - 1 for i in wots_tw_message_to_indexes(replicate(0xFF, 16)))) + \
+                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16) + \
                                SPHX_XMSS_HEIGHT
 
 # Maximum SHA256 compressions needed to verify an XMSS signature.
 #
-# Recomputing WOTS (non-checksum) chain tips +
-# Combining WOTS chain tips +
+# WOTS verify cost + H() invocations (merkle nodes)
 # H() invocations (merkle nodes)
-XMSS_VERIFY_COMPRESSIONS_MAX = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1) + \
-                               sha256_compressions(WOTS_TW_CHAIN_COUNT * 16) + \
+XMSS_VERIFY_COMPRESSIONS_MAX = sum((2**WOTS_TW_CHAIN_BITS - i - 1 for i in wots_tw_message_to_indexes(zeros(16)))) + \
+                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16) + \
                                SPHX_XMSS_HEIGHT
+
+XMSS_VERIFY_COMPRESSIONS_AVG = (XMSS_VERIFY_COMPRESSIONS_MIN + XMSS_VERIFY_COMPRESSIONS_MAX) // 2
 
 # Minimum SHA256 compressions needed to verify a stateless SHRINCS signature.
 #
@@ -135,12 +134,18 @@ STATEFUL_VERIFY_SPEED_RATIO = round(STATELESS_VERIFY_COMPRESSIONS_MAX / STATEFUL
 # WOTS chains +
 # Combining WOTS chain tips
 WOTS_TW_KEYGEN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT * 2**WOTS_TW_CHAIN_BITS + \
-                              sha256_compressions(WOTS_TW_CHAIN_COUNT * 16)
+                              sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16)
 
-# Generating WOTS leaves +
+WOTS_TW_SIGN_COMPRESSIONS_MIN = sum((i + 1 for i in wots_tw_message_to_indexes(zeros(16))))
+WOTS_TW_SIGN_COMPRESSIONS_MAX = sum((i + 1 for i in wots_tw_message_to_indexes(replicate(0xFF, 16))))
+WOTS_TW_SIGN_COMPRESSIONS_AVG = (WOTS_TW_SIGN_COMPRESSIONS_MIN + WOTS_TW_SIGN_COMPRESSIONS_MAX) // 2
+
+# Generating other WOTS leaves +
+# WOTS-TW signing +
 # H() invocations (merkle nodes)
-XMSS_SIGN_COMPRESSIONS = 2**SPHX_XMSS_HEIGHT * WOTS_TW_KEYGEN_COMPRESSIONS + \
-                         2**SPHX_XMSS_HEIGHT - 1
+XMSS_SIGN_COMPRESSIONS_AVG = (2**SPHX_XMSS_HEIGHT - 1) * WOTS_TW_KEYGEN_COMPRESSIONS + \
+                             WOTS_TW_SIGN_COMPRESSIONS_AVG + \
+                             2**SPHX_XMSS_HEIGHT - 1
 
 # One PRF call + one F call per leaf (total 2**(SPHX_FORS_HEIGHT+1)),
 # plus 2**SPHX_FORS_HEIGHT - 1 calls to H (merkle nodes).
@@ -152,29 +157,39 @@ FORS_TREE_GEN_COMPRESSIONS = 3 * 2**SPHX_FORS_HEIGHT - 1
 # H_msg_sl call +
 # FORS trees +
 # Combining FORS roots +
-# Hypertree signing
-STATELESS_SIGN_COMPRESSIONS = 2 + \
-                              4 + \
-                              SPHX_FORS_COUNT * FORS_TREE_GEN_COMPRESSIONS + \
-                              sha256_compressions(SPHX_FORS_COUNT * 16) + \
-                              SPHX_LAYER_COUNT * XMSS_SIGN_COMPRESSIONS
+# Hypertree signing (d - 1 XMSS layers) +
+# Signing with top XMSS layer
+STATELESS_SIGN_COMPRESSIONS_AVG = 2 + \
+                                  4 + \
+                                  SPHX_FORS_COUNT * FORS_TREE_GEN_COMPRESSIONS + \
+                                  sha256_compressions(22 + SPHX_FORS_COUNT * 16) + \
+                                  (SPHX_LAYER_COUNT - 1) * (XMSS_SIGN_COMPRESSIONS_AVG + XMSS_VERIFY_COMPRESSIONS_AVG) + \
+                                  XMSS_SIGN_COMPRESSIONS_AVG
 
-EXPECTED_WOTS_C_GRINDING_ATTEMPTS = int(1 / -target_sum_fail_probability(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM + WOTS_C_CHAIN_COUNT, 1))
-WOTS_C_KEYGEN_COMPRESSIONS = (WOTS_C_CHAIN_COUNT * 2**WOTS_C_CHAIN_BITS + sha256_compressions(16 * WOTS_C_CHAIN_COUNT))
+EXPECTED_WOTS_C_GRINDING_ATTEMPTS = round(1 / (1 - 2**target_sum_fail_probability_log2(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM + WOTS_C_CHAIN_COUNT, 1)))
+
+# WOTS chains +
+# Combining WOTS chain tips
+WOTS_C_KEYGEN_COMPRESSIONS = (WOTS_C_CHAIN_COUNT * 2**WOTS_C_CHAIN_BITS + \
+                             sha256_compressions(22 + 16 * WOTS_C_CHAIN_COUNT))
 
 # Average number of SHA256 compressions needed for UXMSS signing.
 #
 # PRF_msg_sf call +
 # H_msg_sf call +
 # Expected number of grinding attempts +
+# PRF invocations +
 # WOTS chain computation +
 # Regenerating other leaves
+# H() invocations (merkle nodes) (averaged over all leaves)
 def uxmss_sign_compressions(depth: int) -> int:
   return 2 + \
           4 + \
           EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
           WOTS_C_CONSTANT_SUM + \
-          depth * WOTS_C_KEYGEN_COMPRESSIONS
+          WOTS_C_CHAIN_COUNT + \
+          depth * WOTS_C_KEYGEN_COMPRESSIONS + \
+          round(depth * (depth - 1) / (2 * (depth + 1)))
 
 UXMSS_31_SIGN_COMPRESSIONS_AVG  = uxmss_sign_compressions(31)
 UXMSS_255_SIGN_COMPRESSIONS_AVG = uxmss_sign_compressions(255)
@@ -184,6 +199,7 @@ UXMSS_255_SIGN_COMPRESSIONS_AVG = uxmss_sign_compressions(255)
 # PRF_msg_sf call +
 # H_msg_sf call +
 # Expected number of grinding attempts +
+# PRF invocations +
 # WOTS chain computation +
 # Regenerating other leaves +
 # H() invocations (merkle nodes)
@@ -192,19 +208,20 @@ def bxmss_sign_compressions(depth: int) -> int:
           4 + \
           EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
           WOTS_C_CONSTANT_SUM + \
+          WOTS_C_CHAIN_COUNT + \
           (2**depth - 1) * WOTS_C_KEYGEN_COMPRESSIONS + \
           2**depth - 1 - depth
 
-BXMSS_5_SIGN_COMPRESSIONS  = bxmss_sign_compressions(5)
-BXMSS_8_SIGN_COMPRESSIONS  = bxmss_sign_compressions(8)
-BXMSS_10_SIGN_COMPRESSIONS = bxmss_sign_compressions(10)
-BXMSS_12_SIGN_COMPRESSIONS = bxmss_sign_compressions(12)
-BXMSS_16_SIGN_COMPRESSIONS = bxmss_sign_compressions(16)
-BXMSS_20_SIGN_COMPRESSIONS = bxmss_sign_compressions(20)
+BXMSS_5_SIGN_COMPRESSIONS_AVG  = bxmss_sign_compressions(5)
+BXMSS_8_SIGN_COMPRESSIONS_AVG  = bxmss_sign_compressions(8)
+BXMSS_10_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(10)
+BXMSS_12_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(12)
+BXMSS_16_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(16)
+BXMSS_20_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(20)
 
 # Generating leaves +
 # H() invocations (merkle nodes)
-STATELESS_KEYGEN_COMPRESSIONS = 2**SPHX_XMSS_HEIGHT * (WOTS_TW_KEYGEN_COMPRESSIONS + sha256_compressions(16 * WOTS_TW_CHAIN_COUNT)) + \
+STATELESS_KEYGEN_COMPRESSIONS = 2**SPHX_XMSS_HEIGHT * WOTS_TW_KEYGEN_COMPRESSIONS + \
                                 2**SPHX_XMSS_HEIGHT - 1
 
 # SHA256 compressions needed to generate a SHRINCS key with UXMSS at various depths.
