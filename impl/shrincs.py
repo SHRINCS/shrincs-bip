@@ -560,8 +560,10 @@ def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
   This function is only used in the stateful path, and only by the signer.
   """
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
+  sf_structure = ADRS[10:12]
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[9] = SF_WOTS_C_PRF
+    ADRS[10:12] = sf_structure
     ADRS[14:18] = i.to_bytes(4) # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
@@ -595,8 +597,10 @@ def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: byt
   counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
+  sf_structure = ADRS[10:12]
   for i in range(WOTS_C_CHAIN_COUNT):
     ADRS[9] = SF_WOTS_C_PRF
+    ADRS[10:12] = sf_structure
     ADRS[14:18] = i.to_bytes(4)  # chain index
     ADRS[18:22] = zeros(4) # zero hash index
     sk = PRF(pk_seed, sk_seed, ADRS)
