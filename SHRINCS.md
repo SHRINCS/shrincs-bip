@@ -1690,7 +1690,6 @@ For security and privacy we highly recommend signers stick to the two prescribed
 
 - Only nodes with index less than `2**64` are indexable in FXMSS.[^fxmss_node_index]
 - Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
-- Some structures are fungible, such as any tree of depth 0 or depth 1 will be the same regardless of shape.
 - A tree of depth 0 has no stateful signatures, whatever its shape. Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it. Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path. The signature counts given for each shape above therefore apply only from depth 1 upwards.
 - Implementations must take care when using SHRINCS secret keys imported from untrusted sources, especially if depending on shape and depth bytes for security-critical logic.
 
