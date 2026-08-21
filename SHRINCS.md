@@ -1679,11 +1679,12 @@ The `depth` of the BXMSS tree at key generation time has a significant impact on
 
 Signer implementations may specify any height for BXMSS trees depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
 
+
 ##### Custom Shapes
 
-Signers _may_ design custom shapes.[^fxmss_node_index]
+Signers _may_ design custom shapes,[^fxmss_node_index] as the verifier is agnostic to the shape of the signer's FXMSS tree.
 
-For security and privacy we highly recommend signers stick to the two prescribed shapes: BXMSS and UXMSS.
+This specification only defines two shapes: BXMSS and UXMSS. For security and privacy we highly recommend signers stick to the two prescribed shapes.
 
 
 ##### Caveats
