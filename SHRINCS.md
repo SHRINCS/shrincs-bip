@@ -120,7 +120,7 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 
 | Signature Type | Average Signing Cost in SHA256 Compressions | Stateful Signature Budget |
 |-|-|-|
-| Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707258<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> |
+| Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707258<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> | |
 | Stateful (UXMSS; depth 31) | <!-- CONST START UXMSS_31_SIGN_COMPRESSIONS_AVG -->16510<!-- CONST END UXMSS_31_SIGN_COMPRESSIONS_AVG --> | 32 |
 | Stateful (UXMSS; depth 255) | <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> | 256 |
 | Stateful (BXMSS; depth 5) | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS_AVG -->16521<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS_AVG --> | 2<sup>5</sup> |
