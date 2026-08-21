@@ -37,7 +37,7 @@ The minimum combined size of a SHRINCS public key and stateful signature is roug
 At a high level, a SHRINCS instance combines two hash-based signature schemes:
 
 1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^sphincs+c] one-time signatures.
-2. A **stateless** component — a variant of SLH-DSA, with algorithms as defined in NIST FIPS-205[^slhdsa] but using a non-standard parameter set.
+2. A **stateless** component — SLH-DSA as defined in NIST FIPS-205[^slhdsa], but with a non-standard parameter set.
 
 A signature from either component is sufficient to pass verification. The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable (lost, corrupted, or intentionally reset, e.g. after seed recovery).
 
@@ -45,7 +45,7 @@ The **stateful** component, FXMSS, generates small signatures. It is a variant o
 
 FXMSS is _flexible_ in that the signer chooses the shape of the tree. An _unbalanced_ tree minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures; a _balanced_ tree instead produces constant-size signatures.
 
-The **stateless** component, a variant of SLH-DSA, generates larger signatures. SLH-DSA has a _signature budget_ — the maximum number of signatures it can produce before its security begins to degrade. Standard SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
+The **stateless** component generates larger signatures. SLH-DSA has a _signature budget_ — the maximum number of signatures it can produce before its security begins to degrade. Standardized SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
 
 Each component produces a 16-byte root as part of its public key. These two roots, together with a 16-byte seed value, form the 48-byte SHRINCS public key:
 
@@ -65,9 +65,9 @@ Public key and signature sizes are summarized below:
 
 ### Relation to SLH-DSA
 
-The stateless component of SHRINCS uses SLH-DSA, defined in NIST FIPS-205. It is not exactly SLH-DSA as standardized, however: FIPS-205 approves only a fixed list of parameter sets, and the parameter set used here (see [Parameters](#parameters)) is not among them. The hash functions are instantiated with SHA256, as in the FIPS-205 parameter sets of the SHA2 family at security category 1.
+The stateless component of SHRINCS uses the SLH-DSA algorithms defined in NIST FIPS-205 with a parameter set that is not among those standardized in FIPS-205 (see [Parameters](#parameters)). The hash functions are instantiated with SHA256, as in the FIPS-205 parameter sets of the SHA2 family at security category 1.
 
-The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except in how the additional randomness used in signing is generated. An implementation of FIPS-205 that admits an arbitrary parameter set can therefore be used for the stateless component of SHRINCS, and its signatures turned into SHRINCS signatures with a thin wrapper.
+The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except that `slh_dsa_sign` receives optional additional randomness from its caller rather than generating it internally. An SLH-DSA implementation that supports custom parameter sets can therefore be used for the stateless component of SHRINCS, with a thin wrapper to produce SHRINCS signatures.
 
 This document nonetheless respecifies these algorithms in full, rather than referring to FIPS-205, in order to present both components of SHRINCS in one consistent notation. The exact correspondence is given in [the section on stateless parameters](#stateless-parameters).
 
@@ -160,9 +160,9 @@ At a sustained rate of 1,000 signatures per second, producing 2<sup>40</sup> sig
 
 ### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
 
-To facilitate adoption, the stateless fallback retains the core SLH-DSA algorithms. An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work. This choice also retains the benefit of the review those algorithms received during standardization.
+To facilitate adoption, the stateless fallback retains the SLH-DSA algorithms defined in FIPS-205. An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work. The stateless fallback also benefits from the analysis of these algorithms conducted during the standardization of SLH-DSA.
 
-Retaining the SLH-DSA algorithms gives up a further reduction in signature size. For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the FIPS-205-compliant algorithms specified here. We reasoned that the security, convenience, and interoperability benefits of FIPS-205 compliance were worth the price of slightly more expensive stateless signatures.
+This choice comes at the cost of larger signatures. For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the stateless fallback specified here. The resulting security, convenience, and interoperability benefits justify the slightly larger stateless signatures.
 
 ### Why these specific parameters?
 
@@ -172,7 +172,7 @@ We chose the stateful parameters to minimize the cost-per-byte of verifying SHRI
 
 The most obvious change we could make to the stateful parameters would be to double `WOTS_C_CHAIN_BITS` and halve `WOTS_C_CHAIN_COUNT`. This would give us stateful signatures roughly half the size, but would increase key-generation and signing costs by almost a factor of 10x, while verification cost increases more than 4x, leading to a cost-per-byte of about 8x what we have with our proposed parameters.
 
-With a small change in algorithms, we could also set `WOTS_C_CHAIN_BITS = 5`, which would change `WOTS_C_CHAIN_COUNT` to not be a clean power of two. Since we do not care about FIPS-205 compliance this would be acceptable. This earns us \~20% smaller stateful signatures in exchange for a 2x slowdown in key-generation speed, a negligible 1.5x slowdown in signing speed, and a minor 1.1x slowdown in verification speed.
+With a small change in algorithms, we could also set `WOTS_C_CHAIN_BITS = 5`, which would change `WOTS_C_CHAIN_COUNT` to not be a clean power of two. Compatibility with SLH-DSA is not required on the stateful path, so this algorithmic change would be acceptable. This earns us \~20% smaller stateful signatures in exchange for a 2x slowdown in key-generation speed, a negligible 1.5x slowdown in signing speed, and a minor 1.1x slowdown in verification speed.
 
 TODO further explanations, perhaps reference https://mjthatch.github.io/SPHINCS-Parameters/site and benchmark verification against Schnorr using HW accel?
 
@@ -792,7 +792,7 @@ def H_msg_sl(R: bytes, pk_seed: bytes, sl_root: bytes, M: bytes) -> bytes:
 ```
 <!-- DOC END H_msg_sl -->
 
-The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` satisfies FIPS-205[^slhdsa], wherein `H_msg_sl` is defined using MGF1-SHA-256[^mgf1].
+The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` matches the definition in FIPS-205,[^slhdsa] in which `H_msg_sl` is defined using MGF1-SHA-256[^mgf1].
 
 
 ##### `H_msg_sf(...)`
@@ -821,7 +821,7 @@ def H_msg_sf(R: bytes, pk_seed: bytes, sf_root: bytes, ADRS: bytearray, M: bytes
 
 Notice we only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
 
-Unlike `H_msg_sl`, this function is a SHRINCS-specific construction and is **not** required to satisfy FIPS-205[^slhdsa]. This accounts for two intentional differences from `H_msg_sl`:
+Unlike `H_msg_sl`, `H_msg_sf` is specific to the stateful component and therefore need not match the definition of `H_msg` in FIPS-205[^slhdsa]. This accounts for two intentional differences from `H_msg_sl`:
 
 - There is no trailing 4-byte zero-padding on the outer hash. That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
 - The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs. This domain-separates the stateful digest by the leaf used to sign it.
@@ -1355,7 +1355,7 @@ Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is th
 - In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SLH-DSA hypertree, and to certify FORS public keys.
 - In the stateful component, Flexible XMSS (FXMSS) is used with WOTS+C to sign messages directly.
 
-In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `SPHX_XMSS_HEIGHT`. This aligns with FIPS-205 standards.
+In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `SPHX_XMSS_HEIGHT`. This matches the XMSS tree structure specified in FIPS-205.
 
 In FXMSS (stateful path), merkle trees can be balanced or unbalanced, and the WOTS+C leaf keys may be placed up to `FXMSS_HEIGHT` layers deep. This permits more flexible constructions.
 
@@ -2043,7 +2043,7 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
 
 ### SLH-DSA
 
-The stateless signing path of SHRINCS uses the _StateLess Hash-based Digital Signature Algorithm_ (SLH-DSA) as specified in FIPS-205,[^slhdsa] but with a custom parameter set more suited for use in Bitcoin.
+The stateless signing path of SHRINCS uses the _StateLess Hash-based Digital Signature Algorithm_ (SLH-DSA) defined in FIPS-205[^slhdsa] with a non-standard parameter set.
 
 SLH-DSA is built out of the WOTS-TW, XMSS, and FORS subschemes already defined earlier in this document. In SLH-DSA, the signer uses a hypertree of XMSS trees to sign one of many possible FORS keypairs, which then signs the actual message. The addition of FORS makes SLH-DSA secure against a limited degree of leaf reuse, allowing us to discard state-management requirements.
 
@@ -2206,7 +2206,7 @@ Once both roots are generated, the caller combines them with `pk_seed` to form t
 shrincs_pubkey = pk_seed + sl_root + sf_root
 ```
 
-This encoding is chosen such that by slicing off the last 16 bytes (`sf_root`), we may acquire a valid SLH-DSA public key.
+This encoding is chosen such that slicing off the last 16 bytes (`sf_root`) yields the public key produced by the SLH-DSA key-generation algorithm with the non-standard parameter set used by the stateless component.
 
 The SHRINCS secret key is encoded as:
 
@@ -2214,7 +2214,7 @@ The SHRINCS secret key is encoded as:
 shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
 ```
 
-This encoding is chosen such that by slicing off the last 18 bytes (`sf_structure + sf_root`), we may acquire a valid SLH-DSA secret key.
+This encoding is chosen such that slicing off the last 18 bytes (`sf_structure + sf_root`) yields a valid secret key for the stateless component.
 
 <img src="./img/shrincs-keys.svg">
 
