@@ -90,6 +90,10 @@ The variance in stateful verify compression count can be caused by signers suppl
 
 The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
 
+For comparison, if one benchmarks the cost of BIP-340 Schnorr signature verification compared against SHA256 hashing, one can compute the the equivalent cost of Schnorr in terms of SHA256 hash compressions.
+Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have a cost of around 1.3 - 2.0 software SHA256 compressions per byte.[^bip340_sha256_bench]
+
+
 ### Key Generation
 
 SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes. The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation. In general, putting more up-front work into key-generation allows the key a larger stateful signature budget.
@@ -138,9 +142,6 @@ To improve stateful signing performance further at the cost of memory, one can c
 
 The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
-TODO:
-- compare verification costs to Schnorr?
-- describe stateful caching strategies?
 
 ## Rationale
 
@@ -2577,3 +2578,4 @@ This document is licensed under the 3-clause BSD license.
 [^xmss-directional]: Can we still prove XMSS secure if we use an unstructured (directionless) tree, a la taproot? (better privacy and XMSS clients are more flexible) No. Unstructured XMSS trees would give an attacker an advantage in multi-target attacks. Say you have an XMSS tree with height two (i.e. four leaves). Let's say you reveal the two intermediate nodes in the first layer to an attacker, e.g. by signing a transaction. The hash function used to compute both of these nodes must be the same - otherwise it would not be a directionless tree - So the attacker can try preimage search on both hash function outputs at once. This doubles their chances of successfully finding a preimage. Scaled up, with more target hashes, the attacker increases their advantage even more.
 [^fxmss_node_index]: The key requirement for a valid FXMSS tree shape is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable. This provides plenty of space while maintaining a fixed max-length encoding for node indexes.
 [^last_two_sigs]: The last two UXMSS leaves are both at equal depth, and so their signatures both have the same length.
+[^bip340_sha256_bench]: https://github.com/mjthatch/bip340-vs-sha256
