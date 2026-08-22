@@ -2554,7 +2554,7 @@ This document is licensed under the 3-clause BSD license.
 [^hbsb]: The underlying construction is sketched in the appendix of "Hash-based Signature Schemes for Bitcoin", https://eprint.iacr.org/2025/2203.
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
 [^xmss]: https://www.rfc-editor.org/rfc/rfc8391.html
-[^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
+[^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single outer SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
 [^hmac]: https://datatracker.ietf.org/doc/html/rfc2104
 [^simd_x86]: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
 [^simd_arm]: https://arm-software.github.io/acle/neon_intrinsics/advsimd.html
