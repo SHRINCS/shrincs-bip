@@ -12,7 +12,9 @@
 
 This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based post-quantum signature scheme, for use in Bitcoin transaction authorization.
 
-SHRINCS combines compact stateful hash-based signatures with a stateless fallback[^hbsb]. It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security. A security proof is TODO.
+SHRINCS combines compact stateful hash-based signatures with a stateless fallback[^hbsb].
+It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security.
+A security proof is TODO.
 
 This specification describes the key generation, signing, and verification algorithms of SHRINCS.
 
@@ -39,15 +41,23 @@ At a high level, a SHRINCS instance combines two hash-based signature schemes:
 1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^sphincs+c] one-time signatures.
 2. A **stateless** component — SLH-DSA as defined in NIST FIPS-205[^slhdsa], but with a non-standard parameter set.
 
-A signature from either component is sufficient to pass verification. The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable (lost, corrupted, or intentionally reset, e.g. after seed recovery).
+A signature from either component is sufficient to pass verification.
+The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable (lost, corrupted, or intentionally reset, e.g. after seed recovery).
 
-The **stateful** component, FXMSS, generates small signatures. It is a variant of XMSS[^xmss]. In XMSS, the public key is the root of a Merkle tree whose leaves are one-time-signature public keys, and each signature is a single one-time signature together with the Merkle authentication path from its leaf to the root. The signer must maintain state so that no leaf is used to sign more than once.
+The **stateful** component, FXMSS, generates small signatures.
+It is a variant of XMSS[^xmss].
+In XMSS, the public key is the root of a Merkle tree whose leaves are one-time-signature public keys, and each signature is a single one-time signature together with the Merkle authentication path from its leaf to the root.
+The signer must maintain state so that no leaf is used to sign more than once.
 
-FXMSS is _flexible_ in that the signer chooses the shape of the tree. An _unbalanced_ tree minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures; a _balanced_ tree instead produces constant-size signatures.
+FXMSS is _flexible_ in that the signer chooses the shape of the tree.
+An _unbalanced_ tree minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures; a _balanced_ tree instead produces constant-size signatures.
 
-The **stateless** component generates larger signatures. SLH-DSA has a _signature budget_ — the maximum number of signatures it can produce before its security begins to degrade. Standardized SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
+The **stateless** component generates larger signatures.
+SLH-DSA has a _signature budget_ — the maximum number of signatures it can produce before its security begins to degrade.
+Standardized SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
 
-Each component produces a 16-byte root as part of its public key. These two roots, together with a 16-byte seed value, form the 48-byte SHRINCS public key:
+Each component produces a 16-byte root as part of its public key.
+These two roots, together with a 16-byte seed value, form the 48-byte SHRINCS public key:
 
 ```py
 PK = PK.seed || PK.sl_root || PK.sf_root
@@ -65,28 +75,35 @@ Public key and signature sizes are summarized below:
 
 ### Relation to SLH-DSA
 
-The stateless component of SHRINCS uses the SLH-DSA algorithms defined in NIST FIPS-205 with a parameter set that is not among those standardized in FIPS-205 (see [Parameters](#parameters)). The hash functions are instantiated with SHA256, as in the FIPS-205 parameter sets of the SHA2 family at security category 1.
+The stateless component of SHRINCS uses the SLH-DSA algorithms defined in NIST FIPS-205 with a parameter set that is not among those standardized in FIPS-205 (see [Parameters](#parameters)).
+The hash functions are instantiated with SHA256, as in the FIPS-205 parameter sets of the SHA2 family at security category 1.
 
-The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except that `slh_dsa_sign` receives optional additional randomness from its caller rather than generating it internally. An SLH-DSA implementation that supports custom parameter sets can therefore be used for the stateless component of SHRINCS, with a thin wrapper to produce SHRINCS signatures.
+The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except that `slh_dsa_sign` receives optional additional randomness from its caller rather than generating it internally.
+An SLH-DSA implementation that supports custom parameter sets can therefore be used for the stateless component of SHRINCS, with a thin wrapper to produce SHRINCS signatures.
 
-This document nonetheless respecifies these algorithms in full, rather than referring to FIPS-205, in order to present both components of SHRINCS in one consistent notation. The exact correspondence is given in [the section on stateless parameters](#stateless-parameters).
+This document nonetheless respecifies these algorithms in full, rather than referring to FIPS-205, in order to present both components of SHRINCS in one consistent notation.
+The exact correspondence is given in [the section on stateless parameters](#stateless-parameters).
 
 ## Performance
 
-As a hash-based signature scheme, the primary performance bottleneck in SHRINCS is in the computation of a hash function, namely SHA256. The faster a computer can perform SHA256 hashing, the faster it can create SHRINCS keys, issue new signatures, and/or verify signatures.
+As a hash-based signature scheme, the primary performance bottleneck in SHRINCS is in the computation of a hash function, namely SHA256.
+The faster a computer can perform SHA256 hashing, the faster it can create SHRINCS keys, issue new signatures, and/or verify signatures.
 
-In this section, we'll show the exact costs (in terms of SHA256 compressions) needed to run different SHRINCS algorithms. The computations used to generate the numbers below are shown in [`impl/meta.py`](./impl/meta.py).
+In this section, we'll show the exact costs (in terms of SHA256 compressions) needed to run different SHRINCS algorithms.
+The computations used to generate the numbers below are shown in [`impl/meta.py`](./impl/meta.py).
 
 ### Verification
 
-SHRINCS has very fast verification, especially with SHA256 hardware acceleration. In this table we show exact compression counts, and show the maximum _compressions per byte_ (C/B) needed to verify a SHRINCS stateful and stateless signature.
+SHRINCS has very fast verification, especially with SHA256 hardware acceleration.
+In this table we show exact compression counts, and show the maximum _compressions per byte_ (C/B) needed to verify a SHRINCS stateful and stateless signature.
 
 | Signing Component | Verify Cost in SHA256 Compressions (min - max) | C/B (max) |
 |-|-|-|
 | Stateful SHRINCS | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MIN -->255<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.465<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
 | Stateless SHRINCS | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MIN -->467<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MIN --> - <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2792<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> | <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX -->0.483<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX --> |
 
-The variance in stateful verify compression count can be caused by signers supplying larger stateful signatures, which require additional hash invocations to verify. The variance in stateless compression count can be controlled by the signer with no change to signature size, and is owed to the fact that the signatures of the WOTS-TW subscheme have a non-constant verification cost which depends on a signer-controlled hash.
+The variance in stateful verify compression count can be caused by signers supplying larger stateful signatures, which require additional hash invocations to verify.
+The variance in stateless compression count can be controlled by the signer with no change to signature size, and is owed to the fact that the signatures of the WOTS-TW subscheme have a non-constant verification cost which depends on a signer-controlled hash.
 
 The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
 
@@ -96,7 +113,9 @@ Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have
 
 ### Key Generation
 
-SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes. The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation. In general, putting more up-front work into key-generation allows the key a larger stateful signature budget.
+SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes.
+The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation.
+In general, putting more up-front work into key-generation allows the key a larger stateful signature budget.
 
 Here we have illustrated several examples of SHRINCS key generation costs for different stateful structures.
 
@@ -138,9 +157,12 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 
 One can improve SHRINCS signing performance significantly using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
 
-To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#FXMSS) tree which are produced during key-generation or prior signing attempts. Caching reduces the fraction of the FXMSS tree which the signer must regenerate on each signing attempt, which is by far the greatest computational cost in stateful signing. Caching can therefore result in very significant (orders of magnitude) speedups, depending on the stateful tree structure.
+To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#FXMSS) tree which are produced during key-generation or prior signing attempts.
+Caching reduces the fraction of the FXMSS tree which the signer must regenerate on each signing attempt, which is by far the greatest computational cost in stateful signing.
+Caching can therefore result in very significant (orders of magnitude) speedups, depending on the stateful tree structure.
 
-The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
+The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching).
+One can also improve stateless SHRINCS signing performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
 
 ## Rationale
@@ -155,17 +177,24 @@ With Bitcoin's current 4 MB block size limit, 200 years of blocks would consume 
 
 The 2<sup>40</sup> signature budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
 
-Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain. A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
+Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain.
+A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
 
-An attacker who can request signatures can in principle exhaust any finite signature budget, but a smaller budget makes such an attack more practical. With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
-The time required to generate each signature limits how quickly the budget can be exhausted. Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
+An attacker who can request signatures can in principle exhaust any finite signature budget, but a smaller budget makes such an attack more practical.
+With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
+The time required to generate each signature limits how quickly the budget can be exhausted.
+Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
 At a sustained rate of 1,000 signatures per second, producing 2<sup>40</sup> signatures would take approximately 35 years.[^vulkan]
 
 ### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
 
-To facilitate adoption, the stateless fallback retains the SLH-DSA algorithms defined in FIPS-205. An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work. The stateless fallback also benefits from the analysis of these algorithms conducted during the standardization of SLH-DSA.
+To facilitate adoption, the stateless fallback retains the SLH-DSA algorithms defined in FIPS-205.
+An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work.
+The stateless fallback also benefits from the analysis of these algorithms conducted during the standardization of SLH-DSA.
 
-This choice comes at the cost of larger signatures. For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the stateless fallback specified here. The resulting security, convenience, and interoperability benefits justify the slightly larger stateless signatures.
+This choice comes at the cost of larger signatures.
+For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the stateless fallback specified here.
+The resulting security, convenience, and interoperability benefits justify the slightly larger stateless signatures.
 
 ### Why these specific parameters?
 
@@ -173,22 +202,32 @@ We chose the stateless parameters such that signing, key-generation, and verific
 
 We chose the stateful parameters to minimize the cost-per-byte of verifying SHRINCS signatures, while keeping the worst-case cost-per-byte relatively consistent across the stateful and stateless components, and allowing for the possibility for a witness discount to accompany SHRINCS deployment (we do not specifically require or endorse such a change).
 
-The most obvious change we could make to the stateful parameters would be to double `WOTS_C_CHAIN_BITS` and halve `WOTS_C_CHAIN_COUNT`. This would give us stateful signatures roughly half the size, but would increase key-generation and signing costs by almost a factor of 10x, while verification cost increases more than 4x, leading to a cost-per-byte of about 8x what we have with our proposed parameters.
+The most obvious change we could make to the stateful parameters would be to double `WOTS_C_CHAIN_BITS` and halve `WOTS_C_CHAIN_COUNT`.
+This would give us stateful signatures roughly half the size, but would increase key-generation and signing costs by almost a factor of 10x, while verification cost increases more than 4x, leading to a cost-per-byte of about 8x what we have with our proposed parameters.
 
-With a small change in algorithms, we could also set `WOTS_C_CHAIN_BITS = 5`, which would change `WOTS_C_CHAIN_COUNT` to not be a clean power of two. Compatibility with SLH-DSA is not required on the stateful path, so this algorithmic change would be acceptable. This earns us \~20% smaller stateful signatures in exchange for a 2x slowdown in key-generation speed, a negligible 1.5x slowdown in signing speed, and a minor 1.1x slowdown in verification speed.
+With a small change in algorithms, we could also set `WOTS_C_CHAIN_BITS = 5`, which would change `WOTS_C_CHAIN_COUNT` to not be a clean power of two.
+Compatibility with SLH-DSA is not required on the stateful path, so this algorithmic change would be acceptable.
+This earns us \~20% smaller stateful signatures in exchange for a 2x slowdown in key-generation speed, a negligible 1.5x slowdown in signing speed, and a minor 1.1x slowdown in verification speed.
 
 TODO further explanations, perhaps reference https://mjthatch.github.io/SPHINCS-Parameters/site and benchmark verification against Schnorr using HW accel?
 
 ### Why not a hybrid scheme?
 
-There exist _signature combiners_ such as Bird-of-Prey[^bop] which allow efficient hybridization of classical and post-quantum signature schemes. A hybrid scheme is at least as secure as either of the two base schemes, requiring successful attacks on both base schemes to be considered vulnerable as a whole. With a well-designed combiner, one can achieve stronger security notions than naive signature and public key concatenation. Well-designed signature combiners like BoP also reduce overall signature size compared to a naive combiner because the verifier can recover or reuse some components of the signature.[^bop-delving]
+There exist _signature combiners_ such as Bird-of-Prey[^bop] which allow efficient hybridization of classical and post-quantum signature schemes.
+A hybrid scheme is at least as secure as either of the two base schemes, requiring successful attacks on both base schemes to be considered vulnerable as a whole.
+With a well-designed combiner, one can achieve stronger security notions than naive signature and public key concatenation.
+Well-designed signature combiners like BoP also reduce overall signature size compared to a naive combiner because the verifier can recover or reuse some components of the signature.[^bop-delving]
 
 In this proposal we elect **not** to introduce a dedicated hybrid signature scheme combiner for Schnorr+SHRINCS, for a few reasons:
 
-- **Redundancy.** Deploying SHRINCS as a standalone signature scheme is desirable for efficient quantum-safe spending of bitcoin. If standalone SHRINCS is available, users will already have access to hybridization techniques by using hybrid constructions.
-- **Lack of value.** Strong unforgeability - one of the main selling points of using a combiner - is not security-critical in Bitcoin because segregated witnesses don't affect TXIDs. At best a hybrid scheme would provide a minor ~5%-10% improvement in witness size over a naive scripting approach, and this is still less efficient than keeping keys compartmentalized in isolated spending paths. <!-- TODO: this bullet leans on Bitcoin/consensus-specific concepts (segregated witnesses, TXIDs, witness size, scripting, spending paths); reword to be scheme-only or move to the 0xC2 BIP. -->
-- **Complexity & fragility.** A hybrid scheme would necessitate new Schnorr signing sub-algorithms, because combiners like Bird-of-Prey don't use Schnorr as a black-box. This greatly expands the scope of implementation.
-- **Security.** Standalone SHRINCS uses strictly weaker cryptographic assumptions than BIP340, so adding hybridization with Schnorr hedges only against implementation flaws or state reuse in SHRINCS. Both risks can already be effectively mitigated using formal code verification and cautious wallet design.
+- **Redundancy.** Deploying SHRINCS as a standalone signature scheme is desirable for efficient quantum-safe spending of bitcoin.
+  If standalone SHRINCS is available, users will already have access to hybridization techniques by using hybrid constructions.
+- **Lack of value.** Strong unforgeability - one of the main selling points of using a combiner - is not security-critical in Bitcoin because segregated witnesses don't affect TXIDs.
+  At best a hybrid scheme would provide a minor ~5%-10% improvement in witness size over a naive scripting approach, and this is still less efficient than keeping keys compartmentalized in isolated spending paths. <!-- TODO: this bullet leans on Bitcoin/consensus-specific concepts (segregated witnesses, TXIDs, witness size, scripting, spending paths); reword to be scheme-only or move to the 0xC2 BIP. -->
+- **Complexity & fragility.** A hybrid scheme would necessitate new Schnorr signing sub-algorithms, because combiners like Bird-of-Prey don't use Schnorr as a black-box.
+  This greatly expands the scope of implementation.
+- **Security.** Standalone SHRINCS uses strictly weaker cryptographic assumptions than BIP340, so adding hybridization with Schnorr hedges only against implementation flaws or state reuse in SHRINCS.
+  Both risks can already be effectively mitigated using formal code verification and cautious wallet design.
 
 We thus conclude that deploying a unified hybrid scheme would not offer justifiable value to Bitcoin users, and comes at the expense of great risk and effort in adding a bespoke new signature algorithm, which very few people would use because of the cheaper options available, such as keeping the keys for each algorithm compartmentalized. <!-- TODO: original said "such as placing public keys for each algorithm in isolated leaf scripts in P2MR". -->
 
@@ -196,35 +235,56 @@ Users who do find value in hedging against state reuse or implementation flaws i
 
 ### Why NIST security category 1?
 
-The SHRINCS verification algorithm consists mostly of evaluating a series of hash functions on the signature to recompute a certain hash. Ultimately the verifier recomputes one of the SHRINCS public key components: `PK.sf_root` or `PK.sl_root`.
+The SHRINCS verification algorithm consists mostly of evaluating a series of hash functions on the signature to recompute a certain hash.
+Ultimately the verifier recomputes one of the SHRINCS public key components: `PK.sf_root` or `PK.sl_root`.
 
-The security of SHRINCS relies solely on the security of the underlying hash function, which seems very robust in general. Given a hash function with output width of `b` bits (given a big enough internal state), the best-known classical attack is simple trial-and-error, which yields a second preimage after 2<sup>b</sup> tries on average. The best case quantum attack using Grover's algorithm yields a second preimage in time on the order of O(2<sup>b/2</sup>). In other words, using a `b`-bit hash gives `b` bits of classical security, and `b/2` bits of quantum security.
+The security of SHRINCS relies solely on the security of the underlying hash function, which seems very robust in general.
+Given a hash function with output width of `b` bits (given a big enough internal state), the best-known classical attack is simple trial-and-error, which yields a second preimage after 2<sup>b</sup> tries on average.
+The best case quantum attack using Grover's algorithm yields a second preimage in time on the order of O(2<sup>b/2</sup>).
+In other words, using a `b`-bit hash gives `b` bits of classical security, and `b/2` bits of quantum security.
 
-While the definition of quantum security bits is less clear, the classical analogue is well-studied. The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time O(sqrt(n)), where `n` is the order of the curve. The secp256k1 curve order is an approximately 2<sup>256</sup> bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
+While the definition of quantum security bits is less clear, the classical analogue is well-studied.
+The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time O(sqrt(n)), where `n` is the order of the curve.
+The secp256k1 curve order is an approximately 2<sup>256</sup> bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
 
-Having no concrete basis on which to select a level of quantum security against Grover's algorithm, we aim for SHRINCS to match BIP340's level of classical security, and so follow the NIST-I security category guidelines: 128 bits of classical security, and 64 bits of quantum security. We do so by using a 128-bit truncation of the SHA256 hash function to instantiate SHRINCS, and this mirrors the NIST FIPS-205 specification's reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.[^why128] We use SHA256 because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if collision resistance of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
+Having no concrete basis on which to select a level of quantum security against Grover's algorithm, we aim for SHRINCS to match BIP340's level of classical security, and so follow the NIST-I security category guidelines: 128 bits of classical security, and 64 bits of quantum security.
+We do so by using a 128-bit truncation of the SHA256 hash function to instantiate SHRINCS, and this mirrors the NIST FIPS-205 specification's reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.[^why128]
+We use SHA256 because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if collision resistance of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
 
 ### Why use WOTS+C in the stateful path?
 
-SLH-DSA signs with WOTS-TW, the Winternitz one-time signature scheme with a checksum. The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces smaller signatures. WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
+SLH-DSA signs with WOTS-TW, the Winternitz one-time signature scheme with a checksum.
+The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces smaller signatures.
+WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
 
-An alternative choice would be to use WOTS-TW in the stateful path too, which would reduce code surface at the cost of signature size and verification time. Concretely, with the parameter set we chose, this would result in at most 6% larger stateful signatures, and slightly longer (and non-constant) verification time. We judged the additional code complexity to be worth the efficiency gains in this case: We expect the stateful component will be the primary one used in Bitcoin transactions, and thus was worth the optimization.
+An alternative choice would be to use WOTS-TW in the stateful path too, which would reduce code surface at the cost of signature size and verification time.
+Concretely, with the parameter set we chose, this would result in at most 6% larger stateful signatures, and slightly longer (and non-constant) verification time.
+We judged the additional code complexity to be worth the efficiency gains in this case:
+We expect the stateful component will be the primary one used in Bitcoin transactions, and thus was worth the optimization.
 
 ### Why statefulness?
 
-SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm. A stateful signature algorithm is one in which signers must keep track of how many messages they have previously signed. This "statefulness burden" introduces complexity into implementations, which must ensure state is managed correctly and consistently. See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
+SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm.
+A stateful signature algorithm is one in which signers must keep track of how many messages they have previously signed.
+This "statefulness burden" introduces complexity into implementations, which must ensure state is managed correctly and consistently.
+See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
 
-SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness: Approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO -->x smaller signatures, which require approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO -->x less compute time to verify (compared to the stateless component).
+SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness:
+Approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO -->x smaller signatures, which require approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO -->x less compute time to verify (compared to the stateless component).
 
-SHRINCS signers who cannot manage state, or who do not yet have the time/energy to devote to properly implementing state management, can still generate valid SHRINCS keys and sign using the stateless component. Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of the current keypair's state counter.
+SHRINCS signers who cannot manage state, or who do not yet have the time/energy to devote to properly implementing state management, can still generate valid SHRINCS keys and sign using the stateless component.
+Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of the current keypair's state counter.
 
 ### Isn't statefulness unsafe?
 
-If used incorrectly, a stateful signature scheme admits trivial forgeries by anyone observing signatures that reuse the same state. Thankfully, because of the stateless fallback component, any SHRINCS signer can follow a prescribed set of implementation-level invariants to ensure such situations never occur, while always maintaining the ability to sign in an emergency scenario (lost or corrupted state). See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
+If used incorrectly, a stateful signature scheme admits trivial forgeries by anyone observing signatures that reuse the same state.
+Thankfully, because of the stateless fallback component, any SHRINCS signer can follow a prescribed set of implementation-level invariants to ensure such situations never occur, while always maintaining the ability to sign in an emergency scenario (lost or corrupted state).
+See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
 
 ### Why does the stateful path use "flexible" XMSS?
 
-Supporting only one tree shape between balanced XMSS (BXMSS) or unbalanced XMSS (UXMSS) locks out some use-cases from using the stateful path. Balanced and unbalanced XMSS tree shapes have completely different usage profiles and trade-offs against one-another.
+Supporting only one tree shape between balanced XMSS (BXMSS) or unbalanced XMSS (UXMSS) locks out some use-cases from using the stateful path.
+Balanced and unbalanced XMSS tree shapes have completely different usage profiles and trade-offs against one-another.
 
 | Property | UXMSS | BXMSS |
 |:-:|:-:|:-:|
@@ -233,22 +293,28 @@ Supporting only one tree shape between balanced XMSS (BXMSS) or unbalanced XMSS 
 | Signature size | Compact, variable size signatures | Larger fixed-size signatures |
 | Primary use cases | Personal wallets; single-use certification; cooperative signing | Address reuse; L2 protocols; persistent identity |
 
-SHRINCS verifiers should therefore support either shape, so that the more-efficient stateful component can satisfy the needs of as many users as possible. After all, verifiers need not care about exactly how many signatures a keypair can produce - They need only validate that a signature is authentic against its public key.
+SHRINCS verifiers should therefore support either shape, so that the more-efficient stateful component can satisfy the needs of as many users as possible.
+After all, verifiers need not care about exactly how many signatures a keypair can produce - They need only validate that a signature is authentic against its public key.
 
 The naive way to support both balanced/unbalanced shapes would be to publish or commit a flag into each SHRINCS public key that identifies whether the stateful component uses balanced or unbalanced XMSS, and then react appropriately to that flag in the verifier.
 
-However, we found that the verifier could be made agnostic to the XMSS tree structure, which enables a single unified verifier code path that covers any tree structure. This "flexible XMSS" (FXMSS) verifier can accept signatures from other more complex XMSS tree structures as well as BXMSS and UXMSS. This means stateful SHRINCS XMSS trees can be designed to fit highly specialized use-cases e.g. a keypair which produces constant size signatures for the first $n$ signatures and then the size doubles; or a keypair which produces short signatures of increasing size a la UXMSS, until some threshold point where the signature size locks to some constant until the rest of the XMSS budget is exhausted.
+However, we found that the verifier could be made agnostic to the XMSS tree structure, which enables a single unified verifier code path that covers any tree structure.
+This "flexible XMSS" (FXMSS) verifier can accept signatures from other more complex XMSS tree structures as well as BXMSS and UXMSS.
+This means stateful SHRINCS XMSS trees can be designed to fit highly specialized use-cases e.g. a keypair which produces constant size signatures for the first $n$ signatures and then the size doubles; or a keypair which produces short signatures of increasing size a la UXMSS, until some threshold point where the signature size locks to some constant until the rest of the XMSS budget is exhausted.
 
-We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourage further research into other tree shapes before suggesting their use in production. Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox tree shapes for the sake of forwards compatibility.
+We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourage further research into other tree shapes before suggesting their use in production.
+Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox tree shapes for the sake of forwards compatibility.
 
 
 ### What about hardware wallets?
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
-Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
+Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
+Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
 
-The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707258<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signature budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
+The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707258<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
+To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signature budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
 Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signature budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
 
@@ -299,7 +365,8 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 ### Derived Constants
 
-The following constants are derived from the parameters above. We show formulas for how these are computed, using the integer operations defined under [Utilities](#utilities).
+The following constants are derived from the parameters above.
+We show formulas for how these are computed, using the integer operations defined under [Utilities](#utilities).
 
 #### Stateful Constants
 
@@ -337,20 +404,24 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 ### Key Generation Inputs
 <!-- TODO (Jonas): What's the prupose of having this section here? Why not explain this in the keygen algorithm section? -->
 
-Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes. This is then split into 3 x 16-byte seeds.
+Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes.
+This is then split into 3 x 16-byte seeds.
 
 - `SK.seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
 - `SK.prf` is a secret value used to derive per-message randomness.
 - `PK.seed` is a salt value which is appended to the public key.
 
-Note this is the bare minimum needed to generate a full SHRINCS public key. More performant (but larger) secret key representations are possible.
+Note this is the bare minimum needed to generate a full SHRINCS public key.
+More performant (but larger) secret key representations are possible.
 
 
 #### Padding
 
-Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key. This salts every hash function invocation to introduce domain separation between different instances of a signature scheme, to counter offline/precomputation attacks, and to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
+Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key.
+This salts every hash function invocation to introduce domain separation between different instances of a signature scheme, to counter offline/precomputation attacks, and to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
 
-To save computational effort, `PK.seed` is padded with zero bytes to a length of 64 bytes in most cases. This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
+To save computational effort, `PK.seed` is padded with zero bytes to a length of 64 bytes in most cases.
+This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
 
 
 ### Utilities
@@ -365,7 +436,9 @@ We make use of the following utility helper functions in specifying SHRINCS.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates an array of byte strings.
 
-Every algorithm and every derived constant in this specification is computed with exact integer arithmetic. Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation. Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
+Every algorithm and every derived constant in this specification is computed with exact integer arithmetic.
+Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation.
+Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
 
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 
@@ -403,7 +476,8 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
 
 ### Building Blocks
 
-SHRINCS is a high-level construction built out of many smaller sub-schemes. To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and the _hash functions_ and _pseudorandom functions_ (PRFs) - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SLH-DSA, which together form SHRINCS.
+SHRINCS is a high-level construction built out of many smaller sub-schemes.
+To fully specify SHRINCS we start by defining the lowest level building blocks - addresses and the _hash functions_ and _pseudorandom functions_ (PRFs) - followed by the one-time signature schemes WOTS-TW and WOTS+C, and then the few-time signature scheme FORS, and finally we will move on to the higher-level constructions like XMSS and SLH-DSA, which together form SHRINCS.
 
 ```
      ADRS
@@ -429,7 +503,9 @@ SHRINCS is a high-level construction built out of many smaller sub-schemes. To f
 
 A critical security property of SHRINCS and its components is that every hash function invocation used in the verification algorithm must be _unique,_ so that inputs used in one hash function cannot be reused to produce the same output in another hash function.
 
-To accomplish this goal, we will use _tweakable hash functions_ (explained below) which modify a hash function with some context-dependent location information. This unambiguously specifies the exact instance of the hash function in the signing/verification algorithms where the hash function is being used. This location is called an _address_ and we encode it into a 22-byte array, often called an `ADRS`.[^adrs]
+To accomplish this goal, we will use _tweakable hash functions_ (explained below) which modify a hash function with some context-dependent location information.
+This unambiguously specifies the exact instance of the hash function in the signing/verification algorithms where the hash function is being used.
+This location is called an _address_ and we encode it into a 22-byte array, often called an `ADRS`.[^adrs]
 
 
 #### Stateless ADRS Format
@@ -472,7 +548,8 @@ To accomplish this goal, we will use _tweakable hash functions_ (explained below
 
 #### ADRS Payloads
 
-Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field. The following table describes how they are used under each ADRS type flag.
+Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field.
+The following table describes how they are used under each ADRS type flag.
 
 | Stateless `ADRS` Type | Payload Format | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Stateful `ADRS` Type | Payload Format |
 |:-:|-|:-:|:-:|-|
@@ -485,7 +562,8 @@ Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS 
 | `SL_FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index | | | |
 
 
-The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common leading fields (`layer` and `tree_address` for stateless types, `node_height` and `node_index` for stateful types) and the `type` field, followed by the type-specific interpretation of the 12-byte `payload`. Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
+The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common leading fields (`layer` and `tree_address` for stateless types, `node_height` and `node_index` for stateful types) and the `type` field, followed by the type-specific interpretation of the 12-byte `payload`.
+Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
 
 <img src="img/adrs-stateless.svg">
 
@@ -498,7 +576,8 @@ The following figures show, for each `ADRS` type, how the 22-byte address is lai
 
 ### Hash and Pseudorandom Functions
 
-SHRINCS builds all of these functions from SHA256 as the base hash function, which we invoke as the primitive function `sha256(x)`, returning a 32-byte array. Outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`.
+SHRINCS builds all of these functions from SHA256 as the base hash function, which we invoke as the primitive function `sha256(x)`, returning a 32-byte array.
+Outputs are often truncated, which we denote using Pythonic list-slicing notation: `sha256(x)[:16]`.
 
 <!-- DOC START sha256 -->
 The `sha256` hash function.
@@ -514,14 +593,18 @@ def sha256(message: bytes) -> bytes:
 ```
 <!-- DOC END sha256 -->
 
-SHA-256 accepts an input of at most `2**61 - 1` bytes: its padding encodes the message length in a 64-bit field that counts bits, so the input cannot exceed `2**64 - 1` bits. HMAC-SHA256 prepends a single 64-byte block to the message before hashing it, so `hmac_sha256` accepts at most `2**61 - 1 - 64` bytes. These two primitive limits are the root of every message-length bound in the scheme; the resulting cap on a SHRINCS message is derived in [Maximum Message Length](#maximum-message-length).
+SHA-256 accepts an input of at most `2**61 - 1` bytes: its padding encodes the message length in a 64-bit field that counts bits, so the input cannot exceed `2**64 - 1` bits.
+HMAC-SHA256 prepends a single 64-byte block to the message before hashing it, so `hmac_sha256` accepts at most `2**61 - 1 - 64` bytes.
+These two primitive limits are the root of every message-length bound in the scheme; the resulting cap on a SHRINCS message is derived in [Maximum Message Length](#maximum-message-length).
 
-These functions fall into three families, described in the following sections: _tweakable hash functions_, _pseudorandom functions_, and _message digest functions_. Though built on the same primitive, they play conceptually distinct roles and are relied on for different security properties.
+These functions fall into three families, described in the following sections: _tweakable hash functions_, _pseudorandom functions_, and _message digest functions_.
+Though built on the same primitive, they play conceptually distinct roles and are relied on for different security properties.
 
 
 #### Tweakable Hash Functions
 
-A tweakable hash function can be thought of as a hash function which supports additional independent parameters that scope it to a specific role. Concretely, each invocation is parameterized by a public parameter, `PK.seed`, and a tweak, the `ADRS`, so that the same input hashed at two different positions yields unrelated outputs.
+A tweakable hash function can be thought of as a hash function which supports additional independent parameters that scope it to a specific role.
+Concretely, each invocation is parameterized by a public parameter, `PK.seed`, and a tweak, the `ADRS`, so that the same input hashed at two different positions yields unrelated outputs.
 
 
 ##### `T_sl(...)`
@@ -659,12 +742,17 @@ def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> byt
 
 The extra 4 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
 
-Notice we only use the first 10 bytes of `ADRS`. This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `PK.seed` input. The remaining 12 bytes are always zero padding.
+Notice we only use the first 10 bytes of `ADRS`.
+This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `PK.seed` input.
+The remaining 12 bytes are always zero padding.
 
 
 #### Pseudorandom Functions
 
-A _pseudorandom function_ produces output indistinguishable from random to anyone who does not know its key. SHRINCS instantiates its two pseudorandom functions as _keyed hash functions_, that is, hash functions that take a dedicated key input alongside the message. Both are keyed by a secret: `PRF` is keyed by `SK.seed` and derives secret key material, while `PRF_msg` is keyed by `SK.prf` and derives the per-message randomizer. `PRF_msg` comes in a stateless and a stateful variant, `PRF_msg_sl` and `PRF_msg_sf`, both built on HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, message)`.
+A _pseudorandom function_ produces output indistinguishable from random to anyone who does not know its key.
+SHRINCS instantiates its two pseudorandom functions as _keyed hash functions_, that is, hash functions that take a dedicated key input alongside the message.
+Both are keyed by a secret: `PRF` is keyed by `SK.seed` and derives secret key material, while `PRF_msg` is keyed by `SK.prf` and derives the per-message randomizer.
+`PRF_msg` comes in a stateless and a stateful variant, `PRF_msg_sl` and `PRF_msg_sf`, both built on HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, message)`.
 
 ##### `hmac_sha256(...)`
 
@@ -708,7 +796,8 @@ def PRF(pk_seed: bytes, sk_seed: bytes, ADRS: bytearray) -> bytes:
 ```
 <!-- DOC END PRF -->
 
-Note the order of the arguments passed to `PRF` is _not_ the same order in which those arguments are processed by `sha256`. This aligns with definitions in FIPS-205[^slhdsa].
+Note the order of the arguments passed to `PRF` is _not_ the same order in which those arguments are processed by `sha256`.
+This aligns with definitions in FIPS-205[^slhdsa].
 
 
 ##### `PRF_msg_sl(...)`
@@ -761,7 +850,8 @@ def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> byte
 ```
 <!-- DOC END PRF_msg_sf -->
 
-The `sk_prf` is padded with `0xFF` up until it is 64 bytes long. This ensures domain separation between stateful and stateless paths.
+The `sk_prf` is padded with `0xFF` up until it is 64 bytes long.
+This ensures domain separation between stateful and stateless paths.
 
 We remove the randomization input option for the stateful path compared to `PRF_msg_sl` as the same WOTS+C instance can sign a message only once, but in a misuse scenario where the same message is queried for a signature under the same state, producing exactly the same signature will not constitute a forgery.
 
@@ -770,7 +860,11 @@ We only use the first 9 bytes of `ADRS`, because these bytes encode the position
 
 #### Message Digest Functions
 
-Signing does not hash the user's message directly. Instead, the message is compressed together with a randomizer `R` into a short digest, which the one-time and few-time signatures then sign. SHRINCS uses a different digest function on each path. The stateless `H_msg_sl` is a keyed hash function, keyed by `R`. The stateful `H_msg_sf` additionally binds the position of the signing leaf, and so takes a tweak (the `ADRS`) in addition to `R`; it is therefore a tweakable hash function rather than a plain keyed hash.
+Signing does not hash the user's message directly.
+Instead, the message is compressed together with a randomizer `R` into a short digest, which the one-time and few-time signatures then sign.
+SHRINCS uses a different digest function on each path.
+The stateless `H_msg_sl` is a keyed hash function, keyed by `R`.
+The stateful `H_msg_sf` additionally binds the position of the signing leaf, and so takes a tweak (the `ADRS`) in addition to `R`; it is therefore a tweakable hash function rather than a plain keyed hash.
 
 ##### `H_msg_sl(...)`
 
@@ -824,57 +918,74 @@ def H_msg_sf(R: bytes, pk_seed: bytes, sf_root: bytes, ADRS: bytearray, M: bytes
 
 Notice we only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
 
-Unlike `H_msg_sl`, `H_msg_sf` is specific to the stateful component and therefore need not match the definition of `H_msg` in FIPS-205[^slhdsa]. This accounts for two intentional differences from `H_msg_sl`:
+Unlike `H_msg_sl`, `H_msg_sf` is specific to the stateful component and therefore need not match the definition of `H_msg` in FIPS-205[^slhdsa].
+This accounts for two intentional differences from `H_msg_sl`:
 
-- There is no trailing 4-byte zero-padding on the outer hash. That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
-- The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs. This domain-separates the stateful digest by the leaf used to sign it.
+- There is no trailing 4-byte zero-padding on the outer hash.
+  That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
+- The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs.
+  This domain-separates the stateful digest by the leaf used to sign it.
 
 
 #### Implementation Notes
 
-- The only difference between `T_sf`, `T_sl`, `T_k`, `F`, and `H` is the byte-length of the third input parameter. They are defined as different hash functions for security.
-- `PRF_msg_sl` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently. For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg_sl`.
+- The only difference between `T_sf`, `T_sl`, `T_k`, `F`, and `H` is the byte-length of the third input parameter.
+  They are defined as different hash functions for security.
+- `PRF_msg_sl` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently.
+  For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg_sl`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
-- The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused. **This doubles performance.**
-- These tweakable hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data. Inputs should not be copied in memory unless securely erased afterwards.
-- Many of these hash functions are invoked on independent data, and so can be run in parallel. Platforms with access to vectorized (SIMD) instruction sets on x86[^simd_x86] or ARM[^simd_arm] CPUs may utilize them to parallelize SHA256[^sha256x8] to improve performance significantly: a factor of 4 or more in some cases.
+- The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused.
+  **This doubles performance.**
+- These tweakable hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data.
+  Inputs should not be copied in memory unless securely erased afterwards.
+- Many of these hash functions are invoked on independent data, and so can be run in parallel.
+  Platforms with access to vectorized (SIMD) instruction sets on x86[^simd_x86] or ARM[^simd_arm] CPUs may utilize them to parallelize SHA256[^sha256x8] to improve performance significantly: a factor of 4 or more in some cases.
 - Implementors can use SHA2 hardware acceleration[^sha_ni], though this is best used to accelerate verification, not signing or keygen[^sha_ni_bench].
 
 
 ### WOTS Schemes
 
-A _one-time signature_ (OTS) scheme restricts signers to creating at most one signature per keypair. If this assumption is broken by publishing distinct signatures, then adversaries will be capable of forging new ones. While limited in their practical utility, hash-based OTS schemes are a crucial building block to construct more advanced hash-based signature schemes.
+A _one-time signature_ (OTS) scheme restricts signers to creating at most one signature per keypair.
+If this assumption is broken by publishing distinct signatures, then adversaries will be capable of forging new ones.
+While limited in their practical utility, hash-based OTS schemes are a crucial building block to construct more advanced hash-based signature schemes.
 
 The following two sections describe a pair of related one-time signature schemes: WOTS-TW and WOTS+C.
 
 - WOTS+C is used for the stateful signing path.
 - WOTS-TW is used for the stateless signing path.
 
-Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signature scheme_ (WOTS),[^merkle] but each has a distinct performance profile and features. WOTS-TW is standardized in SLH-DSA[^slhdsa] and so we use it to preserve compatibility. WOTS+C produces shorter signatures with faster and constant-time verification speed, but is not compatible with SLH-DSA and so we only use it on the stateful path where compatibility is not a concern. WOTS+C can also technically fail when signing, a rare edgecase which parameters must be carefully engineered to avoid.
+Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signature scheme_ (WOTS),[^merkle] but each has a distinct performance profile and features.
+WOTS-TW is standardized in SLH-DSA[^slhdsa] and so we use it to preserve compatibility.
+WOTS+C produces shorter signatures with faster and constant-time verification speed, but is not compatible with SLH-DSA and so we only use it on the stateful path where compatibility is not a concern.
+WOTS+C can also technically fail when signing, a rare edgecase which parameters must be carefully engineered to avoid.
 
 
 #### Informal Description
 
 Here follows an intuitive description of Winternitz OTS (WOTS) schemes in general.
 
-A WOTS private key is an array of secret preimages. Each preimage is hashed, and the output is then hashed again, and so on, forming a _chain_ of hashes. After some prescribed number of steps in the chain (iterating the hash function) we reach the _tip_ of the hash chain. The _tips_ of those hash chains form the Winternitz public key.
+A WOTS private key is an array of secret preimages.
+Each preimage is hashed, and the output is then hashed again, and so on, forming a _chain_ of hashes.
+After some prescribed number of steps in the chain (iterating the hash function) we reach the _tip_ of the hash chain.
+The _tips_ of those hash chains form the Winternitz public key.
 
 To sign, the key holder maps an approved message to a set of integers which each index a node in a hash chain, and reveals the hashes at those indexes as the Winternitz signature.
 
-The verifier maps the message to those same integers as the signer did, and finishes computing the hash chains. If the signer revealed the correct nodes, then the verifier will have recomputed the same hash chain tips that compose the signer's public key.
+The verifier maps the message to those same integers as the signer did, and finishes computing the hash chains.
+If the signer revealed the correct nodes, then the verifier will have recomputed the same hash chain tips that compose the signer's public key.
 
 <img src="img/wots-diagram-generic.svg">
 
 <sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
 
-As written this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes. WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a small salt which the signer must grind to find a set of indexes which sum to a specific constant.
+As written this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes.
+WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a small salt which the signer must grind to find a set of indexes which sum to a specific constant.
 
 
 ### WOTS Algorithm
 
-Both WOTS schemes iterate their hash chains the same way, differing only in the `ADRS` type the
-steps are tweaked by. Each scheme therefore has its own chaining function, which sets that type
-itself rather than leaving it to every caller.
+Both WOTS schemes iterate their hash chains the same way, differing only in the `ADRS` type the steps are tweaked by.
+Each scheme therefore has its own chaining function, which sets that type itself rather than leaving it to every caller.
 
 
 #### `wots_tw_chain_iter(...)`
@@ -939,9 +1050,12 @@ def wots_c_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS:
 
 ### WOTS-TW
 
-WOTS-TW is the classic variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries. In WOTS-TW, a 128-bit message is mapped directly into an array of `WOTS_TW_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes. This checksum is then encoded into `WOTS_TW_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
+WOTS-TW is the classic variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries.
+In WOTS-TW, a 128-bit message is mapped directly into an array of `WOTS_TW_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes.
+This checksum is then encoded into `WOTS_TW_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
 
-This process starts by breaking a 128-bit message into `WOTS_TW_CHAIN_COUNT1` integers of `WOTS_TW_CHAIN_BITS` bits each in the range `[0, 2**WOTS_TW_CHAIN_BITS)`. The maximum possible sum of those indexes would be if every index was equal to `2**WOTS_TW_CHAIN_BITS - 1`, so the maximum sum is
+This process starts by breaking a 128-bit message into `WOTS_TW_CHAIN_COUNT1` integers of `WOTS_TW_CHAIN_BITS` bits each in the range `[0, 2**WOTS_TW_CHAIN_BITS)`.
+The maximum possible sum of those indexes would be if every index was equal to `2**WOTS_TW_CHAIN_BITS - 1`, so the maximum sum is
 
 ```py
 WOTS_TW_CHECKSUM_MAX = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
@@ -1003,7 +1117,8 @@ def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
 
 This algorithm is used by both signer and verifier, and **it is security-critical for both implementations to match.**
 
-Note especially how the _low-order_ bits of the checksum are shifted off first, and they are inserted snugly at the very end of the checksum indexes, with some padding bits which are always zero in between them and the message indexes. The checksum bits are NOT appended directly to the message indexes.
+Note especially how the _low-order_ bits of the checksum are shifted off first, and they are inserted snugly at the very end of the checksum indexes, with some padding bits which are always zero in between them and the message indexes.
+The checksum bits are NOT appended directly to the message indexes.
 
 
 ##### Example
@@ -1137,19 +1252,28 @@ def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, AD
 
 ### WOTS+C
 
-WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c]. It is superior in compactness & performance, but we nonetheless use WOTS-TW for the stateless path to retain compatibility with SLH-DSA[^slhdsa], while WOTS+C is used in the custom stateful component of SHRINCS to reduce signature size.
+WOTS+C was designed as an improvement to WOTS-TW[^sphincs+c].
+It is superior in compactness & performance, but we nonetheless use WOTS-TW for the stateless path to retain compatibility with SLH-DSA[^slhdsa], while WOTS+C is used in the custom stateful component of SHRINCS to reduce signature size.
 
-WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any message must be mapped to a set of indexes that sum to a fixed constant. This prevents WOTS forgeries because an incremental increase in any index of a hash chain must be balanced out by decrementing a different index. It also ensures a constant-time verifier because the total number of hash operations needed to complete every WOTS hash chain is fixed.
+WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any message must be mapped to a set of indexes that sum to a fixed constant.
+This prevents WOTS forgeries because an incremental increase in any index of a hash chain must be balanced out by decrementing a different index.
+It also ensures a constant-time verifier because the total number of hash operations needed to complete every WOTS hash chain is fixed.
 
-The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value. It can be computed by:
+The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value.
+It can be computed by:
 
 ```py
 WOTS_C_CONSTANT_SUM = ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)
 ```
 
-Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes. To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter. The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly. If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
+Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes.  <!-- TODO: template these numbers -->
+To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter.
+The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly.
+If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
-Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`. This counter is appended to the WOTS+C signature. The verifier rejects counters which don't map the message to a constant-sum index-set.
+Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`.
+This counter is appended to the WOTS+C signature.
+The verifier rejects counters which don't map the message to a constant-sum index-set.
 
 
 #### `wots_c_grind_to_constant_sum(...)`
@@ -1182,7 +1306,8 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
 ```
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
-We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature. There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup><!-- CONST START WOTS_C_GRIND_FAIL_PROBABILITY_LOG -->1450<!-- CONST END WOTS_C_GRIND_FAIL_PROBABILITY_LOG --></sup>[^wotsgrind] - practically impossible.
+We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature.
+There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup><!-- CONST START WOTS_C_GRIND_FAIL_PROBABILITY_LOG -->1450<!-- CONST END WOTS_C_GRIND_FAIL_PROBABILITY_LOG --></sup>[^wotsgrind] - practically impossible.
 
 > [!NOTE]
 > [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
@@ -1339,13 +1464,16 @@ def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: byt
 
 The _eXtended Merkle Signature Scheme_ (XMSS) is a stateful hash-based signature scheme which can produce signatures on up to a fixed number of messages.
 
-Conceptually, an XMSS keypair is a merkle tree whose leaves are one-time signature (OTS) keypairs. The XMSS public key is the root hash of the merkle tree. An XMSS signature is an OTS signature alongside a merkle tree authentication proof which links the OTS public key to the merkle root hash. The verifier recomputes the OTS public key, and follows the merkle proof to recompute the XMSS public key.
+Conceptually, an XMSS keypair is a merkle tree whose leaves are one-time signature (OTS) keypairs.
+The XMSS public key is the root hash of the merkle tree.
+An XMSS signature is an OTS signature alongside a merkle tree authentication proof which links the OTS public key to the merkle root hash.
+The verifier recomputes the OTS public key, and follows the merkle proof to recompute the XMSS public key.
 
 In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful and stateless components of a SHRINCS keypair.
 
 ```
       XMSS (balanced)                  |             FXMSS (flexible)
-
+                                       |
            root                        |                 root
        ___/    \___                    |                /    \
       O            O                   |               O      L
@@ -1357,31 +1485,47 @@ In SHRINCS, we instantiate XMSS twice, to be used differently in both stateful a
                 O = inner Merkle node    L = WOTS leaf (OTS keypair)
 ```
 
-Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key. Their tree structures differ: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
+Both schemes are Merkle trees whose leaves are OTS keypairs and whose root is the public key.
+Their tree structures differ: XMSS (stateless path) is always a perfectly balanced tree of fixed height, while FXMSS (stateful path) admits flexible structures, with WOTS+C leaves placed at varying depths.
 
 - In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SLH-DSA hypertree, and to certify FORS public keys.
 - In the stateful component, Flexible XMSS (FXMSS) is used with WOTS+C to sign messages directly.
 
-In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `SPHX_XMSS_HEIGHT`. This matches the XMSS tree structure specified in FIPS-205.
+In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `SPHX_XMSS_HEIGHT`.
+This matches the XMSS tree structure specified in FIPS-205.
 
-In FXMSS (stateful path), merkle trees can be balanced or unbalanced, and the WOTS+C leaf keys may be placed up to `FXMSS_HEIGHT` layers deep. This permits more flexible constructions.
+In FXMSS (stateful path), merkle trees can be balanced or unbalanced, and the WOTS+C leaf keys may be placed up to `FXMSS_HEIGHT` layers deep.
+This permits more flexible constructions.
 
-Notably for security, XMSS is always used as part of the SPHINCS (SLH-DSA) framework to sign trusted messages generated by the signer, while FXMSS is used as a standalone scheme and so may sign untrusted messages. This means the interfaces of both XMSS and FXMSS are slightly different, and this is a crucial security requirement.
+Notably for security, XMSS is always used as part of the SPHINCS (SLH-DSA) framework to sign trusted messages generated by the signer, while FXMSS is used as a standalone scheme and so may sign untrusted messages.
+This means the interfaces of both XMSS and FXMSS are slightly different, and this is a crucial security requirement.
 
 >[!note]
 > ### On Merkle Tree Positions
 >
 > Every node in an XMSS or FXMSS merkle tree is identified by a pair of coordinates: a _height_ and an _index_.
 >
-> The index counts nodes from the left within a layer, starting at zero. The node at height `h` and index `i` has child nodes at indexes `2*i` (left) and `2*i + 1` (right) at height `h - 1`. Conversely, the ancestor of that node `j` layers above it has index `i >> j`, and the sibling of that ancestor has index `(i >> j) ^ 1`.
+> The index counts nodes from the left within a layer, starting at zero.
+> The node at height `h` and index `i` has child nodes at indexes `2*i` (left) and `2*i + 1` (right) at height `h - 1`.
+> Conversely, the ancestor of that node `j` layers above it has index `i >> j`, and the sibling of that ancestor has index `(i >> j) ^ 1`.
 >
 > More specifically for the different merkle tree constructions of XMSS, FXMSS, and FORS:
 >
-> - In XMSS, the WOTS-TW leaves sit at height 0, and the root sits at height `SPHX_XMSS_HEIGHT`. All leaves share a common layer.
-> - In FXMSS, the WOTS+C leaves can sit at any height, and the root always sits at height `FXMSS_HEIGHT`. We often refer to a node's depth as its distance below the root: `depth = FXMSS_HEIGHT - height`. Because WOTS+C leaves may be placed at different depths, there is no common leaf layer. A leaf sits at height 0 only at the maximum depth of 255. In this sense `FXMSS_HEIGHT` is an "imaginary" height because no real FXMSS tree can fully explore the enormous possible space of 2<sup>256</sup> nodes.
-> - In FORS, the preimage leaves sit at height 0, and the root of each of the merkle trees in the forest is at height `SPHX_FORS_HEIGHT`. All leaves share a common layer, but internally FORS tree node indexes count across the entire forest, and so the indexing scheme is more subtle. A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `j * 2**(SPHX_FORS_HEIGHT - h) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type. In other words, the index of a FORS node or leaf must account for all the other nodes to its left at the same height in the other FORS trees.
+> - In XMSS, the WOTS-TW leaves sit at height 0, and the root sits at height `SPHX_XMSS_HEIGHT`.
+>   All leaves share a common layer.
+> - In FXMSS, the WOTS+C leaves can sit at any height, and the root always sits at height `FXMSS_HEIGHT`.
+>   We often refer to a node's depth as its distance below the root: `depth = FXMSS_HEIGHT - height`.
+>   Because WOTS+C leaves may be placed at different depths, there is no common leaf layer.
+>   A leaf sits at height 0 only at the maximum depth of 255.
+>   In this sense `FXMSS_HEIGHT` is an "imaginary" height because no real FXMSS tree can fully explore the enormous possible space of 2<sup>256</sup> nodes.
+> - In FORS, the preimage leaves sit at height 0, and the root of each of the merkle trees in the forest is at height `SPHX_FORS_HEIGHT`.
+>   All leaves share a common layer, but internally FORS tree node indexes count across the entire forest, and so the indexing scheme is more subtle.
+>   A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `j * 2**(SPHX_FORS_HEIGHT - h) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type.
+>   In other words, the index of a FORS node or leaf must account for all the other nodes to its left at the same height in the other FORS trees.
 >
-> When merkle nodes are combined with the hash function `H`, the coordinates written into the `ADRS` are those of the node being computed (the parent), not of its children. In XMSS, the tree height field of an `SL_XMSS_TREE` address therefore only takes values 1 through `SPHX_XMSS_HEIGHT` - Leaf nodes are not addressed by tree coordinates at all, but through the WOTS-TW keypair index, which equals the leaf's index at height 0. In FXMSS (stateful path), a WOTS+C leaf's coordinates are carried in the `node_height` and `node_index` fields of `ADRS`.
+> When merkle nodes are combined with the hash function `H`, the coordinates written into the `ADRS` are those of the node being computed (the parent), not of its children.
+> In XMSS, the tree height field of an `SL_XMSS_TREE` address therefore only takes values 1 through `SPHX_XMSS_HEIGHT` - Leaf nodes are not addressed by tree coordinates at all, but through the WOTS-TW keypair index, which equals the leaf's index at height 0.
+> In FXMSS (stateful path), a WOTS+C leaf's coordinates are carried in the `node_height` and `node_index` fields of `ADRS`.
 
 Unlike a directionless merkle tree, XMSS requires explicit left/right direction in the structure of its merkle tree for security.[^xmss-directional]
 
@@ -1511,9 +1655,14 @@ def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, p
 
 ### Hypertree Signing
 
-The SHRINCS stateless path utilizes the design strategy of a _hypertree,_ first introduced by the original SPHINCS paper[^sphincs]. A hypertree is a tree of XMSS trees arranged into _layers_, where each OTS leaf signs the root hash of a child XMSS tree on the next layer down to certify the child tree's authenticity. Every child tree is thus verifiably connected to the root tree, in a similar fashion to TLS certificate chains. Each tree has `2**SPHX_XMSS_HEIGHT` such certified children.
+The SHRINCS stateless path utilizes the design strategy of a _hypertree,_ first introduced by the original SPHINCS paper[^sphincs].
+A hypertree is a tree of XMSS trees arranged into _layers_, where each OTS leaf signs the root hash of a child XMSS tree on the next layer down to certify the child tree's authenticity.
+Every child tree is thus verifiably connected to the root tree, in a similar fashion to TLS certificate chains.
+Each tree has `2**SPHX_XMSS_HEIGHT` such certified children.
 
-Because each XMSS tree is generated deterministically from a seed, the signer does not need to worry about OTS key reuse when certifying child XMSS trees, and so she can avoid caching every XMSS tree in the hypertree. The signer can _just-in-time_ generate the XMSS trees that will be used for a specific signature, and thereafter those trees can be discarded from memory. This diagram shows a simplified example with three layers of XMSS trees with height 2.
+Because each XMSS tree is generated deterministically from a seed, the signer does not need to worry about OTS key reuse when certifying child XMSS trees, and so she can avoid caching every XMSS tree in the hypertree.
+The signer can _just-in-time_ generate the XMSS trees that will be used for a specific signature, and thereafter those trees can be discarded from memory.
+This diagram shows a simplified example with three layers of XMSS trees with height 2.
 
 <img src="img/hypertree.svg">
 
@@ -1596,25 +1745,34 @@ def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_inde
 
 ### FXMSS
 
-FXMSS is the stateful signature component used by SHRINCS. An FXMSS signer selects a tree structure at key generation, subject to the addressing constraints described below.[^fxmss_node_index] The tree structure determines which positions in the FXMSS tree contain WOTS+C public keys.
+FXMSS is the stateful signature component used by SHRINCS.
+An FXMSS signer selects a tree structure at key generation, subject to the addressing constraints described below.[^fxmss_node_index]
+The tree structure determines which positions in the FXMSS tree contain WOTS+C public keys.
 
-The FXMSS verifier is agnostic to the positions of WOTS+C public keys other than the one used for the signature. It recomputes the FXMSS root from the WOTS+C signature, the position of the corresponding public key, and the Merkle authentication path. This allows signers to select their FXMSS tree structure at key generation without changing the verifier.
+The FXMSS verifier is agnostic to the positions of WOTS+C public keys other than the one used for the signature.
+It recomputes the FXMSS root from the WOTS+C signature, the position of the corresponding public key, and the Merkle authentication path.
+This allows signers to select their FXMSS tree structure at key generation without changing the verifier.
 
-Because of this flexibility, it is necessary for signers to remember what structure of FXMSS tree they created at key generation time. To encourage interoperability, we define an encoding for FXMSS tree structures which will be stored in the SHRINCS signer's serialized secret key as two additional bytes.
+Because of this flexibility, it is necessary for signers to remember what structure of FXMSS tree they created at key generation time.
+To encourage interoperability, we define an encoding for FXMSS tree structures which will be stored in the SHRINCS signer's serialized secret key as two additional bytes.
 
 A _tree structure_ for FXMSS is encoded as a tuple of two numbers: ***shape*** and ***depth***.
 
-- ***Shape*** is a flag byte that defines which FXMSS nodes are to be WOTS+C leaves. We will describe two recommended tree shapes below.
+- ***Shape*** is a flag byte that defines which FXMSS nodes are to be WOTS+C leaves.
+  We will describe two recommended tree shapes below.
 - ***Depth*** is an 8-bit unsigned integer describing the height of the FXMSS tree, or more precisely, the distance from the root node to the deepest leaf node.
 
 These two parameters define the FXMSS _tree structure_.
 
-The shape and depth bytes will be encoded in the serialized SHRINCS secret key so that implementations which import the key have a clear directive for how to build the same FXMSS tree in the SHRINCS stateful path. Implementations which import SHRINCS keys MUST respect the shape and depth bytes - doing otherwise would be unsafe and may lead to forgeries and theft.
+The shape and depth bytes will be encoded in the serialized SHRINCS secret key so that implementations which import the key have a clear directive for how to build the same FXMSS tree in the SHRINCS stateful path.
+Implementations which import SHRINCS keys MUST respect the shape and depth bytes - doing otherwise would be unsafe and may lead to forgeries and theft. <!-- TODO: not anymore -->
 
 
 #### Tree Shapes
 
-This specification prescribes two FXMSS tree shapes: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**. Both shapes use the same FXMSS verifier. They differ in how WOTS+C public keys are placed in the tree and selected for signing.
+This specification prescribes two FXMSS tree shapes: **Unbalanced XMSS (UXMSS)** and **Balanced XMSS (BXMSS)**.
+Both shapes use the same FXMSS verifier.
+They differ in how WOTS+C public keys are placed in the tree and selected for signing.
 
 The two shapes are identified by their respective constants.
 
@@ -1655,7 +1813,8 @@ However, since each WOTS+C leaf can be used only once, subsequent signatures wil
 
 Eventually after `depth + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and the last few stateful signatures will be very large.
 
-For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS (the maximum), as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path. FXMSS depth cannot exceed `FXMSS_HEIGHT = 255` because the FXMSS node height number is encoded into the signature and `ADRS` as a single byte.
+For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS (the maximum), as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path.
+FXMSS depth cannot exceed `FXMSS_HEIGHT = 255` because the FXMSS node height number is encoded into the signature and `ADRS` as a single byte.
 
 ##### `FXMSS_SHAPE_BALANCED`
 
@@ -1674,9 +1833,12 @@ When the shape byte is set to `FXMSS_SHAPE_BALANCED`, signers use a balanced bin
 leaf leaf leaf leaf  leaf leaf leaf leaf
 ```
 
-This FXMSS tree shape allows signers to generate a larger quantity of stateful signatures. Unlike UXMSS, stateful SHRINCS signatures using a BXMSS tree will have a consistent size, up until the stateful path is exhausted, because all WOTS+C leaves will use the same merkle authentication path length.
+This FXMSS tree shape allows signers to generate a larger quantity of stateful signatures.
+Unlike UXMSS, stateful SHRINCS signatures using a BXMSS tree will have a consistent size, up until the stateful path is exhausted, because all WOTS+C leaves will use the same merkle authentication path length.
 
-The `depth` of the BXMSS tree at key generation time has a significant impact on the performance of the SHRINCS stateful signing path. The exact size of the constant-size signatures is also dictated by `depth`: each step further from the root node we take, we must add 16 bytes to the FXMSS signature. Furthermore, each step doubles the number of leaf nodes, and so doubles the signature budget, but also doubles the amount of computational work needed for BXMSS key generation and/or signing.
+The `depth` of the BXMSS tree at key generation time has a significant impact on the performance of the SHRINCS stateful signing path.
+The exact size of the constant-size signatures is also dictated by `depth`: each step further from the root node we take, we must add 16 bytes to the FXMSS signature.
+Furthermore, each step doubles the number of leaf nodes, and so doubles the signature budget, but also doubles the amount of computational work needed for BXMSS key generation and/or signing.
 
 Signer implementations may specify any height for BXMSS trees depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
 
@@ -1692,7 +1854,10 @@ This specification only defines two shapes: BXMSS and UXMSS. For security and pr
 
 - Only nodes with index less than `2**64` are indexable in FXMSS.[^fxmss_node_index]
 - Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
-- A tree of depth 0 has no stateful signatures, whatever its shape. Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it. Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path. The signature counts given for each shape above therefore apply only from depth 1 upwards.
+- A tree of depth 0 has no stateful signatures, whatever its shape.
+  Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it.
+  Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path.
+  The signature counts given for each shape above therefore apply only from depth 1 upwards.
 - Implementations must take care when using SHRINCS secret keys imported from untrusted sources, especially if depending on shape and depth bytes for security-critical logic.
 
 
@@ -1865,26 +2030,36 @@ def fxmss_pubkey_from_sig(leaf_index: int, leaf_height: int, signature: bytes, m
 
 The stateless signing path of SHRINCS uses Forest Of Random Subsets (FORS), a hash-based _few-time_ signature scheme (FTS), to sign messages.
 
-Compared to one-time signature (OTS) schemes like Winternitz, FTS schemes are characterized by security which resists forgery even when a keypair is reused to sign multiple messages. The degradation in security can be quantified and calibrated using parameters, so that forgery-resistance does not reduce below a target bound. FORS is one such FTS scheme.
+Compared to one-time signature (OTS) schemes like Winternitz, FTS schemes are characterized by security which resists forgery even when a keypair is reused to sign multiple messages.
+The degradation in security can be quantified and calibrated using parameters, so that forgery-resistance does not reduce below a target bound.
+FORS is one such FTS scheme.
 
 
 #### Informal Description
 
 Here follows an informal description of the FORS FTS scheme as it is defined in FIPS-205.[^slhdsa]
 
-A FORS keypair consists of a _forest_ of merkle trees of a fixed size, where each leaf is a hash of a preimage derived by a PRF. We parameterize the number of merkle trees as `SPHX_FORS_COUNT`, and the height of each tree as `SPHX_FORS_HEIGHT`. The FORS public key is a hash of the merkle roots of the entire forest.
+A FORS keypair consists of a _forest_ of merkle trees of a fixed size, where each leaf is a hash of a preimage derived by a PRF.
+We parameterize the number of merkle trees as `SPHX_FORS_COUNT`, and the height of each tree as `SPHX_FORS_HEIGHT`.
+The FORS public key is a hash of the merkle roots of the entire forest.
 
-When signing, a message is mapped - via a salted hash - to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each. Each index identifies a specific preimage from each merkle tree which the signer must reveal, along a merkle authentication path. The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
+When signing, a message is mapped - via a salted hash - to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each.
+Each index identifies a specific preimage from each merkle tree which the signer must reveal, along a merkle authentication path.
+The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
 
 <img src="img/fors.svg">
 
 <sup>This diagram illustrates a toy FORS keypair, with merkle trees of height 2. Messages are mapped to a set of `k` 2-bit integers which select an index from each tree.</sup>
 
-Each signature reveals one of the preimages in each merkle tree in the forest. Over the course of many signatures, the signer may reuse preimages that have already been revealed in prior signatures, because some messages may map to intersecting index-sets.
+Each signature reveals one of the preimages in each merkle tree in the forest.
+Over the course of many signatures, the signer may reuse preimages that have already been revealed in prior signatures, because some messages may map to intersecting index-sets.
 
-Unless he has an efficient way to find preimages, an adversary must hope the signer publishes signatures which admits a forgery by mixing and matching preimages from prior signatures. The adversary _cannot_ control which index-sets the victim signs (because of the salt), and so he cannot trick the signer into exposing specific preimages, even if the adversary can query the signer for arbitrary signatures.
+Unless he has an efficient way to find preimages, an adversary must hope the signer publishes signatures which admits a forgery by mixing and matching preimages from prior signatures.
+The adversary _cannot_ control which index-sets the victim signs (because of the salt), and so he cannot trick the signer into exposing specific preimages, even if the adversary can query the signer for arbitrary signatures.
 
-However, the adversary _may_ grind to find a message and salt which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery. The probability that this occurs with a randomly sampled index-set can be reduced arbitrarily low by using more and taller trees, or by reducing the limit on the number of signatures the signer is expected to produce. This is formalized as the security notion of _interleaved target-subset resilience._[^sphincs+]
+However, the adversary _may_ grind to find a message and salt which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery.
+The probability that this occurs with a randomly sampled index-set can be reduced arbitrarily low by using more and taller trees, or by reducing the limit on the number of signatures the signer is expected to produce.
+This is formalized as the security notion of _interleaved target-subset resilience._[^sphincs+]
 
 
 ### FORS Algorithms
@@ -2054,11 +2229,16 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
 
 The stateless signing path of SHRINCS uses the _StateLess Hash-based Digital Signature Algorithm_ (SLH-DSA) defined in FIPS-205[^slhdsa] with a non-standard parameter set.
 
-SLH-DSA is built out of the WOTS-TW, XMSS, and FORS subschemes already defined earlier in this document. In SLH-DSA, the signer uses a hypertree of XMSS trees to sign one of many possible FORS keypairs, which then signs the actual message. The addition of FORS makes SLH-DSA secure against a limited degree of leaf reuse, allowing us to discard state-management requirements.
+SLH-DSA is built out of the WOTS-TW, XMSS, and FORS subschemes already defined earlier in this document.
+In SLH-DSA, the signer uses a hypertree of XMSS trees to sign one of many possible FORS keypairs, which then signs the actual message.
+The addition of FORS makes SLH-DSA secure against a limited degree of leaf reuse, allowing us to discard state-management requirements.
 
-By hashing a _randomizer_ with the message, the signer randomly selects the exact position of the FORS leaf used to sign the message, in a way the verifier can reproduce. This ensures an adversary querying the signer for signatures cannot control which FORS leaf a signer will use, nor can they predictably control which FORS leaf to use for a forgery. The randomizer is sampled pseudorandomly by the signer, using the `PRF_msg_sl` hash function.
+By hashing a _randomizer_ with the message, the signer randomly selects the exact position of the FORS leaf used to sign the message, in a way the verifier can reproduce.
+This ensures an adversary querying the signer for signatures cannot control which FORS leaf a signer will use, nor can they predictably control which FORS leaf to use for a forgery.
+The randomizer is sampled pseudorandomly by the signer, using the `PRF_msg_sl` hash function.
 
-The signer uses the selected FORS leaf to sign the message, and then certifies the FORS leaf using a hypertree signature. The final SLH-DSA signature consists of:
+The signer uses the selected FORS leaf to sign the message, and then certifies the FORS leaf using a hypertree signature.
+The final SLH-DSA signature consists of:
 
 - A 16-byte _randomizer_
 - A FORS signature on a message
@@ -2201,13 +2381,17 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 
 Above we have defined all the prerequisite building blocks of the SHRINCS scheme, and we are ready to define the high-level stateful and stateless key-generation, signing, and verification algorithms of SHRINCS.
 
-As described earlier in the [overview](#Overview), SHRINCS combines FXMSS (stateful) and SLH-DSA (stateless) into a single unified signature scheme. The stateful path admits very compact and efficient signatures, while the stateless path allows signers to retain signing capability even if state has been lost or corrupted.
+As described earlier in the [overview](#Overview), SHRINCS combines FXMSS (stateful) and SLH-DSA (stateless) into a single unified signature scheme.
+The stateful path admits very compact and efficient signatures, while the stateless path allows signers to retain signing capability even if state has been lost or corrupted.
 
 #### SHRINCS Keys
 
-A SHRINCS key pair starts its life at key-generation, which the caller seeds with 48 random bytes. These 48 random bytes are partitioned into 3 x 16-byte chunks: `sk_seed`, `sk_prf`, and `pk_seed`.
+A SHRINCS key pair starts its life at key-generation, which the caller seeds with 48 random bytes.
+These 48 random bytes are partitioned into 3 x 16-byte chunks: `sk_seed`, `sk_prf`, and `pk_seed`.
 
-From `sk_seed` and `pk_seed`, the key-generation procedure derives the roots of two merkle trees: `sl_root` and `sf_root`. These represent the stateless and stateful keypairs respectively. No additional parameters are needed to derive `sl_root`, but to derive `sf_root` the caller needs to know which `sf_structure` to apply in FXMSS (see [the section on FXMSS](#FXMSS) for more details).
+From `sk_seed` and `pk_seed`, the key-generation procedure derives the roots of two merkle trees: `sl_root` and `sf_root`.
+These represent the stateless and stateful keypairs respectively.
+No additional parameters are needed to derive `sl_root`, but to derive `sf_root` the caller needs to know which `sf_structure` to apply in FXMSS (see [the section on FXMSS](#FXMSS) for more details).
 
 Once both roots are generated, the caller combines them with `pk_seed` to form the SHRINCS public key:
 
@@ -2229,15 +2413,25 @@ This encoding is chosen such that slicing off the last 18 bytes (`sf_structure +
 
 #### Contexts
 
-The high-level `shrincs_sign` and `shrincs_verify` functions accept a context parameter `ctx`, which restricts signature validity to within a specific use-case, protocol, or other such zone of specificity. Signatures created by `shrincs_sign` when given a certain `ctx` are invalid if verified using `shrincs_verify` with any other context value. Typically `ctx` is set to some hard-coded constant value, to prevent misuse. For example, if a signer creates a signature with `ctx = b"bitcoin-tx"`, this signature cannot be replayed with `ctx = b"auth-challenge"`.
+The high-level `shrincs_sign` and `shrincs_verify` functions accept a context parameter `ctx`, which restricts signature validity to within a specific use-case, protocol, or other such zone of specificity.
+Signatures created by `shrincs_sign` when given a certain `ctx` are invalid if verified using `shrincs_verify` with any other context value.
+Typically `ctx` is set to some hard-coded constant value, to prevent misuse.
+For example, if a signer creates a signature with `ctx = b"bitcoin-tx"`, this signature cannot be replayed with `ctx = b"auth-challenge"`.
 
 This mirrors the interface of SLH-DSA[^slhdsa], and in fact the stateless signing component passes `ctx` transparently through to the `slh_dsa_sign` and `slh_dsa_verify` functions.
 
 #### On Managing State
 
-A SHRINCS secret key is not complete without its accompanying state. Every SHRINCS key has a fixed number of stateful signature slots which allow the signer to use compact WOTS+C signatures via the FXMSS (stateful) signing path. As previously discussed in [the section on WOTS](#wots-schemes), reusing a one-time signature keypair within FXMSS to sign distinct messages will break the security of the scheme and permit forgeries. To avoid using the same WOTS+C keypair more than once, signers using FXMSS must track a single integer, called the _state counter._ This counter tracks the number of signatures previously issued by the keypair. It increments once for every stateful FXMSS signature created, and _must never decrement._ When signing the SHRINCS stateful signing algorithm chooses which WOTS+C leaf to use based on the state counter, and the FXMSS tree structure.
+A SHRINCS secret key is not complete without its accompanying state.
+Every SHRINCS key has a fixed number of stateful signature slots which allow the signer to use compact WOTS+C signatures via the FXMSS (stateful) signing path.
+As previously discussed in [the section on WOTS](#wots-schemes), reusing a one-time signature keypair within FXMSS to sign distinct messages will break the security of the scheme and permit forgeries.
+To avoid using the same WOTS+C keypair more than once, signers using FXMSS must track a single integer, called the _state counter._
+This counter tracks the number of signatures previously issued by the keypair.
+It increments once for every stateful FXMSS signature created, and _must never decrement._
+When signing the SHRINCS stateful signing algorithm chooses which WOTS+C leaf to use based on the state counter, and the FXMSS tree structure.
 
-It is **absolutely critical for security that signers manage state counters extremely carefully.** Implementors must take note to avoid many dangerous state management practices which lead to state reuse:
+It is **absolutely critical for security that signers manage state counters extremely carefully.**
+Implementors must take note to avoid many dangerous state management practices which lead to state reuse:
 
 - State counters must not be backed up and restored by any mechanism.
 - State counters must not live in unprotected storage (e.g. shared memory, a user-accessible folder, etc).
@@ -2251,7 +2445,14 @@ If correct state is not available for any reason, such as when restoring from a 
 
 #### Maximum Message Length
 
-Every message SHRINCS hashes is bounded in length, because it is ultimately absorbed by SHA-256, which accepts at most `2**61 - 1` bytes. `shrincs_sign` and `shrincs_verify` cap `message` at `2**61 - 384` bytes. This cap is set by the longest prefix a message can sit behind. On the stateless path it reaches the innermost hash behind `98` bytes of fixed prefixes (the 64-byte HMAC block, the 16-byte `opt_rand`, the 2-byte SLH-DSA message prefix, and the 16-byte `sf_root`); on the stateful path, behind `107` (the 64-byte HMAC block, the 16-byte `pk_seed`, the 9-byte leaf position, the 2-byte binding prefix, and the 16-byte `sl_root`), which is the longer of the two. The caller's `ctx` is prepended on either path, adding up to a further 255 bytes, so the longest prefix any message sits behind is `362`. SHA-256's limit then gives an exact maximum of `2**61 - 363` bytes, which we round down to `2**61 - 384`, the largest multiple of SHA-256's 64-byte block size that stays within this limit. The intermediate functions in between accept *a variable-length message*. Its length still carries an upper bound, just an implicit one, set by the primitive bounds above rather than stated at each function: a SHRINCS `message` is already capped, and each intermediate prepends at most a known number of bytes to it, so every hash input stays within SHA-256's limit by construction. No realistic message will ever approach this cap.
+Every message SHRINCS hashes is bounded in length, because it is ultimately absorbed by SHA-256, which accepts at most `2**61 - 1` bytes.
+`shrincs_sign` and `shrincs_verify` cap `message` at `2**61 - 384` bytes.
+This cap is set by the longest prefix a message can sit behind.
+On the stateless path it reaches the innermost hash behind `98` bytes of fixed prefixes (the 64-byte HMAC block, the 16-byte `opt_rand`, the 2-byte SLH-DSA message prefix, and the 16-byte `sf_root`); on the stateful path, behind `107` (the 64-byte HMAC block, the 16-byte `pk_seed`, the 9-byte leaf position, the 2-byte binding prefix, and the 16-byte `sl_root`), which is the longer of the two.
+The caller's `ctx` is prepended on either path, adding up to a further 255 bytes, so the longest prefix any message sits behind is `362`.
+SHA-256's limit then gives an exact maximum of `2**61 - 363` bytes, which we round down to `2**61 - 384`, the largest multiple of SHA-256's 64-byte block size that stays within this limit.
+The intermediate functions in between accept *a variable-length message*.
+Its length still carries an upper bound, just an implicit one, set by the primitive bounds above rather than stated at each function: a SHRINCS `message` is already capped, and each intermediate prepends at most a known number of bytes to it, so every hash input stays within SHA-256's limit by construction. No realistic message will ever approach this cap.
 
 #### SHRINCS Algorithms
 
@@ -2512,21 +2713,28 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
 
 ## On Signing Fallibility
 
-The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` if the function fails. This originates from an edgecase condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` if the function fails.
+This originates from an edgecase condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
 
-While this edgecase is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe. See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.
+While this edgecase is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe.
+See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.
 
-Still, as this python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms. Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`, and `wots_c_grind_to_constant_sum` as infallible functions, provided all input invariants are satisfied.
+Still, as this python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms.
+Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`, and `wots_c_grind_to_constant_sum` as infallible functions, provided all input invariants are satisfied.
 
 
 ## Reference Implementation
 
 We provide a naive, highly inefficient, and non-constant time pure Python 3 implementation of the SHRINCS algorithms in [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
 
-Tests are provided in [`impl/test.py`](./impl/test.py). Comprehensive test vectors covering every algorithm are still TODO; they are required to advance this proposal from Draft to Complete.
+Tests are provided in [`impl/test.py`](./impl/test.py).
+Comprehensive test vectors covering every algorithm are still TODO; they are required to advance this proposal from Draft to Complete.
 
 > [!WARNING]
-> The implementation is for demonstration purposes only and not to be used in production environments. It exists to generate test vectors and to serve as an executable specification to write independent implementations against. It does not sample or protect secret key material, and it performs no state management at all: `shrincs_sign` takes the state counter as a caller-supplied argument and does nothing to prevent the same counter being used twice. See [On Managing State](#on-managing-state) for the rules a real implementation must enforce.
+> The implementation is for demonstration purposes only and not to be used in production environments.
+> It exists to generate test vectors and to serve as an executable specification to write independent implementations against.
+> It does not sample or protect secret key material, and it performs no state management at all: `shrincs_sign` takes the state counter as a caller-supplied argument and does nothing to prevent the same counter being used twice.
+> See [On Managing State](#on-managing-state) for the rules a real implementation must enforce.
 
 TODO: optimized implementation
 
