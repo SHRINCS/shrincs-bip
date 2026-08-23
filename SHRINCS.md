@@ -39,7 +39,7 @@ The minimum combined size of a SHRINCS public key and stateful signature is roug
 At a high level, a SHRINCS instance combines two hash-based signature schemes:
 
 1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^sphincs+c] one-time signatures.
-2. A **stateless** component — SLH-DSA as defined in NIST FIPS-205[^slhdsa], but with a non-standard parameter set.
+2. A **stateless** component — SLH-DSA (AKA SPHINCS+) as defined in NIST FIPS-205[^slhdsa], but with a non-standard parameter set.
 
 A signature from either component is sufficient to pass verification.
 The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable (lost, corrupted, or intentionally reset, e.g. after seed recovery).
@@ -77,6 +77,7 @@ Public key and signature sizes are summarized below:
 
 ### Relation to SLH-DSA
 
+SLH-DSA[^slhdsa] is the NIST-standardized variant of SPHINCS+[^sphincs+], which SHRINCS descends from.
 The stateless component of SHRINCS uses the SLH-DSA algorithms defined in NIST FIPS-205 with a parameter set that is not among those standardized in FIPS-205 (see [Parameters](#parameters)).
 The hash functions are instantiated with SHA256, as in the FIPS-205 parameter sets of the SHA2 family at security category 1.
 
