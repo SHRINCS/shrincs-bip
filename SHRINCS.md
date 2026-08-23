@@ -173,23 +173,31 @@ One can also improve stateless SHRINCS signing performance at the cost of statel
 
 ### Why not use a standardized SLH-DSA parameter set?
 
-The stateless fallback uses a non-standard SLH-DSA parameter set primarily to reduce the signature budget from 2<sup>64</sup> to 2<sup>40</sup> signatures per public key.
-Reducing the signature budget reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes, a reduction of <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->26<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->%.
-SHRINCS' stateless parameter also requires <!-- CONST START SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->23<!-- CONST END SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->% less work to sign, and <!-- CONST START SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->28<!-- CONST END SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->% less work to verify, compared to SLH-DSA-SHA2-128s.
+Hash-based signature schemes always involve revealing specific preimages to authenticate a signer.
+After enough signatures, so many preimages will have been revealed as to render the keypair insecure.
+This is why all hash-based signature schemes come with a parameter called a _signature budget,_ indicating the maximum number of signatures a key can safely issue before the security of the key (against forgery) degrades below an acceptable level.
 
-The reduced signature budget remains far beyond what could be exercised on-chain.
+The signature budget of SLH-DSA is dictated by its parameter set.
+Standardized SLH-DSA parameter sets target a signature budget of 2<sup>64</sup>.
+The stateless component of SHRINCS uses a non-standard SLH-DSA parameter set, primarily to reduce the signature budget from 2<sup>64</sup> to 2<sup>40</sup> signatures per public key.
+Reducing the signature budget reduces the stateless signature size from 7856 bytes in SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes in SHRINCS, a reduction of <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->26<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->%.
+SHRINCS' stateless parameter set also requires <!-- CONST START SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->23<!-- CONST END SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->% less work to sign, and <!-- CONST START SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->28<!-- CONST END SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->% less work to verify, compared to SLH-DSA-SHA2-128s.
+
+The reduced signature budget in SHRINCS remains far beyond what could be exercised on-chain in Bitcoin.
 With Bitcoin's current 4 MB block size limit, 200 years of blocks would consume approximately <!-- CONST START SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->0.66<!-- CONST END SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->% of a key's signature budget if all block space were used for stateless SHRINCS signatures under that public key.
 
-The 2<sup>40</sup> signature budget is not reduced further for two reasons: off-chain protocols may generate many signatures under one public key, and a smaller budget would be easier to exhaust through repeated signing requests.
+The 2<sup>40</sup> signature budget is not reduced further for two reasons.
 
-Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain.
+First, off-chain protocols may generate many signatures under one public key.
+Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain, but may be seen by adversaries.
 A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
 
+Second, a smaller budget would be easier to exhaust through repeated adversarial signing requests.
 An attacker who can request signatures can in principle exhaust any finite signature budget, but a smaller budget makes such an attack more practical.
 With a sufficiently small budget, an implementation would need to count signatures persistently and stop signing before the budget was exhausted, making the scheme effectively stateful.
 The time required to generate each signature limits how quickly the budget can be exhausted.
 Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
-At a sustained rate of 1,000 signatures per second, producing 2<sup>40</sup> signatures would take approximately 35 years.[^vulkan]
+At a sustained rate of 1,000 signatures per second, producing 2<sup>40</sup> signatures would take approximately 35 years.
 
 ### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
 
