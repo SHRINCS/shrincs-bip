@@ -214,17 +214,6 @@ This rigidity has several motivations:
 
 SHRINCS instead aims for a balanced parameter set which is flexible enough to support any on-chain or off-chain use case within Bitcoin.
 
-### Why not use a SPHINCS+ variant with smaller signatures for the stateless component?
-
-The stateless component of SHRINCS uses the SLH-DSA algorithms defined in FIPS-205.
-An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work.
-The stateless component also benefits from analysis of these algorithms conducted during the development and standardization of SLH-DSA.
-
-This choice comes at the cost of larger signatures.
-For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the stateless scheme specified here.
-
-However, the security, convenience, and interoperability benefits of FIPS-205 compatibility justify the slightly larger stateless signatures.
-
 ### Why these specific parameters?
 
 SLH-DSA parameters have very sensitive security requirements, and designers need automated parameter search and visualization tools[^sl_param_tool][^sl_param_search] to fully assess and compare candidate parameter sets.
@@ -237,6 +226,17 @@ Because SHRINCS' verification is cheaper per-byte than Schnorr, SHRINCS allows f
 The most obvious change one could make to the stateful parameters would be to increase `WOTS_C_CHAIN_BITS`, and thus decrease `WOTS_C_CHAIN_COUNT`.
 This would give us smaller stateful signatures, but would increase key-generation and signing costs significantly, while verification cost increases too, but more gradually.
 These changes would also result in a verification cost-per-byte noticeably greater than the stateless component, approaching that of Schnorr.
+
+### Why not use a SPHINCS+ variant with smaller signatures for the stateless component?
+
+The stateless component of SHRINCS uses the SLH-DSA algorithms defined in FIPS-205.
+An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work.
+The stateless component also benefits from analysis of these algorithms conducted during the development and standardization of SLH-DSA.
+
+This choice comes at the cost of larger signatures.
+For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the stateless scheme specified here.
+
+However, the security, convenience, and interoperability benefits of FIPS-205 compatibility justify the slightly larger stateless signatures.
 
 ### Why not a hybrid scheme?
 
