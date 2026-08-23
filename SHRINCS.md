@@ -91,7 +91,7 @@ The exact correspondence between parameters common between this document and FIP
 As a hash-based signature scheme, the primary performance bottleneck in SHRINCS is in the computation of a hash function, namely SHA256.
 The faster a computer can perform SHA256 hashing, the faster it can create SHRINCS keys, issue new signatures, and/or verify signatures.
 
-In this section, we'll show the exact costs (in terms of SHA256 compressions) needed to run different SHRINCS algorithms.
+In this section, we'll show the exact costs to run different SHRINCS algorithms, denominated in terms of SHA256 compressions which dominate SHRINCS runtime.
 The computations used to generate the numbers below are shown in [`impl/meta.py`](./impl/meta.py).
 
 ### Verification
