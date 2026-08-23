@@ -199,6 +199,20 @@ The time required to generate each signature limits how quickly the budget can b
 Signing devices that require manual approval for every signature cannot feasibly exhaust a 2<sup>40</sup> budget, while automated signers can use rate limiting to make exhaustion impractical.
 At a sustained rate of 1,000 signatures per second, producing 2<sup>40</sup> signatures would take approximately 35 years.
 
+### Why not support multiple parameter sets?
+
+Given the diverse configurability of SHRINCS' components, it would be reasonable to wonder if one could allow different parameter sets within a unified SHRINCS scheme, and so support more use-cases.
+Taken to the extreme, signers could even select their own parameters at key-generation time.
+
+SHRINCS elects to fix only a single parameter set for both the stateful and stateless components, rather than allowing signers to customize parameters between keys.
+This rigidity has several motivations:
+
+- Misuse resistance. Wallet developers could misunderstand or misuse different parameter sets, or pick unsafe parameters.
+- Simplicity. Verifiers would need to support multiple parameter sets, which adds complexity, handicaps optimization and may introduce denial of service attacks.
+- Privacy. Multiple parameter sets would degrade privacy for the entire network as wallet fingerprinting would be even easier.
+
+SHRINCS instead aims for a balanced parameter set which is flexible enough to support any on-chain or off-chain use case within Bitcoin.
+
 ### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
 
 To facilitate adoption, the stateless fallback retains the SLH-DSA algorithms defined in FIPS-205.
