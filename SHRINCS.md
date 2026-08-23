@@ -28,7 +28,7 @@ Bitcoin outputs may remain unspent for long periods, making conservative cryptog
 This conservatism gives hash-based signature schemes like SHRINCS a distinct place in the cryptographic design space, even when schemes from other families offer better size or performance.
 
 Signature size is particularly important in Bitcoin because signatures consume scarce block space.
-SHRINCS therefore offers signers a stateful signing path at the cost of additional implementation complexity.
+SHRINCS therefore offers signers a compact stateful signing path at the cost of additional implementation complexity.
 This path allows SHRINCS to leverage the fact that a key pair in Bitcoin is typically used only a few times.
 As a result, stateful SHRINCS signatures can be many times smaller than those of standardized hash-based signature schemes.
 The minimum combined size of a SHRINCS public key and stateful signature is roughly <!-- CONST START SLH_DSA_128S_SIZE_RATIO -->13.23<!-- CONST END SLH_DSA_128S_SIZE_RATIO -->x smaller than that of SLH-DSA-SHA2-128s[^slhdsa] and <!-- CONST START ML_DSA_SIZE_RATIO -->6.26<!-- CONST END ML_DSA_SIZE_RATIO -->x smaller than that of the lattice-based ML-DSA-44 scheme (which targets NIST security category 2, whereas SHRINCS targets category 1).
@@ -50,20 +50,22 @@ In XMSS, the public key is the root of a Merkle tree whose leaves are one-time-s
 The signer must maintain state so that no leaf is used to sign more than once.
 
 FXMSS is _flexible_ in that the signer chooses the shape of the tree.
-An _unbalanced_ tree minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures; a _balanced_ tree instead produces constant-size signatures.
+An _unbalanced_ tree minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures.
+A _balanced_ tree instead produces constant-size signatures.
 
-The **stateless** component generates larger signatures.
+The **stateless** component generates larger signatures, but does not require the signer to manage state.
 SLH-DSA has a _signature budget_ — the maximum number of signatures it can produce before its security begins to degrade.
 Standardized SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
 
-Each component produces a 16-byte root as part of its public key.
+Each component produces a 16-byte root hash as part of its public key.
 These two roots, together with a 16-byte seed value, form the 48-byte SHRINCS public key:
 
 ```py
-PK = PK.seed || PK.sl_root || PK.sf_root
+PK = pk_seed || sl_root || sf_root
 ```
 
-Verification recomputes the relevant component's root from the signature and checks it against the corresponding root in `PK`: a stateful signature against `PK.sf_root`, a stateless signature against `PK.sl_root`.
+The SHRINCS verification algorithm consists mostly of evaluating a series of hash functions on elements of the signature to recompute a certain hash.
+Ultimately the verifier recomputes one of the SHRINCS public key components: a stateful signature is checked against `sf_root`, a stateless signature against `sl_root`.
 
 Public key and signature sizes are summarized below:
 
@@ -78,11 +80,11 @@ Public key and signature sizes are summarized below:
 The stateless component of SHRINCS uses the SLH-DSA algorithms defined in NIST FIPS-205 with a parameter set that is not among those standardized in FIPS-205 (see [Parameters](#parameters)).
 The hash functions are instantiated with SHA256, as in the FIPS-205 parameter sets of the SHA2 family at security category 1.
 
-The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except that `slh_dsa_sign` receives optional additional randomness from its caller rather than generating it internally.
+The algorithms specified below, `slh_dsa_sign` and `slh_dsa_verify`, match the FIPS-205 algorithms `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24), except that in this document `slh_dsa_sign` receives optional additional randomness from its caller rather than generating it internally as in FIPS-205 Algorithm 22.
 An SLH-DSA implementation that supports custom parameter sets can therefore be used for the stateless component of SHRINCS, with a thin wrapper to produce SHRINCS signatures.
 
 This document nonetheless respecifies these algorithms in full, rather than referring to FIPS-205, in order to present both components of SHRINCS in one consistent notation.
-The exact correspondence is given in [the section on stateless parameters](#stateless-parameters).
+The exact correspondence between parameters common between this document and FIPS-205 is given in [the section on stateless parameters](#stateless-parameters).
 
 ## Performance
 
