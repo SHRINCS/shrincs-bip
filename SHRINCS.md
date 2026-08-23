@@ -224,20 +224,19 @@ This choice comes at the cost of larger signatures.
 For the same 2<sup>40</sup> signature budget, using SPHINCS+C[^sphincs+c] or replacing FORS with PORS+FP[^porsfp] could reduce the stateless signature size by approximately 15% compared with the stateless scheme specified here.
 
 However, the security, convenience, and interoperability benefits of FIPS-205 compatibility justify the slightly larger stateless signatures.
+
 ### Why these specific parameters?
 
-We chose the stateless parameters such that signing, key-generation, and verification costs remain bounded below that of the "short" SLH-DSA parameter sets (e.g. SLH-DSA-SHA2-128s), which we used as a yardstick for what is considered reasonable by standards bodies like NIST.
+SLH-DSA parameters have very sensitive security requirements, and designers need automated parameter search and visualization tools[^sl_param_tool][^sl_param_search] to fully assess and compare candidate parameter sets.
+The stateless parameters for SHRINCS are chosen such that signing, key-generation, and verification costs remain bounded below that of the "short" SLH-DSA parameter sets (e.g. SLH-DSA-SHA2-128s), which are used as a yardstick for what is considered reasonable by standards bodies like NIST.
 
-We chose the stateful parameters to minimize the cost-per-byte of verifying SHRINCS signatures, while keeping the worst-case cost-per-byte relatively consistent across the stateful and stateless components, and allowing for the possibility for a witness discount to accompany SHRINCS deployment (we do not specifically require or endorse such a change).
+The stateful parameters are chosen to minimize the cost-per-byte of verifying SHRINCS signatures, while keeping the worst-case cost-per-byte relatively consistent across the stateful and stateless components.
 
-The most obvious change we could make to the stateful parameters would be to double `WOTS_C_CHAIN_BITS` and halve `WOTS_C_CHAIN_COUNT`.
-This would give us stateful signatures roughly half the size, but would increase key-generation and signing costs by almost a factor of 10x, while verification cost increases more than 4x, leading to a cost-per-byte of about 8x what we have with our proposed parameters.
+Because SHRINCS' verification is cheaper per-byte than Schnorr, SHRINCS allows for the possibility that a witness discount may accompany its deployment, although it does not specifically require such a change.
 
-With a small change in algorithms, we could also set `WOTS_C_CHAIN_BITS = 5`, which would change `WOTS_C_CHAIN_COUNT` to not be a clean power of two.
-Compatibility with SLH-DSA is not required on the stateful path, so this algorithmic change would be acceptable.
-This earns us \~20% smaller stateful signatures in exchange for a 2x slowdown in key-generation speed, a negligible 1.5x slowdown in signing speed, and a minor 1.1x slowdown in verification speed.
-
-TODO further explanations, perhaps reference https://mjthatch.github.io/SPHINCS-Parameters/site and benchmark verification against Schnorr using HW accel?
+The most obvious change one could make to the stateful parameters would be to increase `WOTS_C_CHAIN_BITS`, and thus decrease `WOTS_C_CHAIN_COUNT`.
+This would give us smaller stateful signatures, but would increase key-generation and signing costs significantly, while verification cost increases too, but more gradually.
+These changes would also result in a verification cost-per-byte noticeably greater than the stateless component, approaching that of Schnorr.
 
 ### Why not a hybrid scheme?
 
@@ -2800,6 +2799,8 @@ This document is licensed under the 3-clause BSD license.
 [^sha256x8]: https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c
 [^vulkan]: For comparison, a 2025 benchmark of a [Vulkan implementation of SLH-DSA-SHA2-128s](https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA) reports a signing time of 2.67 ms on a commodity RTX 3060 Ti GPU.
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
+[^sl_param_tool]: https://blockstreamresearch.github.io/SPHINCS-Parameters/site/stateless.html
+[^sl_param_search]: https://github.com/conduition/slh-experiments/blob/d0c56b173a2b1ecacaf9222aafa6868b1b7df504/param_search.py - To recover the SHRINCS parameters from this script, run it with the following arguments: `param_search.py --max-sigs '2**40' --secbits 128  --max-verify-hashes 2800 --max-kilohashes 2200 --no-cache --max-sig-size 5800`
 [^ledger-bench]: https://youtu.be/V59OkKfATng?si=Q6MsI7VBm5NMdJWZ&t=2297
 [^trezor-bench]: https://github.com/trezor/trezor-firmware/pull/4901 and https://gist.github.com/onvej-sl/3851bdae7ae5aa1f2624ca769737ea2e
 [^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
