@@ -118,8 +118,10 @@ Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have
 SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes.
 The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation.
 In general, putting more up-front work into key-generation allows the key a larger stateful signature budget.
+The key-generation cost of the stateless component is constant.
 
 Here we have illustrated several examples of SHRINCS key generation costs for different stateful structures.
+Note this cost includes both stateful and stateless components.
 
 | Stateful Structure | Total Key Generation Cost in SHA256 Compressions | Stateful Signature Budget |
 |-|-|-|
