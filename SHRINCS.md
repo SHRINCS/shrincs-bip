@@ -313,14 +313,15 @@ See [On Managing State](#on-managing-state) for the state management rules a com
 
 ### Why does the stateful path use "flexible" XMSS?
 
-Supporting only one tree shape between balanced XMSS (BXMSS) or unbalanced XMSS (UXMSS) locks out some use-cases from using the stateful path.
+SHRINCS uses FXMSS in its stateful component, which supports binary merkle trees of (almost) arbitrary structure.
+This is because supporting only one tree shape, such as balanced XMSS (BXMSS) or unbalanced XMSS (UXMSS), locks out some use-cases from using the stateful path.
 Balanced and unbalanced XMSS tree shapes have completely different usage profiles and trade-offs against one-another.
 
 | Property | UXMSS | BXMSS |
 |:-:|:-:|:-:|
-| Keygen Speed | Fast | Slow |
-| Budget | Sign only a few times | Sign many times |
-| Signature size | Compact, variable size signatures | Larger fixed-size signatures |
+| Keygen speed | Fast | Slow |
+| Signature budget | Sign only a few times | Sign many times |
+| Signature size | Compact, grows with use | Larger, fixed-size |
 | Primary use cases | Personal wallets; single-use certification; cooperative signing | Address reuse; L2 protocols; persistent identity |
 
 SHRINCS verifiers should therefore support either shape, so that the more-efficient stateful component can satisfy the needs of as many users as possible.
@@ -328,11 +329,11 @@ After all, verifiers need not care about exactly how many signatures a keypair c
 
 The naive way to support both balanced/unbalanced shapes would be to publish or commit a flag into each SHRINCS public key that identifies whether the stateful component uses balanced or unbalanced XMSS, and then react appropriately to that flag in the verifier.
 
-However, we found that the verifier could be made agnostic to the XMSS tree structure, which enables a single unified verifier code path that covers any tree structure.
+In SHRINCS, the verifier is agnostic to the stateful XMSS tree structure, which enables a single unified verifier code path that covers any signer's tree, no matter how it is structured.
 This "flexible XMSS" (FXMSS) verifier can accept signatures from other more complex XMSS tree structures as well as BXMSS and UXMSS.
-This means stateful SHRINCS XMSS trees can be designed to fit highly specialized use-cases e.g. a keypair which produces constant size signatures for the first $n$ signatures and then the size doubles; or a keypair which produces short signatures of increasing size a la UXMSS, until some threshold point where the signature size locks to some constant until the rest of the XMSS budget is exhausted.
+This means stateful SHRINCS FXMSS trees can be designed to fit highly specialized use-cases, e.g. a keypair which produces constant size signatures for the first `n` signatures and then the size doubles; or a keypair which produces short signatures of increasing size a la UXMSS, until some threshold point where the signature size locks to a constant size until the rest of the XMSS budget is exhausted.
 
-We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourage further research into other tree shapes before suggesting their use in production.
+Many possibilities exist, but we prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourage further research into other tree shapes before suggesting their use in production.
 Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox tree shapes for the sake of forwards compatibility.
 
 
