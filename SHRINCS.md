@@ -353,17 +353,6 @@ Since these hardware wallets typically have very weak processing power and requi
 > SHRINCS keys generated using hypertree pruning for the stateless component **are not compatible with SHRINCS implementations which do not support hypertree pruning.** In fact, importing key across such incompatible implementations may result in lost funds.[^pruning]
 
 
-
-### TODO
-
-- Explain SPHINCS parameter set choice and compare to NIST-standardized sets with absolute benchmarks: keygen/sign/verify SHA256 compression calls, plus compare key and sig sizes.
-  - Privacy footnote: Multiple parameter sets would be a footgun. Devs could misunderstand or misuse them, and would degrade privacy for the entire network as wallet fingerprinting would be even easier.
-- Discuss upper sig limit parameter of SPHINCS security and explain our choice of this parameter.
-  - Extrapolate the 'max repeated signing lifetime' using a worst-case single-signer scenario.
-  - Graph the signature overuse security degradation curve.
-- Mention how quantum security bits are difficult to empirically measure. Unclear if 64 bits of quantum security is acceptable. TODO: find that link to DJB's critique of NIST….
-
-
 ## Specification
 
 ### Parameters
