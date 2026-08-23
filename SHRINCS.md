@@ -130,7 +130,7 @@ Here we have illustrated several examples of SHRINCS key generation costs for di
 | BXMSS; depth 16 | <!-- CONST START BXMSS_16_KEYGEN_COMPRESSIONS -->34502142<!-- CONST END BXMSS_16_KEYGEN_COMPRESSIONS --> | 2<sup>16</sup> |
 | BXMSS; depth 20 | <!-- CONST START BXMSS_20_KEYGEN_COMPRESSIONS -->547649022<!-- CONST END BXMSS_20_KEYGEN_COMPRESSIONS --> | 2<sup>20</sup> |
 
-The best known way to improve SHRINCS key-generation performance is either using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
+The best known way to improve SHRINCS key-generation performance is either using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy parallelism libraries such as CUDA or Vulkan[^vulkan].
 
 One can also improve SHRINCS key-generation performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
