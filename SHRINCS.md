@@ -288,7 +288,7 @@ The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces small
 WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
 
 An alternative choice would be to use WOTS-TW in the stateful path too, which would reduce code surface at the cost of signature size and verification time.
-Concretely, with the parameter set we chose, this would result in at most <!-- CONST START STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->9<!-- CONST END STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->% larger stateful signatures, and slightly longer (and non-constant) verification time.
+Concretely, with the parameter set used in SHRINCS, this would result in at most <!-- CONST START STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->8<!-- CONST END STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->% larger stateful signatures, and slightly longer (and non-constant) verification time.
 The additional code complexity appears to be worth the efficiency gains in this case:
 The stateful component would be the primary signing tool used in Bitcoin transactions, and thus the WOTS+C optimization is warranted.
 
