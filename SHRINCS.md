@@ -245,20 +245,20 @@ A hybrid scheme is at least as secure as either of the two base schemes, requiri
 With a well-designed combiner, one can achieve stronger security notions than naive signature and public key concatenation.
 Well-designed signature combiners like BoP also reduce overall signature size compared to a naive combiner because the verifier can recover or reuse some components of the signature.[^bop-delving]
 
-In this proposal we elect **not** to introduce a dedicated hybrid signature scheme combiner for Schnorr+SHRINCS, for a few reasons:
+This specification does **not** use a dedicated hybrid signature scheme combiner for Schnorr+SHRINCS, for a few reasons:
 
 - **Redundancy.** Deploying SHRINCS as a standalone signature scheme is desirable for efficient quantum-safe spending of bitcoin.
-  If standalone SHRINCS is available, users will already have access to hybridization techniques by using hybrid constructions.
+  If standalone SHRINCS is available, users will already have access to hybridization techniques by using more naive hybrid constructions.
 - **Lack of value.** Strong unforgeability - one of the main selling points of using a combiner - is not security-critical in Bitcoin because segregated witnesses don't affect TXIDs.
-  At best a hybrid scheme would provide a minor ~5%-10% improvement in witness size over a naive scripting approach, and this is still less efficient than keeping keys compartmentalized in isolated spending paths. <!-- TODO: this bullet leans on Bitcoin/consensus-specific concepts (segregated witnesses, TXIDs, witness size, scripting, spending paths); reword to be scheme-only or move to the 0xC2 BIP. -->
+  At best a hybrid scheme would provide a minor ~5%-10% improvement in combined signature size over a naive concatenation approach.
 - **Complexity & fragility.** A hybrid scheme would necessitate new Schnorr signing sub-algorithms, because combiners like Bird-of-Prey don't use Schnorr as a black-box.
   This greatly expands the scope of implementation.
 - **Security.** Standalone SHRINCS uses strictly weaker cryptographic assumptions than BIP340, so adding hybridization with Schnorr hedges only against implementation flaws or state reuse in SHRINCS.
   Both risks can already be effectively mitigated using formal code verification and cautious wallet design.
 
-We thus conclude that deploying a unified hybrid scheme would not offer justifiable value to Bitcoin users, and comes at the expense of great risk and effort in adding a bespoke new signature algorithm, which very few people would use because of the cheaper options available, such as keeping the keys for each algorithm compartmentalized. <!-- TODO: original said "such as placing public keys for each algorithm in isolated leaf scripts in P2MR". -->
+Therefore, deploying a unified hybrid scheme would not offer justifiable value to Bitcoin users, and comes at the expense of great risk and effort in adding a bespoke new signature algorithm, which very few people would use because of the cheaper options available, such as keeping the keys for each algorithm compartmentalized.
 
-Users who do find value in hedging against state reuse or implementation flaws in SHRINCS may do so using explicit multisignature which verifies each signature algorithm individually.
+Users who do find value in hedging against state reuse or implementation flaws in SHRINCS may do so using explicit multisignature constructions which verify signatures from both algorithms individually.
 
 ### Why NIST security category 1?
 
