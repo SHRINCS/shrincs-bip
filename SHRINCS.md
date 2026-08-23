@@ -427,9 +427,9 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes.
 This is then split into 3 x 16-byte seeds.
 
-- `SK.seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
-- `SK.prf` is a secret value used to derive per-message randomness.
-- `PK.seed` is a salt value which is appended to the public key.
+- `sk_seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
+- `sk_prf` is a secret value used to derive per-message randomness.
+- `pk_seed` is a salt value which is appended to the public key.
 
 Note this is the bare minimum needed to generate a full SHRINCS public key.
 More performant (but larger) secret key representations are possible.
@@ -437,11 +437,11 @@ More performant (but larger) secret key representations are possible.
 
 #### Padding
 
-Every SHRINCS keypair contains a randomly generated 16-byte salt value called `PK.seed` which is appended to the public key.
+Every SHRINCS keypair contains a randomly generated 16-byte salt value called `pk_seed` which is appended to the public key.
 This salts every hash function invocation to introduce domain separation between different instances of a signature scheme, to counter offline/precomputation attacks, and to reduce the chance that two hash invocations produce the same outputs for different SHRINCS keypairs.
 
-To save computational effort, `PK.seed` is padded with zero bytes to a length of 64 bytes in most cases.
-This aligns with the SHA256 block size, so that `PK.seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
+To save computational effort, `pk_seed` is padded with zero bytes to a length of 64 bytes in most cases.
+This aligns with the SHA256 block size, so that `pk_seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
 
 
 ### Utilities
@@ -624,7 +624,7 @@ Though built on the same primitive, they play conceptually distinct roles and ar
 #### Tweakable Hash Functions
 
 A tweakable hash function can be thought of as a hash function which supports additional independent parameters that scope it to a specific role.
-Concretely, each invocation is parameterized by a public parameter, `PK.seed`, and a tweak, the `ADRS`, so that the same input hashed at two different positions yields unrelated outputs.
+Concretely, each invocation is parameterized by a public parameter, `pk_seed`, and a tweak, the `ADRS`, so that the same input hashed at two different positions yields unrelated outputs.
 
 
 ##### `T_sl(...)`
@@ -763,7 +763,7 @@ def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> byt
 The extra 4 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
 
 Notice we only use the first 10 bytes of `ADRS`.
-This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `PK.seed` input.
+This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `pk_seed` input.
 The remaining 12 bytes are always zero padding.
 
 
@@ -771,7 +771,7 @@ The remaining 12 bytes are always zero padding.
 
 A _pseudorandom function_ produces output indistinguishable from random to anyone who does not know its key.
 SHRINCS instantiates its two pseudorandom functions as _keyed hash functions_, that is, hash functions that take a dedicated key input alongside the message.
-Both are keyed by a secret: `PRF` is keyed by `SK.seed` and derives secret key material, while `PRF_msg` is keyed by `SK.prf` and derives the per-message randomizer.
+Both are keyed by a secret: `PRF` is keyed by `sk_seed` and derives secret key material, while `PRF_msg` is keyed by `sk_prf` and derives the per-message randomizer.
 `PRF_msg` comes in a stateless and a stateful variant, `PRF_msg_sl` and `PRF_msg_sf`, both built on HMAC-SHA256[^hmac], which we invoke as the function `hmac_sha256(key, message)`.
 
 ##### `hmac_sha256(...)`
@@ -954,9 +954,9 @@ This accounts for two intentional differences from `H_msg_sl`:
 - `PRF_msg_sl` may be replaced with an XOF such as MGF1-SHA-256 or SHAKE256, from which the caller can sample multiple randomizers for the purposes of grinding to implement hypertree pruning[^pruning] more efficiently.
   For security, the XOF itself needs to provide the required security guarantees of a PRF, and the XOF should absorb the same inputs as `PRF_msg_sl`.
 - `F(...)` is the most performance-critical hash function to optimize, as it dominates the runtime of signing, keygen, and verification.
-- The padded `PK.seed` should be absorbed into a SHA256 midstate which is cached and reused.
+- The padded `pk_seed` should be absorbed into a SHA256 midstate which is cached and reused.
   **This doubles performance.**
-- These tweakable hash functions often handle secret inputs like `SK.seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data.
+- These tweakable hash functions often handle secret inputs like `sk_seed`, so implementations should be free of control flows which branch and leak side-channel information based on potentially-secret data.
   Inputs should not be copied in memory unless securely erased afterwards.
 - Many of these hash functions are invoked on independent data, and so can be run in parallel.
   Platforms with access to vectorized (SIMD) instruction sets on x86[^simd_x86] or ARM[^simd_arm] CPUs may utilize them to parallelize SHA256[^sha256x8] to improve performance significantly: a factor of 4 or more in some cases.
