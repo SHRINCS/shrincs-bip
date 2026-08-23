@@ -302,8 +302,8 @@ See [On Managing State](#on-managing-state) for the state management rules a com
 SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness:
 Approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO -->x smaller signatures, which require approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO -->x less compute time to verify (compared to the stateless component).
 
-SHRINCS signers who cannot manage state, or who do not yet have the time/energy to devote to properly implementing state management, can still generate valid SHRINCS keys and sign using the stateless component.
-Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of the current keypair's state counter.
+SHRINCS signers who cannot manage state, or implementors who do not yet have the time/energy to devote to properly writing state management, can still generate valid SHRINCS keys and sign using the stateless component.
+Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of a keypair's state counter.
 
 ### Isn't statefulness unsafe?
 
