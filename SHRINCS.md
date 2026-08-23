@@ -213,7 +213,7 @@ This rigidity has several motivations:
 
 SHRINCS instead aims for a balanced parameter set which is flexible enough to support any on-chain or off-chain use case within Bitcoin.
 
-### Why not use a SPHINCS+ variant with smaller signatures as the stateless fallback?
+### Why not use a SPHINCS+ variant with smaller signatures for the stateless component?
 
 To facilitate adoption, the stateless fallback retains the SLH-DSA algorithms defined in FIPS-205.
 An SLH-DSA implementation that supports custom parameter sets can therefore be adapted for SHRINCS with little additional work.
