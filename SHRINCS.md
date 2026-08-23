@@ -171,6 +171,7 @@ One can also improve stateless SHRINCS signing performance at the cost of statel
 
 The stateless fallback uses a non-standard SLH-DSA parameter set primarily to reduce the signature budget from 2<sup>64</sup> to 2<sup>40</sup> signatures per public key.
 Reducing the signature budget reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes, a reduction of <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->26<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->%.
+SHRINCS' stateless parameter also requires <!-- CONST START SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->23<!-- CONST END SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->% less work to sign, and <!-- CONST START SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->28<!-- CONST END SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->% less work to verify, compared to SLH-DSA-SHA2-128s.
 
 The reduced signature budget remains far beyond what could be exercised on-chain.
 With Bitcoin's current 4 MB block size limit, 200 years of blocks would consume approximately <!-- CONST START SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->0.66<!-- CONST END SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->% of a key's signature budget if all block space were used for stateless SHRINCS signatures under that public key.
