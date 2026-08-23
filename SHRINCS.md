@@ -262,21 +262,24 @@ Users who do find value in hedging against state reuse or implementation flaws i
 
 ### Why NIST security category 1?
 
-The SHRINCS verification algorithm consists mostly of evaluating a series of hash functions on the signature to recompute a certain hash.
-Ultimately the verifier recomputes one of the SHRINCS public key components: `PK.sf_root` or `PK.sl_root`.
-
 The security of SHRINCS relies solely on the security of the underlying hash function, which seems very robust in general.
-Given a hash function with output width of `b` bits (given a big enough internal state), the best-known classical attack is simple trial-and-error, which yields a second preimage after 2<sup>b</sup> tries on average.
-The best case quantum attack using Grover's algorithm yields a second preimage in time on the order of O(2<sup>b/2</sup>).
-In other words, using a `b`-bit hash gives `b` bits of classical security, and `b/2` bits of quantum security.
+
+Given a hash function with output width of `b` bits (given a big enough internal state), the best-known classical preimage-finding attack is simple trial-and-error, which yields a preimage after 2<sup>b</sup> tries on average.
+The best case quantum attack using Grover's algorithm yields a preimage in time on the order of O(2<sup>b/2</sup>).
+In other words, using a `b`-bit hash gives `b` bits of classical security, and `b/2` bits of quantum security against preimage-finding.
 
 While the definition of quantum security bits is less clear, the classical analogue is well-studied.
-The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time O(sqrt(n)), where `n` is the order of the curve.
+The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time `O(sqrt(n))`, where `n` is the order of the curve.
 The secp256k1 curve order is an approximately 2<sup>256</sup> bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
 
-Having no concrete basis on which to select a level of quantum security against Grover's algorithm, we aim for SHRINCS to match BIP340's level of classical security, and so follow the NIST-I security category guidelines: 128 bits of classical security, and 64 bits of quantum security.
-We do so by using a 128-bit truncation of the SHA256 hash function to instantiate SHRINCS, and this mirrors the NIST FIPS-205 specification's reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.[^why128]
-We use SHA256 because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if collision resistance of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
+Having no concrete basis on which to select a level of quantum security against Grover's algorithm, SHRINCS aims to match BIP340's level of classical security, and so follows the NIST-I security category: 128 bits of classical security, and 64 bits of quantum security.
+
+SHRINCS achieves this by using a 128-bit truncation of the SHA256 hash function to instantiate its tweakable hash functions and PRFs.
+This mirrors the NIST FIPS-205 specification's reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.[^why128]
+
+### Why SHA256 and not some newer hash function?
+
+SHA256 is used because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if security of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
 
 ### Why use WOTS+C in the stateful path?
 
