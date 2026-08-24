@@ -1668,3 +1668,19 @@ def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: i
       retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, sf_structure, ADRS)
 
   return {'state_ctr': 0, 'bds_k': bds_k, 'auth': auth, 'keep': {}, 'retain': retain, 'treehash': treehash}
+
+def bds_auth_path(bds_state: dict) -> list[bytes]:
+  """
+  The BDS authentication path read function. Returns the Merkle authentication path of the
+  WOTS+C leaf at index `state_ctr` of the BDS state, for use with `fxmss_sign_from_auth_path`.
+
+  - Inputs:
+    - `bds_state`: a BDS state from `bds_state_init`.
+  - Output:
+    - a list of `depth` 16-byte authentication path nodes, from the leaf's sibling upwards.
+
+  This function is only used in the stateful path, and only by the signer.
+  """
+  return list(bds_state['auth'])
+
+
