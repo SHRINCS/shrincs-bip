@@ -1004,7 +1004,7 @@ The following two sections describe a pair of related one-time signature schemes
 
 Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signature scheme_ (WOTS),[^merkle] but each has a distinct performance profile and features.
 WOTS-TW is standardized in SLH-DSA[^slhdsa] and so we use it to preserve compatibility.
-WOTS+C produces shorter signatures with faster and constant-time verification speed, but is not compatible with SLH-DSA and so we only use it on the stateful path where compatibility is not a concern.
+WOTS+C produces shorter signatures with faster and constant-work verification, but is not compatible with SLH-DSA and so we only use it on the stateful path where compatibility is not a concern.
 WOTS+C can also technically fail when signing, a rare edge case which parameters must be carefully engineered to avoid.
 
 
@@ -1305,7 +1305,7 @@ It is superior in compactness & performance, but we nonetheless use WOTS-TW for 
 
 WOTS+C replaces the checksum in WOTS-TW with a protocol requirement that any message must be mapped to a set of indexes that sum to a fixed constant.
 This prevents WOTS forgeries because an incremental increase in any index of a hash chain must be balanced out by decrementing a different index.
-It also ensures a constant-time verifier because the total number of hash operations needed to complete every WOTS hash chain is fixed.
+It also ensures a fixed-work verifier because the total number of hash operations needed to complete every WOTS hash chain is fixed.
 
 The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value.
 It can be computed by:
