@@ -54,7 +54,7 @@ An _unbalanced_ tree minimizes the size of the first few signatures but makes ea
 A _balanced_ tree instead produces constant-size signatures.
 
 The **stateless** component generates larger signatures, but does not require the signer to manage state.
-SLH-DSA has a _signature budget_ — the maximum number of signatures it can produce before its security begins to degrade.
+An SLH-DSA parameter set has a _signature budget_: the maximum number of signatures that may be produced under one public key while retaining the targeted security level.
 Standardized SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
 
 Each component produces a 16-byte root hash as part of its public key.
@@ -173,10 +173,6 @@ One can also improve stateless SHRINCS signing performance at the cost of statel
 ## Rationale
 
 ### Why not use a standardized SLH-DSA parameter set?
-
-Hash-based signature schemes always involve revealing specific preimages to authenticate a signer.
-After enough signatures, so many preimages will have been revealed as to render the keypair insecure.
-This is why all hash-based signature schemes come with a parameter called a _signature budget,_ indicating the maximum number of signatures a key can safely issue before the security of the key (against forgery) degrades below an acceptable level.
 
 The signature budget of SLH-DSA is dictated by its parameter set.
 Standardized SLH-DSA parameter sets target a signature budget of 2<sup>64</sup>.
