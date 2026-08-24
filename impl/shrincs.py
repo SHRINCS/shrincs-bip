@@ -3,7 +3,7 @@
 # WARNING: This implementation is for demonstration purposes only and _not_ to
 # be used in production environments. It exists to generate test vectors and to
 # serve as an executable specification to write independent implementations
-# against. It is naive, highly inefficient, and non-constant time. It does not
+# against. It is naive, highly inefficient, and non-constant-time. It does not
 # sample or protect secret key material, and it performs no state management at
 # all.
 
@@ -1220,7 +1220,7 @@ def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
 
   > [!WARNING]
   > The `sf_structure` argument must come from a trusted source or else be validated.
-  > If an adversary can control `sf_structure` they may cause key-generation to fail, or hang
+  > If an adversary can control `sf_structure`, they may cause key-generation to fail, or hang
   > consuming compute resources by making the implementation generate a very large BXMSS tree.
   """
   assert len(seed) == 48

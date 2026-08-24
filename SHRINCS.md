@@ -77,7 +77,7 @@ Public key and signature sizes are summarized below:
 | Item | Size (min - max) |
 |:--|:--|
 | Public key | 48 bytes |
-| Stateful signature | <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> bytes |
+| Stateful signature | <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> - <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> bytes |
 | Stateless signature | <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes |
 
 ### Relation to SLH-DSA
@@ -139,7 +139,7 @@ Note this cost includes both stateful and stateless components.
 | BXMSS; depth 16 | <!-- CONST START BXMSS_16_KEYGEN_COMPRESSIONS -->34502142<!-- CONST END BXMSS_16_KEYGEN_COMPRESSIONS --> | 2<sup>16</sup> |
 | BXMSS; depth 20 | <!-- CONST START BXMSS_20_KEYGEN_COMPRESSIONS -->547649022<!-- CONST END BXMSS_20_KEYGEN_COMPRESSIONS --> | 2<sup>20</sup> |
 
-The best known way to improve SHRINCS key-generation performance is either using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy parallelism libraries such as CUDA or Vulkan[^vulkan].
+The best known way to improve SHRINCS key-generation performance is either to use vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or to use heavy parallelism libraries such as CUDA or Vulkan[^vulkan].
 
 One can also improve SHRINCS key-generation performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
@@ -342,7 +342,7 @@ However, this is impractical because FXMSS is a single-tree design XMSS-variant.
 A single-tree design puts a fundamental limit on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
 This is because all WOTS+C keys in FXMSS must be arranged into a single merkle tree, whose root must be known before the SHRINCS public key can be fully computed.
 
-Assuming an extremely well-optimized and highly-parallel GPU implementation of WOTS+C key-generation which can execute one SHA256 compression per nanosecond on average, then the most WOTS+C keys this signer could generate per second would be about 2<sup>21</sup>, or about 2<sup>32</sup> WOTS+C keys per hour.
+Assuming an extremely well-optimized and highly-parallel GPU implementation of WOTS+C key-generation which can execute one SHA256 compression per nanosecond on average, the most WOTS+C keys this signer could generate per second would be about 2<sup>21</sup>, or about 2<sup>32</sup> WOTS+C keys per hour.
 Only after generating a suitable number of these WOTS+C keys can SHRINCS key-generation be completed.
 
 Let's be optimistic and assume this high-speed signer allocates one minute for key generation.
@@ -352,7 +352,7 @@ Her FXMSS signature budget would be about 115,000,000.
 
 For the average consumer Bitcoin wallet, this is far more signatures than would ever be needed.
 
-For off-chain protocols though, the FXMSS signature budget can be exhausted surprisingly fast.
+For off-chain protocols, though, the FXMSS signature budget can be exhausted surprisingly fast.
 Consider a busy lightning channel which signs 5 new commitment transactions per second on average.
 **A signature budget of 115 million would only last 266 days** before the signer would run out of fresh WOTS+C keys, and would need to switch to the stateless path.
 
@@ -368,10 +368,10 @@ The additional size of stateless signatures only becomes a problem in rare non-c
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
-Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133327<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
+Thankfully, signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133327<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
 Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
 
-The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707254<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
+The stateless component is much harder for low-power signers to work with because its parameters are more-or-less fixed, and it requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707254<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
 To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signature budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
 Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signature budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
@@ -384,7 +384,7 @@ Since these hardware wallets typically have very weak processing power and requi
 
 ### Parameters
 
-Here follow the parameters of the stateful and the stateless component.
+Here follow the parameters of the stateful and stateless components.
 
 #### Stateful Parameters
 
@@ -1026,7 +1026,7 @@ If the signer revealed the correct nodes, then the verifier will have recomputed
 
 <sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
 
-As written this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes.
+As written, this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes.
 WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a small salt which the signer must grind to find a set of indexes which sum to a specific constant.
 
 
@@ -1355,7 +1355,7 @@ def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: by
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
 We max out at 2<sup>16</sup> grinding attempts because the counter is serialized as a 16-bit unsigned integer in the WOTS+C signature encoding - Counters larger than this would not fit into a signature.
-There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter, however we have engineered our parameter set such that this probability is less than 1 chance in 2<sup><!-- CONST START WOTS_C_GRIND_FAIL_PROBABILITY_LOG -->1450<!-- CONST END WOTS_C_GRIND_FAIL_PROBABILITY_LOG --></sup>[^wotsgrind] - practically impossible.
+There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter; however, we have engineered our parameter set such that this probability is less than 1 chance in 2<sup><!-- CONST START WOTS_C_GRIND_FAIL_PROBABILITY_LOG -->1450<!-- CONST END WOTS_C_GRIND_FAIL_PROBABILITY_LOG --></sup>[^wotsgrind] - practically impossible.
 
 > [!NOTE]
 > [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
@@ -1859,7 +1859,7 @@ This FXMSS tree shape allows signers to generate very short stateful signatures 
 
 However, since each WOTS+C leaf can be used only once, subsequent signatures will grow larger at a rate of 16 or 17 bytes per signature issued as the merkle authentication path grows in length, with the exception of the last signature which has the same length as the penultimate one.[^last_two_sigs]
 
-Eventually after `depth + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and the last few stateful signatures will be very large.
+Eventually, after `depth + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and the last few stateful signatures will be very large.
 
 For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS (the maximum), as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path.
 FXMSS depth cannot exceed `FXMSS_HEIGHT = 255` because the FXMSS node height number is encoded into the signature and `ADRS` as a single byte.
@@ -2080,7 +2080,7 @@ def fxmss_pubkey_from_sig(leaf_index: int, leaf_height: int, signature: bytes, m
 The stateless signing path of SHRINCS uses Forest Of Random Subsets (FORS), a hash-based _few-time_ signature scheme (FTS), to sign messages.
 
 Compared to one-time signature (OTS) schemes like Winternitz, FTS schemes are characterized by security which resists forgery even when a keypair is reused to sign multiple messages.
-The degradation in security can be quantified and calibrated using parameters, so that forgery-resistance does not reduce below a target bound.
+The degradation in security can be quantified and calibrated using parameters, so that forgery-resistance does not fall below a target bound.
 FORS is one such FTS scheme.
 
 
@@ -2093,7 +2093,7 @@ We parameterize the number of merkle trees as `SPHX_FORS_COUNT`, and the height 
 The FORS public key is a hash of the merkle roots of the entire forest.
 
 When signing, a message is mapped - via a salted hash - to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each.
-Each index identifies a specific preimage from each merkle tree which the signer must reveal, along a merkle authentication path.
+Each index identifies a specific preimage from each merkle tree which the signer must reveal, along with a merkle authentication path.
 The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
 
 <img src="img/fors.svg">
@@ -2103,11 +2103,11 @@ The verifier uses the preimages and merkle paths to recompute the roots of each 
 Each signature reveals one of the preimages in each merkle tree in the forest.
 Over the course of many signatures, the signer may reuse preimages that have already been revealed in prior signatures, because some messages may map to intersecting index-sets.
 
-Unless he has an efficient way to find preimages, an adversary must hope the signer publishes signatures which admits a forgery by mixing and matching preimages from prior signatures.
+Unless he has an efficient way to find preimages, an adversary must hope the signer publishes signatures that admit a forgery by mixing and matching preimages from prior signatures.
 The adversary _cannot_ control which index-sets the victim signs (because of the salt), and so he cannot trick the signer into exposing specific preimages, even if the adversary can query the signer for arbitrary signatures.
 
-However, the adversary _may_ grind to find a message and salt which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery.
-The probability that this occurs with a randomly sampled index-set can be reduced arbitrarily low by using more and taller trees, or by reducing the limit on the number of signatures the signer is expected to produce.
+However, the adversary _may_ grind to find a message-salt pair which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery.
+The probability that this occurs with a randomly sampled index-set can be made arbitrarily low by using more and taller trees, or by reducing the limit on the number of signatures the signer is expected to produce.
 This is formalized as the security notion of _interleaved target-subset resilience._[^sphincs+]
 
 
@@ -2477,10 +2477,10 @@ As previously discussed in [the section on WOTS](#wots-schemes), reusing a one-t
 To avoid using the same WOTS+C keypair more than once, signers using FXMSS must track a single integer, called the _state counter._
 This counter tracks the number of signatures previously issued by the keypair.
 It increments once for every stateful FXMSS signature created, and _must never decrement._
-When signing the SHRINCS stateful signing algorithm chooses which WOTS+C leaf to use based on the state counter, and the FXMSS tree structure.
+When signing, the SHRINCS stateful signing algorithm chooses which WOTS+C leaf to use based on the state counter and the FXMSS tree structure.
 
 It is **absolutely critical for security that signers manage state counters extremely carefully.**
-Implementors must take note to avoid many dangerous state management practices which lead to state reuse:
+Implementors must take care to avoid many dangerous state management practices which lead to state reuse:
 
 - State counters must not be backed up and restored by any mechanism.
 - State counters must not live in unprotected storage (e.g. shared memory, a user-accessible folder, etc).
@@ -2525,7 +2525,7 @@ This function is used only during key generation.
 
 > [!WARNING]
 > The `sf_structure` argument must come from a trusted source or else be validated.
-> If an adversary can control `sf_structure` they may cause key-generation to fail, or hang
+> If an adversary can control `sf_structure`, they may cause key-generation to fail, or hang
 > consuming compute resources by making the implementation generate a very large BXMSS tree.
 
 ```py
@@ -2774,7 +2774,7 @@ Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`
 
 ## Reference Implementation
 
-We provide a naive, highly inefficient, and non-constant time pure Python 3 implementation of the SHRINCS algorithms in [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
+We provide a naive, highly inefficient, and non-constant-time pure Python 3 implementation of the SHRINCS algorithms in [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
 
 Tests are provided in [`impl/test.py`](./impl/test.py).
 Comprehensive test vectors covering every algorithm are still TODO; they are required to advance this proposal from Draft to Complete.
@@ -2801,7 +2801,7 @@ We would like to thank:
 
 ## Copyright
 
-This document and the SHRINCS reference code is licensed under either of the CC0-1.0 or MIT license, at your option.
+This document and the SHRINCS reference code are licensed under either the CC0-1.0 or MIT license, at your option.
 
 
 ## Footnotes
