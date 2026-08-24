@@ -2252,7 +2252,7 @@ Most of the computational cost of SHRINCS signing includes regenerating Merkle n
 We specify three cache constructions:
 - A [**Stateless Cache**](#the-stateless-cache), which stores the WOTS-TW leaves of the top-layer XMSS tree in the variant of SLH-DSA.
 - A [**UXMSS Cache**](#the-uxmss-cache), which stores the WOTS+C public keys on every layer of a UXMSS tree.
-- The **BXMSS Cache** with the usage of BDS tree traversal algorithm[^bds], which schedules the computation of upcoming authentication path nodes across signatures, so each following signature requires regenerating only a fraction of the tree.
+- The [**BXMSS Cache**](#the-bxmss-cache) with the usage of BDS tree traversal algorithm[^bds], which schedules the computation of upcoming authentication path nodes across signatures, so each following signature requires regenerating only a fraction of the tree.
 
 Unlike the state counter, a cache is not so critical. Every cached value is a deterministic function of the secret key, so a signer can regenerate its cache from scratch at any time. The rules defined in [On Managing State](#on-managing-state) do not apply to caches:
 
@@ -2493,6 +2493,250 @@ def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index:
   return sig + concat(auth_path)
 ```
 <!-- DOC END fxmss_sign_from_auth_path -->
+
+##### The BXMSS Cache
+
+A BXMSS tree of depth `d` has `2**d` WOTS+C leaves, so caching it in the full form costs `16 * 2**d` bytes - 16 MiB at depth 20 (while the naive signer instead regenerates most of the tree for every signature). Because BXMSS consumes leaves strictly left to right, computing successive authentication paths cheaply is the classic Merkle tree traversal problem, and we adopt its standard solution: the BDS algorithm[^bds], also used by XMSS implementations[^xmss].
+
+BDS rests on three observations. 
+1. Authentication paths overlap: moving to the next leaf, only the nodes up to the path's first left-turn change. 
+2. Every left node entering a path is the parent of two nodes the signer held shortly before: the BDS state remembers the required right child in `keep`, so each left node costs a single call to `H`. 
+3. Every right node entering a path can be built gradually in advance: a treehash instance per layer assembles the next right node of that layer a few leaves at a time, while the right nodes of the top `bds_k - 1` layers are computed once at key generation and held in `retain` forever.
+
+Per signature, the signer then computes at most `(d - bds_k)/2 + 1` WOTS+C leaves and about `3 * (d - bds_k)/2` compression calls, while storing at most `3*d + d/2 - 3*bds_k - 2 + 2**bds_k` nodes of 16 bytes each. The parameter `bds_k` trades memory for time: it must satisfy `2 <= bds_k <= d` with `d - bds_k` even, and each increment of 2 removes one leaf computation per signature while roughly quadrupling the retained nodes.
+
+| Stateful Structure | `bds_k` | BDS State Size | Signing Cost with BDS (avg) | Naive Signing Cost (avg) |
+|-|-|-|-|-|
+| BXMSS; depth 5 | 3 | <!-- CONST START BXMSS_5_BDS_STATE_SIZE -->224<!-- CONST END BXMSS_5_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_5_BDS_SIGN_COMPRESSIONS -->1335<!-- CONST END BXMSS_5_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS -->16468<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS --> |
+| BXMSS; depth 8 | 2 | <!-- CONST START BXMSS_8_BDS_STATE_SIZE -->384<!-- CONST END BXMSS_8_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_8_BDS_SIGN_COMPRESSIONS -->2383<!-- CONST END BXMSS_8_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_8_SIGN_COMPRESSIONS -->133393<!-- CONST END BXMSS_8_SIGN_COMPRESSIONS --> |
+| BXMSS; depth 10 | 2 | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS -->2907<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_10_SIGN_COMPRESSIONS -->534287<!-- CONST END BXMSS_10_SIGN_COMPRESSIONS --> |
+| BXMSS; depth 12 | 2 | <!-- CONST START BXMSS_12_BDS_STATE_SIZE -->608<!-- CONST END BXMSS_12_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_12_BDS_SIGN_COMPRESSIONS -->3431<!-- CONST END BXMSS_12_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_12_SIGN_COMPRESSIONS -->2137869<!-- CONST END BXMSS_12_SIGN_COMPRESSIONS --> |
+| BXMSS; depth 16 | 2 | <!-- CONST START BXMSS_16_BDS_STATE_SIZE -->832<!-- CONST END BXMSS_16_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_16_BDS_SIGN_COMPRESSIONS -->4479<!-- CONST END BXMSS_16_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS -->34209545<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS --> |
+| BXMSS; depth 20 | 2 | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS -->5527<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS -->547356421<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS --> |
+
+At depth 20, one kilobyte of BDS state makes stateful signing roughly <!-- CONST START BXMSS_20_BDS_SIGN_SPEED_RATIO -->99033<!-- CONST END BXMSS_20_BDS_SIGN_SPEED_RATIO -->x faster.
+
+The signer builds the initial state with `bds_state_init`, reads the current authentication path with `bds_auth_path`, generates the signature with `fxmss_sign_from_auth_path`, and then advances the state with `bds_state_update`. The update must run exactly once per stateful signature: the state's `state_ctr` field mirrors the keypair's state counter, and the two must always agree, as discussed in [On Managing Caches](#on-managing-caches).
+
+##### `bds_state_init(...)`
+
+<!-- DOC START bds_state_init -->
+The BDS state initialization function. Computes the starting traversal state for a BXMSS
+tree: the authentication path of leaf zero, one treehash instance per lower layer
+holding the next right node of that layer, and the retained right nodes of the top
+`bds_k - 1` layers below the root.
+
+- Inputs:
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure. Its shape byte must be `FXMSS_SHAPE_BALANCED`.
+  - `bds_k`: the memory/time trade-off parameter: `2 <= bds_k <= depth`, with `depth - bds_k` even.
+- Output:
+  - a BDS state: a dictionary with the fields
+    - `state_ctr`: the state counter whose authentication path `auth` currently holds.
+    - `bds_k`: the parameter `bds_k`.
+    - `auth`: the current authentication path, one node per layer, from the leaf's sibling upwards.
+    - `keep`: nodes remembered to compute upcoming left authentication nodes, keyed by layer.
+    - `retain`: precomputed right nodes of the top layers, keyed by `(node_index, layer)`.
+    - `treehash`: one instance per layer `j < depth - bds_k`: a completed `node`, the
+      `next_leaf` it will consume, and a `stack` of partial subtree roots paired with their layers.
+
+This function is only used in the stateful path, and only by the signer.
+
+Layers are counted relative to the BXMSS tree: layer `j` sits at FXMSS height
+`FXMSS_HEIGHT - depth + j`, so layer 0 holds the WOTS+C leaves and layer `depth` the root.
+The initial state consists of nodes computed during key generation anyway, so
+implementations may fill it as a byproduct of `shrincs_keygen`.
+
+```py
+def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: int) -> dict:
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  assert tree_shape == FXMSS_SHAPE_BALANCED
+  assert 2 <= bds_k <= tree_depth
+  assert (tree_depth - bds_k) % 2 == 0
+
+  leaf_layer = FXMSS_HEIGHT - tree_depth
+  ADRS = bytearray(22)
+
+  # The authentication path of leaf zero.
+  auth = [b''] * tree_depth
+  for j in range(tree_depth):
+    auth[j] = fxmss_node(sk_seed, 1, leaf_layer + j, pk_seed, sf_structure, ADRS)
+
+  # One treehash instance per layer below the retained layers.
+  treehash = [None] * (tree_depth - bds_k)
+  for j in range(tree_depth - bds_k):
+    treehash[j] = {
+      'node': fxmss_node(sk_seed, 3, leaf_layer + j, pk_seed, sf_structure, ADRS),
+      'next_leaf': None,
+      'stack': [],
+    }
+
+  # Retain every future right node of the top bds_k - 1 layers below the root.
+  retain = {}
+  for j in range(tree_depth - bds_k, tree_depth - 1):
+    for node_index in range(3, 2**(tree_depth - j), 2):
+      retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, sf_structure, ADRS)
+
+  return {'state_ctr': 0, 'bds_k': bds_k, 'auth': auth, 'keep': {}, 'retain': retain, 'treehash': treehash}
+```
+<!-- DOC END bds_state_init -->
+
+##### `bds_auth_path(...)`
+
+<!-- DOC START bds_auth_path -->
+The BDS authentication path read function. Returns the Merkle authentication path of the
+WOTS+C leaf at index `state_ctr` of the BDS state, for use with `fxmss_sign_from_auth_path`.
+
+- Inputs:
+  - `bds_state`: a BDS state from `bds_state_init`.
+- Output:
+  - a list of `depth` 16-byte authentication path nodes, from the leaf's sibling upwards.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def bds_auth_path(bds_state: dict) -> list[bytes]:
+  return list(bds_state['auth'])
+```
+<!-- DOC END bds_auth_path -->
+
+##### `bds_treehash_update(...)`
+
+<!-- DOC START bds_treehash_update -->
+The BDS treehash scheduling function. Performs a single treehash update: picks the active
+instance whose lowest stacked node sits on the lowest layer, consumes that instance's next 
+leaf, and merges it up the stack. An instance completes once the merged node reaches its target layer.
+
+- Inputs:
+  - `bds_state`: a BDS state from `bds_state_init`.
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+- Output:
+  - none.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
+  tree_depth = sf_structure[1]
+  leaf_layer = FXMSS_HEIGHT - tree_depth
+
+  # Pick the instance to receive this update.
+  best, best_low = None, None
+  for j in range(len(bds_state['treehash'])):
+    th = bds_state['treehash'][j]
+    if th['next_leaf'] is None:
+      continue # instance is completed, or was never started
+    low = min((layer for (layer, _) in th['stack']), default=j)
+    if best is None or low < best_low:
+      best, best_low = j, low
+  if best is None:
+    return # no active instances remain
+
+  # Consume the instance's next leaf and merge it up the stack.
+  th = bds_state['treehash'][best]
+  leaf_index = th['next_leaf']
+  ADRS = bytearray(22)
+  node = fxmss_node(sk_seed, leaf_index, leaf_layer, pk_seed, sf_structure, ADRS)
+  node_layer = 0
+  while th['stack'] and th['stack'][-1][0] == node_layer:
+    (_, lchild) = th['stack'].pop()
+    node_layer += 1
+    ADRS[0] = leaf_layer + node_layer
+    ADRS[1:9] = (leaf_index >> node_layer).to_bytes(8)
+    ADRS[9] = SF_FXMSS_TREE
+    ADRS[10:22] = zeros(12)
+    node = H(pk_seed, ADRS, lchild + node)
+
+  if node_layer == best:
+    th['node'] = node
+    th['next_leaf'] = None # instance completed
+  else:
+    th['stack'].append((node_layer, node))
+    th['next_leaf'] = leaf_index + 1
+```
+<!-- DOC END bds_treehash_update -->
+
+##### `bds_state_update(...)`
+
+<!-- DOC START bds_state_update -->
+The BDS state update function. Advances the state by one leaf: computes the authentication
+path of the next leaf from the stored nodes, refreshes `keep` and restarts the consumed
+treehash instances.
+
+- Inputs:
+  - `bds_state`: a BDS state from `bds_state_init`.
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+- Output:
+  - none.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
+  tree_depth = sf_structure[1]
+  leaf_layer = FXMSS_HEIGHT - tree_depth
+  bds_k = bds_state['bds_k']
+  s = bds_state['state_ctr']
+
+  bds_state['state_ctr'] = s + 1
+  if s + 1 >= 2**tree_depth:
+    return # the stateful signing budget is exhausted; there is no next leaf
+
+  # The layer of the first left-turn on the path from leaf s to the root: the
+  # lowest layer whose authentication path node is about to change to a left
+  # node. Equals the number of trailing one bits of s.
+  tau = 0
+  while (s >> tau) & 1 == 1:
+    tau += 1
+
+  # If the authentication node on layer tau sits below a left node, remember
+  # it: it is the right child from which that left node will later be computed.
+  if tau < tree_depth - 1 and (s >> (tau + 1)) & 1 == 0:
+    bds_state['keep'][tau] = bds_state['auth'][tau]
+
+  ADRS = bytearray(22)
+
+  if tau == 0:
+    # Leaf s is a left child: it becomes the bottom authentication node.
+    bds_state['auth'][0] = fxmss_node(sk_seed, s, leaf_layer, pk_seed, sf_structure, ADRS)
+  else:
+    # The left node entering the path on layer tau is the parent of the old
+    # authentication node below it and the node remembered in keep.
+    lchild = bds_state['auth'][tau - 1]
+    rchild = bds_state['keep'].pop(tau - 1)
+    ADRS[0] = leaf_layer + tau
+    ADRS[1:9] = (s >> tau).to_bytes(8)
+    ADRS[9] = SF_FXMSS_TREE
+    ADRS[10:22] = zeros(12)
+    bds_state['auth'][tau] = H(pk_seed, ADRS, lchild + rchild)
+
+    # Below tau, fresh right nodes enter the path: from the treehash instances
+    # on the lower layers, and from retain on the top layers.
+    for j in range(tau):
+      if j < tree_depth - bds_k:
+        th = bds_state['treehash'][j]
+        assert th['next_leaf'] is None and th['node'] is not None
+        bds_state['auth'][j] = th['node']
+        th['node'] = None
+      else:
+        needed_index = ((s + 1) >> j) ^ 1
+        bds_state['auth'][j] = bds_state['retain'].pop((needed_index, j))
+
+    # Restart the consumed treehash instances on the next right node of their
+    # layer, unless that node lies beyond the edge of the tree.
+    for j in range(min(tau, tree_depth - bds_k)):
+      if s + 1 + 3 * 2**j < 2**tree_depth:
+        bds_state['treehash'][j]['next_leaf'] = s + 1 + 3 * 2**j
+
+  # Distribute the round's budget of treehash updates.
+  for i in range((tree_depth - bds_k) // 2):
+```
+<!-- DOC END bds_state_update -->
 
 #### Maximum Message Length
 
