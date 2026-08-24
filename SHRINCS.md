@@ -121,7 +121,7 @@ Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have
 ### Key Generation
 
 SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes.
-The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#FXMSS) specification section for a full explanation.
+The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#fxmss) specification section for a full explanation.
 In general, putting more up-front work into key-generation allows the key a larger stateful signature budget.
 The key-generation cost of the stateless component is constant.
 
@@ -166,7 +166,7 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 
 One can improve SHRINCS signing performance significantly using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
 
-To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#FXMSS) tree which are produced during key-generation or prior signing attempts.
+To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#fxmss) tree which are produced during key-generation or prior signing attempts.
 Caching reduces the fraction of the FXMSS tree which the signer must regenerate on each signing attempt, which is by far the greatest computational cost in stateful signing.
 Caching can therefore result in very significant (orders of magnitude) speedups, depending on the stateful tree structure.
 
@@ -2428,7 +2428,7 @@ def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes,
 
 Above we have defined all the prerequisite building blocks of the SHRINCS scheme, and we are ready to define the high-level stateful and stateless key-generation, signing, and verification algorithms of SHRINCS.
 
-As described earlier in the [overview](#Overview), SHRINCS combines FXMSS (stateful) and SLH-DSA (stateless) into a single unified signature scheme.
+As described earlier in the [overview](#overview), SHRINCS combines FXMSS (stateful) and SLH-DSA (stateless) into a single unified signature scheme.
 The stateful path admits very compact and efficient signatures, while the stateless path allows signers to retain signing capability even if state has been lost or corrupted.
 
 #### SHRINCS Keys
@@ -2438,7 +2438,7 @@ These 48 random bytes are partitioned into 3 x 16-byte chunks: `sk_seed`, `sk_pr
 
 From `sk_seed` and `pk_seed`, the key-generation procedure derives the roots of two merkle trees: `sl_root` and `sf_root`.
 These represent the stateless and stateful keypairs respectively.
-No additional parameters are needed to derive `sl_root`, but to derive `sf_root` the caller needs to know which `sf_structure` to apply in FXMSS (see [the section on FXMSS](#FXMSS) for more details).
+No additional parameters are needed to derive `sl_root`, but to derive `sf_root` the caller needs to know which `sf_structure` to apply in FXMSS (see [the section on FXMSS](#fxmss) for more details).
 
 Once both roots are generated, the caller combines them with `pk_seed` to form the SHRINCS public key:
 
