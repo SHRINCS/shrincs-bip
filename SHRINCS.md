@@ -2774,7 +2774,7 @@ TODO
 
 ## Copyright
 
-This document is licensed under the 3-clause BSD license.
+This document and the SHRINCS reference code is licensed under either of the CC0-1.0 or MIT license, at your option.
 
 ## Footnotes
 
