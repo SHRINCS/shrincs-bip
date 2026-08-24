@@ -4,14 +4,14 @@ from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
 
 if __name__ == "__main__":
   structures = [
-    bytes([FXMSS_SHAPE_BALANCED, 4]),
-    bytes([FXMSS_SHAPE_UNBALANCED, 16])
+    (bytes([FXMSS_SHAPE_BALANCED, 4]), 16),
+    (bytes([FXMSS_SHAPE_UNBALANCED, 16]), 17)
   ]
-  for (i, sf_structure) in enumerate(structures):
+  for (i, (sf_structure, stateful_signature_count)) in enumerate(structures):
     sk, pk = shrincs_keygen(randbytes(48), sf_structure)
 
     msg = b"foobar!"
-    for j in range(16):
+    for j in range(stateful_signature_count):
       sig = shrincs_sign(msg, b"", sk, j, None)
       assert shrincs_verify(msg, sig, b"", pk)
     print(f'verified all stateful signatures for structure {sf_structure.hex()}')
