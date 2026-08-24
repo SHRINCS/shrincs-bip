@@ -337,6 +337,35 @@ Many possibilities exist, but we prescribe and prove secure only the BXMSS and U
 Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox tree shapes for the sake of forwards compatibility.
 
 
+### Does FXMSS have a big enough signature budget?
+
+FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->, but leaf indexing uses 64-bit unsigned integers, so in theory one could generate a BXMSS tree of at most depth 64 containing 2<sup>64</sup> WOTS+C leaves.
+However, this is impractical because FXMSS is a single-tree design XMSS-variant.
+A single-tree design puts a fundamental limit placed on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
+This is because all WOTS+C keys in FXMSS must be arranged into a single merkle tree, whose root must be known before the SHRINCS public key can be fully computed.
+
+Assuming an extremely well-optimized and highly-parallel GPU implementation of WOTS+C key-generation which can execute one SHA256 compression per nanosecond on average, then the most WOTS+C keys this signer could generate per second would be about 2<sup>21</sup>, or about 2<sup>32</sup> WOTS+C keys per hour.
+Only after generating a suitable number of these WOTS+C keys can SHRINCS key-generation be completed.
+
+Let's be optimistic and assume this high-speed signer allocates one minute for key generation.
+She would produce about 115 million WOTS+C keys.
+She spends an extra tenth of a second computing the merkle root of all these WOTS+C leaves.
+Her FXMSS signature budget would be about 115,000,000.
+
+For the average consumer Bitcoin wallet, this is far more signatures than would ever be needed.
+
+For off-chain protocols though, the FXMSS signature budget can be exhausted surprisingly fast.
+Consider a busy lightning channel which signs 5 new commitment transactions per second on average.
+**A signature budget of 115 million would only last 266 days** before the signer would run out of fresh WOTS+C keys, and would need to switch to the stateless path.
+
+Single-tree XMSS could be generalized to *multi-tree XMSS,* written XMSS<sup>MT</sup>, which is specified alongside standard XMSS in RFC-8391[^xmss] as a stateful many-time hash-based signature scheme.
+XMSS<sup>MT</sup> allows signers to use SPHINCS-style hypertrees to keep key-generation performance bounded while supporting very large signature budgets.
+
+SHRINCS opts not to support XMSS<sup>MT</sup>, due to the additional code complexity, attack surface, and challenging security interplay with flexible tree structures that would be introduced.
+High-frequency off-chain use-cases can be handled adequately by the stateless component of SHRINCS, which has sufficient signature budget (2<sup>40</sup>) to allow a 1000 TPS Lightning channel to operate continuously for over 30 years.
+The additional size of stateless signatures only becomes a problem in rare non-cooperative edgecases where force-closures are needed.
+
+
 ### What about hardware wallets?
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
