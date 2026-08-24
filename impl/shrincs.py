@@ -1683,4 +1683,56 @@ def bds_auth_path(bds_state: dict) -> list[bytes]:
   """
   return list(bds_state['auth'])
 
+def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
+  """
+  The BDS treehash scheduling function. Performs a single treehash update: picks the active
+  instance whose lowest stacked node sits on the lowest layer, consumes that instance's next 
+  leaf, and merges it up the stack. An instance completes once the merged node reaches its target layer.
+
+  - Inputs:
+    - `bds_state`: a BDS state from `bds_state_init`.
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - Output:
+    - none.
+
+  This function is only used in the stateful path, and only by the signer.
+  """
+  tree_depth = sf_structure[1]
+  leaf_layer = FXMSS_HEIGHT - tree_depth
+
+  # Pick the instance to receive this update.
+  best, best_low = None, None
+  for j in range(len(bds_state['treehash'])):
+    th = bds_state['treehash'][j]
+    if th['next_leaf'] is None:
+      continue # instance is completed, or was never started
+    low = min((layer for (layer, _) in th['stack']), default=j)
+    if best is None or low < best_low:
+      best, best_low = j, low
+  if best is None:
+    return # no active instances remain
+
+  # Consume the instance's next leaf and merge it up the stack.
+  th = bds_state['treehash'][best]
+  leaf_index = th['next_leaf']
+  ADRS = bytearray(22)
+  node = fxmss_node(sk_seed, leaf_index, leaf_layer, pk_seed, sf_structure, ADRS)
+  node_layer = 0
+  while th['stack'] and th['stack'][-1][0] == node_layer:
+    (_, lchild) = th['stack'].pop()
+    node_layer += 1
+    ADRS[0] = leaf_layer + node_layer
+    ADRS[1:9] = (leaf_index >> node_layer).to_bytes(8)
+    ADRS[9] = SF_FXMSS_TREE
+    ADRS[10:22] = zeros(12)
+    node = H(pk_seed, ADRS, lchild + node)
+
+  if node_layer == best:
+    th['node'] = node
+    th['next_leaf'] = None # instance completed
+  else:
+    th['stack'].append((node_layer, node))
+    th['next_leaf'] = leaf_index + 1
 
