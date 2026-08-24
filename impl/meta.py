@@ -172,7 +172,7 @@ FORS_TREE_GEN_COMPRESSIONS = 3 * 2**SPHX_FORS_HEIGHT - 1
 # Combining FORS roots +
 # Hypertree signing (d - 1 XMSS layers) +
 # Signing with top XMSS layer
-STATELESS_SIGN_COMPRESSIONS_AVG = 2 + \
+STATELESS_SIGN_COMPRESSIONS_AVG = 1 + sha256_compressions(2 + 16 + 16 + 32) + \
                                   4 + \
                                   SPHX_FORS_COUNT * FORS_TREE_GEN_COMPRESSIONS + \
                                   sha256_compressions(22 + SPHX_FORS_COUNT * 16) + \
@@ -202,7 +202,7 @@ WOTS_C_KEYGEN_COMPRESSIONS = (WOTS_C_CHAIN_COUNT * 2**WOTS_C_CHAIN_BITS + \
 # Regenerating other leaves
 # H() invocations (merkle nodes) (averaged over all leaves)
 def uxmss_sign_compressions(depth: int) -> int:
-  return 2 + \
+  return 1 + sha256_compressions(2 + 16 + 16 + 32) + \
           4 + \
           EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
           WOTS_C_CONSTANT_SUM + \
@@ -223,7 +223,7 @@ UXMSS_255_SIGN_COMPRESSIONS_AVG = uxmss_sign_compressions(255)
 # Regenerating other leaves +
 # H() invocations (merkle nodes)
 def bxmss_sign_compressions(depth: int) -> int:
-  return 2 + \
+  return 1 + sha256_compressions(2 + 16 + 16 + 32) + \
           4 + \
           EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
           WOTS_C_CONSTANT_SUM + \

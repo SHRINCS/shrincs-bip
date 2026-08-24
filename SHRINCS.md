@@ -153,15 +153,15 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 
 | Signature Type | Average Signing Cost in SHA256 Compressions | Stateful Signature Budget |
 |-|-|-|
-| Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707298<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> | |
-| Stateful (UXMSS; depth 31) | <!-- CONST START UXMSS_31_SIGN_COMPRESSIONS_AVG -->16510<!-- CONST END UXMSS_31_SIGN_COMPRESSIONS_AVG --> | 32 |
-| Stateful (UXMSS; depth 255) | <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> | 256 |
-| Stateful (BXMSS; depth 5) | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS_AVG -->16521<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS_AVG --> | 2<sup>5</sup> |
-| Stateful (BXMSS; depth 8) | <!-- CONST START BXMSS_8_SIGN_COMPRESSIONS_AVG -->133446<!-- CONST END BXMSS_8_SIGN_COMPRESSIONS_AVG --> | 2<sup>8</sup> |
-| Stateful (BXMSS; depth 10) | <!-- CONST START BXMSS_10_SIGN_COMPRESSIONS_AVG -->534340<!-- CONST END BXMSS_10_SIGN_COMPRESSIONS_AVG --> | 2<sup>10</sup> |
-| Stateful (BXMSS; depth 12) | <!-- CONST START BXMSS_12_SIGN_COMPRESSIONS_AVG -->2137922<!-- CONST END BXMSS_12_SIGN_COMPRESSIONS_AVG --> | 2<sup>12</sup> |
-| Stateful (BXMSS; depth 16) | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS_AVG -->34209598<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS_AVG --> | 2<sup>16</sup> |
-| Stateful (BXMSS; depth 20) | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS_AVG -->547356474<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS_AVG --> | 2<sup>20</sup> |
+| Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707299<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> | |
+| Stateful (UXMSS; depth 31) | <!-- CONST START UXMSS_31_SIGN_COMPRESSIONS_AVG -->16511<!-- CONST END UXMSS_31_SIGN_COMPRESSIONS_AVG --> | 32 |
+| Stateful (UXMSS; depth 255) | <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133327<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> | 256 |
+| Stateful (BXMSS; depth 5) | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS_AVG -->16522<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS_AVG --> | 2<sup>5</sup> |
+| Stateful (BXMSS; depth 8) | <!-- CONST START BXMSS_8_SIGN_COMPRESSIONS_AVG -->133447<!-- CONST END BXMSS_8_SIGN_COMPRESSIONS_AVG --> | 2<sup>8</sup> |
+| Stateful (BXMSS; depth 10) | <!-- CONST START BXMSS_10_SIGN_COMPRESSIONS_AVG -->534341<!-- CONST END BXMSS_10_SIGN_COMPRESSIONS_AVG --> | 2<sup>10</sup> |
+| Stateful (BXMSS; depth 12) | <!-- CONST START BXMSS_12_SIGN_COMPRESSIONS_AVG -->2137923<!-- CONST END BXMSS_12_SIGN_COMPRESSIONS_AVG --> | 2<sup>12</sup> |
+| Stateful (BXMSS; depth 16) | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS_AVG -->34209599<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS_AVG --> | 2<sup>16</sup> |
+| Stateful (BXMSS; depth 20) | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS_AVG -->547356475<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS_AVG --> | 2<sup>20</sup> |
 
 <sub>\*These metrics assume a 32-byte message.</sub>
 
@@ -371,10 +371,10 @@ The additional size of stateless signatures only becomes a problem in rare non-c
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
-Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
+Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133327<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
 Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
 
-The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707298<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
+The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707299<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
 To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signature budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
 Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signature budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
