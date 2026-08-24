@@ -269,3 +269,41 @@ UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG = uxmss_sign_cached_compressions_avg(255)
 
 # Speedup of depth-255 UXMSS signing with the cache.
 UXMSS_255_SIGN_CACHED_SPEED_RATIO = round(UXMSS_255_SIGN_COMPRESSIONS_AVG / UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG)
+
+# BDS traversal state for a BXMSS tree, in bytes: the authentication path,
+# keep (at most depth//2 nodes), retain (2**K - K - 1 nodes), and one completed node plus
+# a stack of partial results across the depth - K treehash instances. For K < depth this
+# sum equals the closed form (3*depth + depth//2 - 3*K - 2 + 2**K).
+def bds_state_size(depth: int, bds_k: int) -> int:
+  nodes = depth + depth // 2 + (2**bds_k - bds_k - 1) + \
+          max(0, depth - bds_k) + max(0, depth - bds_k - 1)
+  return nodes * 16
+
+BXMSS_5_BDS_STATE_SIZE  = bds_state_size(5, 3)
+BXMSS_8_BDS_STATE_SIZE  = bds_state_size(8, 2)
+BXMSS_10_BDS_STATE_SIZE = bds_state_size(10, 2)
+BXMSS_12_BDS_STATE_SIZE = bds_state_size(12, 2)
+BXMSS_16_BDS_STATE_SIZE = bds_state_size(16, 2)
+BXMSS_20_BDS_STATE_SIZE = bds_state_size(20, 2)
+
+# Average SHA256 compressions for BXMSS signing with BDS traversal.
+#
+# PRF_msg_sf call + H_msg_sf call + expected grinding attempts + WOTS chain computation +
+# (depth - K)/2 + 1 leaf computations per state update + 3*(depth - K - 1)/2 + 1 calls to H per state update
+def bds_sign_compressions(depth: int, bds_k: int) -> int:
+  return 2 + \
+          4 + \
+          EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
+          WOTS_C_CONSTANT_SUM + \
+          ((depth - bds_k) // 2 + 1) * WOTS_C_KEYGEN_COMPRESSIONS + \
+          (3 * max(0, depth - bds_k - 1)) // 2 + 1
+
+BXMSS_5_BDS_SIGN_COMPRESSIONS  = bds_sign_compressions(5, 3)
+BXMSS_8_BDS_SIGN_COMPRESSIONS  = bds_sign_compressions(8, 2)
+BXMSS_10_BDS_SIGN_COMPRESSIONS = bds_sign_compressions(10, 2)
+BXMSS_12_BDS_SIGN_COMPRESSIONS = bds_sign_compressions(12, 2)
+BXMSS_16_BDS_SIGN_COMPRESSIONS = bds_sign_compressions(16, 2)
+BXMSS_20_BDS_SIGN_COMPRESSIONS = bds_sign_compressions(20, 2)
+
+# Speedup of depth-20 BXMSS signing with BDS traversal.
+BXMSS_20_BDS_SIGN_SPEED_RATIO = round(BXMSS_20_SIGN_COMPRESSIONS / BXMSS_20_BDS_SIGN_COMPRESSIONS)
