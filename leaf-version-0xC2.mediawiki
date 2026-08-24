@@ -92,9 +92,9 @@ We now define the signature verification algorithms for these two flags.
 
 SHRINCS signatures can exceed the 520-byte limit for stack elements. Therefore, the new tapscript version <code>0xC2</code> introduced in this BIP lifts the 520 byte limit on stack element sizes to 6000 bytes.
 
-SHRINCS signatures may either use the stateful or the stateless path inside the key, and either is equally valid. Stateless SHRINCS signatures are very large, but always a constant size of 5776 bytes. Stateful SHRINCS signatures are much shorter, but are of variable size, to a maximum of XXX bytes.
+SHRINCS signatures may either use the stateful or the stateless path inside the key, and either is equally valid. Stateless SHRINCS signatures are very large, but always a constant size of 5777 bytes. Stateful SHRINCS signatures are much shorter, but are of variable size, from 548 to 4619 bytes.
 
-<!-- TODO: reference BIP SHRINCS for the signature sizes (up to 5776 B). -->
+<!-- TODO: reference BIP SHRINCS for the signature sizes (up to 5777 B). -->
 
 ====SigOp Budget====
 ====Single Signature Pattern====
@@ -123,7 +123,7 @@ This BIP specifies two signature algorithm flags: BIP340 and SHRINCS.
 
 The <code>0xC2</code> leaf version relaxes the limit on stack element size from 520 bytes to 6000 bytes. This section describes why this change is necessary, and how to mitigate the risks associated with larger stack elements.
 
-SHRINCS signature size varies widely - between xxx and 5776 bytes. The signature size is chosen by the signer and can't be statically determined from the public key alone. This presents a challenge when deploying SHRINCS on-chain because the legacy tapscript version <code>0xC0</code> restricts stack elements to a maximum size of 520 bytes which SHRINCS signatures may overrun.
+SHRINCS signature size varies widely - between 548 and 5777 bytes. The signature size is chosen by the signer and can't be statically determined from the public key alone. This presents a challenge when deploying SHRINCS on-chain because the legacy tapscript version <code>0xC0</code> restricts stack elements to a maximum size of 520 bytes which SHRINCS signatures may overrun.
 
 To understand why the stack element size limit must be relaxed, let us first consider how we'd need to implement SHRINCS if we worked around the 520-byte stack element size limit in legacy tapscript.
 
