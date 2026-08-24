@@ -1736,3 +1736,77 @@ def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_stru
     th['stack'].append((node_layer, node))
     th['next_leaf'] = leaf_index + 1
 
+def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
+  """
+  The BDS state update function. Advances the state by one leaf: computes the authentication
+  path of the next leaf from the stored nodes, refreshes `keep` and restarts the consumed
+  treehash instances.
+
+  - Inputs:
+    - `bds_state`: a BDS state from `bds_state_init`.
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - Output:
+    - none.
+
+  This function is only used in the stateful path, and only by the signer.
+  """
+  tree_depth = sf_structure[1]
+  leaf_layer = FXMSS_HEIGHT - tree_depth
+  bds_k = bds_state['bds_k']
+  s = bds_state['state_ctr']
+
+  bds_state['state_ctr'] = s + 1
+  if s + 1 >= 2**tree_depth:
+    return # the stateful signing budget is exhausted; there is no next leaf
+
+  # The layer of the first left-turn on the path from leaf s to the root: the
+  # lowest layer whose authentication path node is about to change to a left
+  # node. Equals the number of trailing one bits of s.
+  tau = 0
+  while (s >> tau) & 1 == 1:
+    tau += 1
+
+  # If the authentication node on layer tau sits below a left node, remember
+  # it: it is the right child from which that left node will later be computed.
+  if tau < tree_depth - 1 and (s >> (tau + 1)) & 1 == 0:
+    bds_state['keep'][tau] = bds_state['auth'][tau]
+
+  ADRS = bytearray(22)
+
+  if tau == 0:
+    # Leaf s is a left child: it becomes the bottom authentication node.
+    bds_state['auth'][0] = fxmss_node(sk_seed, s, leaf_layer, pk_seed, sf_structure, ADRS)
+  else:
+    # The left node entering the path on layer tau is the parent of the old
+    # authentication node below it and the node remembered in keep.
+    lchild = bds_state['auth'][tau - 1]
+    rchild = bds_state['keep'].pop(tau - 1)
+    ADRS[0] = leaf_layer + tau
+    ADRS[1:9] = (s >> tau).to_bytes(8)
+    ADRS[9] = SF_FXMSS_TREE
+    ADRS[10:22] = zeros(12)
+    bds_state['auth'][tau] = H(pk_seed, ADRS, lchild + rchild)
+
+    # Below tau, fresh right nodes enter the path: from the treehash instances
+    # on the lower layers, and from retain on the top layers.
+    for j in range(tau):
+      if j < tree_depth - bds_k:
+        th = bds_state['treehash'][j]
+        assert th['next_leaf'] is None and th['node'] is not None
+        bds_state['auth'][j] = th['node']
+        th['node'] = None
+      else:
+        needed_index = ((s + 1) >> j) ^ 1
+        bds_state['auth'][j] = bds_state['retain'].pop((needed_index, j))
+
+    # Restart the consumed treehash instances on the next right node of their
+    # layer, unless that node lies beyond the edge of the tree.
+    for j in range(min(tau, tree_depth - bds_k)):
+      if s + 1 + 3 * 2**j < 2**tree_depth:
+        bds_state['treehash'][j]['next_leaf'] = s + 1 + 3 * 2**j
+
+  # Distribute the round's budget of treehash updates.
+  for i in range((tree_depth - bds_k) // 2):
+    bds_treehash_update(bds_state, sk_seed, pk_seed, sf_structure)
