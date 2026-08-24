@@ -136,9 +136,22 @@ STATEFUL_VERIFY_SPEED_RATIO = round(STATELESS_VERIFY_COMPRESSIONS_MAX / STATEFUL
 WOTS_TW_KEYGEN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT * 2**WOTS_TW_CHAIN_BITS + \
                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16)
 
-WOTS_TW_SIGN_COMPRESSIONS_MIN = sum((i + 1 for i in wots_tw_message_to_indexes(zeros(16))))
-WOTS_TW_SIGN_COMPRESSIONS_MAX = sum((i + 1 for i in wots_tw_message_to_indexes(replicate(0xFF, 16))))
-WOTS_TW_SIGN_COMPRESSIONS_AVG = (WOTS_TW_SIGN_COMPRESSIONS_MIN + WOTS_TW_SIGN_COMPRESSIONS_MAX) // 2
+# Little helper to compute the number of checksum compressions.
+def checksum_compressions(checksum: int) -> int:
+  checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
+  for i in range(WOTS_TW_CHAIN_COUNT2):
+    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
+    checksum >>= WOTS_TW_CHAIN_BITS
+  return sum(checksum_indexes)
+
+# The expected index is half the max index.
+WOTS_TW_AVERAGE_MESSAGE_COMPRESSIONS = WOTS_TW_CHAIN_COUNT1 * ((2**WOTS_TW_CHAIN_BITS - 1) / 2)
+
+# Some checksums are more likely than others, but the distribution is symmetric about the middle, so this still works.
+WOTS_TW_AVERAGE_CHECKSUM_COMPRESSIONS = checksum_compressions(WOTS_TW_CHECKSUM_MAX // 2)
+
+# PRF invocations + message chain compressions + checksum chain compressions
+WOTS_TW_SIGN_COMPRESSIONS_AVG = round(WOTS_TW_CHAIN_COUNT + WOTS_TW_AVERAGE_MESSAGE_COMPRESSIONS + WOTS_TW_AVERAGE_CHECKSUM_COMPRESSIONS)
 
 # Generating other WOTS leaves +
 # WOTS-TW signing +
