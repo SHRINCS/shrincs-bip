@@ -1302,10 +1302,10 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
   This function is used only by the signer.
 
   > [!CAUTION]
-  > Using the same key to sign different `message` values with the same `state_ctr` is
+  > Using the same key to sign different `(message, ctx)` pairs with the same `state_ctr` is
   > a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
   > which increments and saves the state counter as `state_ctr + 1` on a persistent,
-  > non-recoverable storage medium before the signature is returned to the caller.
+  > rollback-resistant storage medium before the signature is returned to the caller.
   """
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
