@@ -243,3 +243,29 @@ STATELESS_SIGN_CACHED_COMPRESSIONS = STATELESS_SIGN_COMPRESSIONS - XMSS_SIGN_COM
 
 # Speedup of stateless signing with the top-layer leaf cache.
 STATELESS_SIGN_CACHED_SPEED_RATIO = round(STATELESS_SIGN_COMPRESSIONS / STATELESS_SIGN_CACHED_COMPRESSIONS, 2)
+
+# UXMSS cache, in bytes: one 16-byte WOTS+C public key per leaf, depth + 1 leaves in total.
+def uxmss_cache_size(depth: int) -> int:
+  return (depth + 1) * 16
+
+UXMSS_31_CACHE_SIZE  = uxmss_cache_size(31)
+UXMSS_255_CACHE_SIZE = uxmss_cache_size(255)
+
+# SHA256 compressions needed for UXMSS signing with the cache.
+#
+# PRF_msg_sf call + H_msg_sf call + expected grinding attempts + WOTS chain computation +
+# Recombining the spine sibling from cached leaves: depth - k calls to H for the leaf at
+# depth k, and none for the two deepest leaves.
+UXMSS_SIGN_CACHED_COMPRESSIONS_MIN = 2 + 4 + EXPECTED_WOTS_C_GRINDING_ATTEMPTS + WOTS_C_CONSTANT_SUM
+
+def uxmss_sign_cached_compressions_max(depth: int) -> int:
+  return UXMSS_SIGN_CACHED_COMPRESSIONS_MIN + depth - 1
+
+def uxmss_sign_cached_compressions_avg(depth: int) -> int:
+  return UXMSS_SIGN_CACHED_COMPRESSIONS_MIN + depth * (depth - 1) // (2 * (depth + 1))
+
+UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX = uxmss_sign_cached_compressions_max(255)
+UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG = uxmss_sign_cached_compressions_avg(255)
+
+# Speedup of depth-255 UXMSS signing with the cache.
+UXMSS_255_SIGN_CACHED_SPEED_RATIO = round(UXMSS_255_SIGN_COMPRESSIONS_AVG / UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG)
