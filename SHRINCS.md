@@ -114,7 +114,7 @@ The variance in stateless compression count can be controlled by the signer with
 
 The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
 
-For comparison, if one benchmarks the cost of BIP-340 Schnorr signature verification compared against SHA256 hashing, one can compute the the equivalent cost of Schnorr in terms of SHA256 hash compressions.
+For comparison, if one benchmarks the cost of BIP-340 Schnorr signature verification compared against SHA256 hashing, one can compute the equivalent cost of Schnorr in terms of SHA256 hash compressions.
 Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have a cost of around 1.3 - 2.0 software SHA256 compressions per byte.[^bip340_sha256_bench]
 
 
@@ -339,7 +339,7 @@ Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox 
 
 FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->, but leaf indexing uses 64-bit unsigned integers, so in theory one could generate a BXMSS tree of at most depth 64 containing 2<sup>64</sup> WOTS+C leaves.
 However, this is impractical because FXMSS is a single-tree design XMSS-variant.
-A single-tree design puts a fundamental limit placed on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
+A single-tree design puts a fundamental limit on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
 This is because all WOTS+C keys in FXMSS must be arranged into a single merkle tree, whose root must be known before the SHRINCS public key can be fully computed.
 
 Assuming an extremely well-optimized and highly-parallel GPU implementation of WOTS+C key-generation which can execute one SHA256 compression per nanosecond on average, then the most WOTS+C keys this signer could generate per second would be about 2<sup>21</sup>, or about 2<sup>32</sup> WOTS+C keys per hour.
@@ -361,7 +361,7 @@ XMSS<sup>MT</sup> allows signers to use SPHINCS-style hypertrees to keep key-gen
 
 SHRINCS opts not to support XMSS<sup>MT</sup>, due to the additional code complexity, attack surface, and challenging security interplay with flexible tree structures that would be introduced.
 High-frequency off-chain use-cases can be handled adequately by the stateless component of SHRINCS, which has sufficient signature budget (2<sup>40</sup>) to allow a 1000 TPS Lightning channel to operate continuously for over 30 years.
-The additional size of stateless signatures only becomes a problem in rare non-cooperative edgecases where force-closures are needed.
+The additional size of stateless signatures only becomes a problem in rare non-cooperative edge cases where force-closures are needed.
 
 
 ### What about hardware wallets?
@@ -377,7 +377,7 @@ To remedy this, hardware wallets can implement a software-level trade-off in SLH
 Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signature budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
 
 >[!WARNING]
-> SHRINCS keys generated using hypertree pruning for the stateless component **are not compatible with SHRINCS implementations which do not support hypertree pruning.** In fact, importing key across such incompatible implementations may result in lost funds.[^pruning]
+> SHRINCS keys generated using hypertree pruning for the stateless component **are not compatible with SHRINCS implementations which do not support hypertree pruning.** In fact, importing a key across such incompatible implementations may result in lost funds.[^pruning]
 
 
 ## Specification
@@ -449,7 +449,7 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 
 ### Key Generation Inputs
-<!-- TODO (Jonas): What's the prupose of having this section here? Why not explain this in the keygen algorithm section? -->
+<!-- TODO (Jonas): What's the purpose of having this section here? Why not explain this in the keygen algorithm section? -->
 
 Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes.
 This is then split into 3 x 16-byte seeds.
@@ -479,7 +479,7 @@ We make use of the following utility helper functions in specifying SHRINCS.
 - `ceildiv(a, b)`: divides the integer `a` by the integer `b`, rounding the quotient up.
 - `sum(x)`: sums a sequence of numbers `x`.
 - `replicate(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
-- `zeros(n)`: returns a bytestring of  length `n` containing only repeated zero bytes.
+- `zeros(n)`: returns a bytestring of length `n` containing only repeated zero bytes.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
 - `concat(array)`: concatenates an array of byte strings.
 
@@ -569,7 +569,7 @@ This location is called an _address_ and we encode it into a 22-byte array, ofte
 
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
-| `node_height` | 1 byte | Specifies the height of a node or leaf the FXMSS tree. The root node is at height `FXMSS_HEIGHT`. |
+| `node_height` | 1 byte | Specifies the height of a node or leaf in the FXMSS tree. The root node is at height `FXMSS_HEIGHT`. |
 | `node_index` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the node index (from the left) within a layer of the FXMSS tree. |
 | `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
@@ -1004,7 +1004,7 @@ The following two sections describe a pair of related one-time signature schemes
 Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signature scheme_ (WOTS),[^merkle] but each has a distinct performance profile and features.
 WOTS-TW is standardized in SLH-DSA[^slhdsa] and so we use it to preserve compatibility.
 WOTS+C produces shorter signatures with faster and constant-time verification speed, but is not compatible with SLH-DSA and so we only use it on the stateful path where compatibility is not a concern.
-WOTS+C can also technically fail when signing, a rare edgecase which parameters must be carefully engineered to avoid.
+WOTS+C can also technically fail when signing, a rare edge case which parameters must be carefully engineered to avoid.
 
 
 #### Informal Description
@@ -1854,7 +1854,7 @@ When the shape byte is set to `FXMSS_SHAPE_UNBALANCED`, signers use an unbalance
  leaf   leaf
 ```
 
-This FXMSS tree shape allows signers to generate very short stateful signatures for the first few initial signatures, since the signer can use the shallowest WOTS+C leaves right away, and these have very short merkle authentication paths.
+This FXMSS tree shape allows signers to generate very short stateful signatures for the first few signatures, since the signer can use the shallowest WOTS+C leaves right away, and these have very short merkle authentication paths.
 
 However, since each WOTS+C leaf can be used only once, subsequent signatures will grow larger at a rate of 16 or 17 bytes per signature issued as the merkle authentication path grows in length, with the exception of the last signature which has the same length as the penultimate one.[^last_two_sigs]
 
@@ -2498,7 +2498,7 @@ This cap is set by the longest prefix a message can sit behind.
 On the stateless path it reaches the innermost hash behind `98` bytes of fixed prefixes (the 64-byte HMAC block, the 16-byte `opt_rand`, the 2-byte SLH-DSA message prefix, and the 16-byte `sf_root`); on the stateful path, behind `107` (the 64-byte HMAC block, the 16-byte `pk_seed`, the 9-byte leaf position, the 2-byte binding prefix, and the 16-byte `sl_root`), which is the longer of the two.
 The caller's `ctx` is prepended on either path, adding up to a further 255 bytes, so the longest prefix any message sits behind is `362`.
 SHA-256's limit then gives an exact maximum of `2**61 - 363` bytes, which we round down to `2**61 - 384`, the largest multiple of SHA-256's 64-byte block size that stays within this limit.
-The intermediate functions in between accept *a variable-length message*.
+The intermediate functions accept *a variable-length message*.
 Its length still carries an upper bound, just an implicit one, set by the primitive bounds above rather than stated at each function: a SHRINCS `message` is already capped, and each intermediate prepends at most a known number of bytes to it, so every hash input stays within SHA-256's limit by construction. No realistic message will ever approach this cap.
 
 #### SHRINCS Algorithms
@@ -2761,9 +2761,9 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
 ## On Signing Fallibility
 
 The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` if the function fails.
-This originates from an edgecase condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+This originates from an edge case condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
 
-While this edgecase is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe.
+While this edge case is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe.
 See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.
 
 Still, as this python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms.
@@ -2819,7 +2819,7 @@ This document and the SHRINCS reference code is licensed under either of the CC0
 [^vulkan]: For comparison, a 2025 benchmark of a [Vulkan implementation of SLH-DSA-SHA2-128s](https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA) reports a signing time of 2.67 ms on a commodity RTX 3060 Ti GPU.
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
 [^sl_param_tool]: https://blockstreamresearch.github.io/SPHINCS-Parameters/site/stateless.html
-[^sl_param_search]: https://github.com/conduition/slh-experiments/blob/d0c56b173a2b1ecacaf9222aafa6868b1b7df504/param_search.py - To recover the SHRINCS parameters from this script, run it with the following arguments: `param_search.py --max-sigs '2**40' --secbits 128  --max-verify-hashes 2800 --max-kilohashes 2200 --no-cache --max-sig-size 5800`
+[^sl_param_search]: https://github.com/conduition/slh-experiments/blob/d0c56b173a2b1ecacaf9222aafa6868b1b7df504/param_search.py - To recover the SHRINCS parameters from this script, run it with the following arguments: `param_search.py --max-sigs '2**40' --secbits 128 --max-verify-hashes 2800 --max-kilohashes 2200 --no-cache --max-sig-size 5800`
 [^ledger-bench]: https://youtu.be/V59OkKfATng?si=Q6MsI7VBm5NMdJWZ&t=2297
 [^trezor-bench]: https://github.com/trezor/trezor-firmware/pull/4901 and https://gist.github.com/onvej-sl/3851bdae7ae5aa1f2624ca769737ea2e
 [^merkle]: https://www.ralphmerkle.com/papers/Certified1979.pdf
