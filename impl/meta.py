@@ -158,7 +158,7 @@ WOTS_TW_SIGN_COMPRESSIONS_AVG = round(WOTS_TW_CHAIN_COUNT + WOTS_TW_AVERAGE_MESS
 # H() invocations (merkle nodes)
 XMSS_SIGN_COMPRESSIONS_AVG = (2**SPHX_XMSS_HEIGHT - 1) * WOTS_TW_KEYGEN_COMPRESSIONS + \
                              WOTS_TW_SIGN_COMPRESSIONS_AVG + \
-                             2**SPHX_XMSS_HEIGHT - 1
+                             2**SPHX_XMSS_HEIGHT - 1 - SPHX_XMSS_HEIGHT
 
 # One PRF call + one F call per leaf (total 2**(SPHX_FORS_HEIGHT+1)),
 # plus 2**SPHX_FORS_HEIGHT - 1 calls to H (merkle nodes).
