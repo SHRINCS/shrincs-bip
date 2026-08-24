@@ -2028,7 +2028,8 @@ WOTS+C leaf in the tree.
 - Inputs:
   - `leaf_index`: a 64-bit unsigned integer, the left-to-right position of the WOTS+C signing leaf.
   - `leaf_height`: an 8-bit unsigned integer, the height of the WOTS+C signing leaf.
-  - `signature`: a signature of length proportional to `leaf_height`. Specifically:
+  - `signature`: a signature of length proportional to the leaf depth
+    `FXMSS_HEIGHT - leaf_height`. Specifically:
     `len(signature) == 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte salt.
