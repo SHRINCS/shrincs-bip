@@ -1,7 +1,12 @@
 ```
   BIP: ?
   Title: SHRINCS: A Compact Hash-Based Signature Scheme
-  Authors: TODO
+  Authors: conduition <conduition@proton.me>
+           Ethan Heilman <ethan.r.heilman@gmail.com>
+           Mikhail Kudinov <mishel.kudinov@gmail.com>
+           Oleksandr Kurbatov <olkurbatov@gmail.com>
+           Jonas Nick <jonas@n-ck.net>
+           remix7531 <remix7531@mailbox.org>
   Status: Draft
   Type: Specification
   Assigned: ?
@@ -2789,7 +2794,10 @@ A fully optimized implementation of SHRINCS is still TODO.
 
 ## Acknowledgements
 
-TODO
+We would like to thank:
+- Mike Casey, for his feedback during the process of drafting SHRINCS.
+- Andreas Hülsing, for his input on the SHRINCS security proof.
+- Boris Nagaev, for his input on the SHRINCS specification and for his work exploring higher-level SHRINCS constructions.
 
 
 ## Copyright
