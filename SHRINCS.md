@@ -2251,7 +2251,7 @@ Most of the computational cost of SHRINCS signing includes regenerating Merkle n
 
 We specify three cache constructions:
 - A [**Stateless Cache**](#the-stateless-cache), which stores the WOTS-TW leaves of the top-layer XMSS tree in the variant of SLH-DSA.
-- A **UXMSS Cache**, which stores the WOTS+C public keys on every layer of a UXMSS tree.
+- A [**UXMSS Cache**](#the-uxmss-cache), which stores the WOTS+C public keys on every layer of a UXMSS tree.
 - The **BXMSS Cache** with the usage of BDS tree traversal algorithm[^bds], which schedules the computation of upcoming authentication path nodes across signatures, so each following signature requires regenerating only a fraction of the tree.
 
 Unlike the state counter, a cache is not so critical. Every cached value is a deterministic function of the secret key, so a signer can regenerate its cache from scratch at any time. The rules defined in [On Managing State](#on-managing-state) do not apply to caches:
@@ -2364,6 +2364,135 @@ def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes]
   return sig
 ```
 <!-- DOC END xmss_sign_from_cache -->
+
+##### The UXMSS Cache
+
+A UXMSS tree of depth `d` requires to calculate `2*d + 1` nodes in total: one WOTS+C leaf per layer (an exception is the deepest layer), joined by the internal spine nodes. Every authentication path is included in this set: for the signing leaf at depth `k`, it is the leaf's sibling on the spine followed by the leaf public keys at depths `k - 1` through `1`.
+
+The UXMSS cache stores the `d + 1` leaf public keys: <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes at the recommended maximum depth `d = FXMSS_HEIGHT`, or <!-- CONST START UXMSS_31_CACHE_SIZE -->512<!-- CONST END UXMSS_31_CACHE_SIZE --> bytes at depth 31. The cache is filled once by `uxmss_cache_gen` (recommended at key-generation time).
+
+To sign, `uxmss_auth_path` computes the authentication path from the cache and `fxmss_sign_from_auth_path` assembles the signature. At depth 255 this costs between <!-- CONST START UXMSS_SIGN_CACHED_COMPRESSIONS_MIN -->291<!-- CONST END UXMSS_SIGN_CACHED_COMPRESSIONS_MIN --> and <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX -->545<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX --> SHA256 compressions per signature (<!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->417<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> on average) instead of <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> - roughly <!-- CONST START UXMSS_255_SIGN_CACHED_SPEED_RATIO -->319<!-- CONST END UXMSS_255_SIGN_CACHED_SPEED_RATIO -->x faster.
+
+##### `uxmss_cache_gen(...)`
+
+<!-- DOC START uxmss_cache_gen -->
+The UXMSS cache generation function. Computes the WOTS+C public keys of every leaf in a UXMSS tree.
+
+- Inputs:
+  - `sk_seed`: a 16-byte secret.
+  - `pk_seed`: a 16-byte salt.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+- Output:
+  - a dictionary mapping `(node_index, node_height)` positions to 16-byte WOTS+C public key hashes: `depth + 1` leaves in total.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def uxmss_cache_gen(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> dict[tuple[int, int], bytes]:
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  assert tree_shape == FXMSS_SHAPE_UNBALANCED
+  assert tree_depth >= 1
+
+  cache = {}
+  ADRS = bytearray(22)
+
+  # The deepest layer holds two WOTS+C leaves; every layer above holds one, as the right sibling of the spine.
+  deepest_height = FXMSS_HEIGHT - tree_depth
+  cache[(0, deepest_height)] = fxmss_node(sk_seed, 0, deepest_height, pk_seed, sf_structure, ADRS)
+  for node_height in range(deepest_height, FXMSS_HEIGHT):
+    cache[(1, node_height)] = fxmss_node(sk_seed, 1, node_height, pk_seed, sf_structure, ADRS)
+
+  return cache
+```
+<!-- DOC END uxmss_cache_gen -->
+
+##### `uxmss_auth_path(...)`
+
+<!-- DOC START uxmss_auth_path -->
+Computes the Merkle authentication path from a cache. Every path node is read from there, 
+except the leaf's sibling on the spine, which is recombined from the cached leaves below it.
+
+- Inputs:
+  - `uxmss_cache`: a leaf cache from `uxmss_cache_gen`.
+  - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf in the FXMSS layer.
+  - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf in the FXMSS tree.
+  - `pk_seed`: a 16-byte salt.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+- Output:
+  - a list of `FXMSS_HEIGHT - leaf_height` 16-byte authentication path nodes, ordered from the leaf's sibling upwards.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def uxmss_auth_path(uxmss_cache: dict[tuple[int, int], bytes], leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes) -> list[bytes]:
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  assert tree_shape == FXMSS_SHAPE_UNBALANCED
+  deepest_height = FXMSS_HEIGHT - tree_depth
+  leaf_depth = FXMSS_HEIGHT - leaf_height
+
+  ADRS = bytearray(22)
+  ADRS[9] = SF_FXMSS_TREE
+
+  # The leaf's sibling: a cached leaf on the deepest layer, or a spine node recombined from the cached leaves below it.
+  if leaf_height == deepest_height:
+    sibling = uxmss_cache[(leaf_index ^ 1, leaf_height)]
+  else:
+    sibling = uxmss_cache[(0, deepest_height)]
+    for node_height in range(deepest_height + 1, leaf_height + 1):
+      ADRS[0] = node_height
+      sibling = H(pk_seed, ADRS, sibling + uxmss_cache[(1, node_height - 1)])
+
+  # Every node above the sibling is a cached leaf.
+  auth_path = [sibling]
+  for j in range(1, leaf_depth):
+    auth_path.append(uxmss_cache[(1, leaf_height + j)])
+  return auth_path
+```
+<!-- DOC END uxmss_auth_path -->
+
+##### `fxmss_sign_from_auth_path(...)`
+
+<!-- DOC START fxmss_sign_from_auth_path -->
+FXMSS signing from a precomputed authentication path. Equivalent to `fxmss_sign`, but
+appends the given `auth_path` instead of regenerating its nodes with `fxmss_node`.
+
+- Inputs:
+  - `message_digest`: a 32-byte message digest.
+  - `sk_seed`: a 16-byte secret.
+  - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf in the FXMSS layer.
+  - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf in the FXMSS tree.
+  - `pk_seed`: a 16-byte salt.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `auth_path`: a list of `FXMSS_HEIGHT - leaf_height` 16-byte authentication path nodes, ordered from the leaf's sibling upwards.
+- Output:
+  - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
+
+This function is only used in the stateful path, and only by the signer.
+
+```py
+def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes, auth_path: list[bytes]) -> Optional[bytes]:
+  leaf_depth = FXMSS_HEIGHT - leaf_height
+  assert len(auth_path) == leaf_depth
+
+  # Validate the leaf is positioned correctly for the specified tree structure.
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  if tree_shape == FXMSS_SHAPE_UNBALANCED:
+    assert leaf_index == 1 or leaf_depth == tree_depth
+  if tree_shape == FXMSS_SHAPE_BALANCED:
+    assert leaf_depth == tree_depth
+
+  ADRS = bytearray(22)
+  ADRS[0] = leaf_height
+  ADRS[1:9] = leaf_index.to_bytes(8)
+  ADRS[10:14] = sf_structure + zeros(2)
+  sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  if sig is None:
+    return None
+
+  # Append the precomputed Merkle authentication path.
+  return sig + concat(auth_path)
+```
+<!-- DOC END fxmss_sign_from_auth_path -->
 
 #### Maximum Message Length
 
