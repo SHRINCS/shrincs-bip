@@ -65,16 +65,17 @@ def test_uxmss_cache():
     cache = uxmss_cache_gen(sk_seed, pk_seed, sf_structure)
     assert len(cache) == tree_depth + 1
 
-    # Cached signing must produce byte-identical FXMSS signatures for every state counter
-    # TODO: runtime of the test is annoying; instead of comparing against a freshly built reference 
-    # signature, we can feed each cached signature to the normative verifier. 
+    sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, sf_structure, bytearray(22))
+
+    # Every signature is validated with the normal verifier against the root.
     for state_ctr in range(tree_depth + 1):
       leaf_index, leaf_height = shrincs_sf_leaf_select(sf_structure, state_ctr)
       digest = randbytes(32)
-      sig_naive = fxmss_sign(digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
       auth_path = uxmss_auth_path(cache, leaf_index, leaf_height, pk_seed, sf_structure)
       sig_cached = fxmss_sign_from_auth_path(digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure, auth_path)
-      assert sig_cached == sig_naive
+      assert fxmss_pubkey_from_sig(leaf_index, leaf_height, sig_cached, digest, pk_seed) == sf_root
+      if tree_depth <= 16:
+        assert sig_cached == fxmss_sign(digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
     assert shrincs_sf_leaf_select(sf_structure, tree_depth + 1) is None
   print('verified UXMSS cache equivalence')
 
