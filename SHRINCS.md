@@ -333,7 +333,7 @@ In SHRINCS, the verifier is agnostic to the stateful XMSS tree structure, which 
 This "flexible XMSS" (FXMSS) verifier can accept signatures from other more complex XMSS tree structures as well as BXMSS and UXMSS.
 This means stateful SHRINCS FXMSS trees can be designed to fit highly specialized use-cases, e.g. a keypair which produces constant size signatures for the first `n` signatures and then the size doubles; or a keypair which produces short signatures of increasing size a la UXMSS, until some threshold point where the signature size locks to a constant size until the rest of the XMSS budget is exhausted.
 
-Many possibilities exist, but we prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourage further research into other tree shapes before suggesting their use in production.
+Many possibilities exist, but this specification prescribes only the BXMSS and UXMSS tree shapes and encourages further research into other tree shapes before suggesting their use in production.
 Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox tree shapes for the sake of forwards compatibility.
 
 
