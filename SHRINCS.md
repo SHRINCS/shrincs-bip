@@ -2760,16 +2760,6 @@ Comprehensive test vectors covering every algorithm are still TODO; they are req
 
 A fully optimized implementation of SHRINCS is still TODO.
 
-## Discussion Items
-
-- Because SLH-DSA and XMSS have different signature sizes, the SHRINCS signature size is variable.
-- Mention Vulkan[^vulkan] for signing/keygen.
-- Discuss XMSS tree caching.
-- Should we permit depth-zero script trees?
-- Consider future-proofing the WOTS+C addressing scheme/layout for XMSS^MT.
-- Specify which `ADRS` fields should be prefilled and when.
-- Add a note on how callers cannot depend on the tree structures of untrusted parties, due to collision attacks.
-
 ## Acknowledgements
 
 TODO
