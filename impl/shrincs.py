@@ -1609,3 +1609,62 @@ def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index:
 
   # Append the precomputed Merkle authentication path.
   return sig + concat(auth_path)
+
+def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: int) -> dict:
+  """
+  The BDS state initialization function. Computes the starting traversal state for a BXMSS
+  tree: the authentication path of leaf zero, one treehash instance per lower layer
+  holding the next right node of that layer, and the retained right nodes of the top
+  `bds_k - 1` layers below the root.
+
+  - Inputs:
+    - `sk_seed`: a 16-byte secret.
+    - `pk_seed`: a 16-byte salt.
+    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure. Its shape byte must be `FXMSS_SHAPE_BALANCED`.
+    - `bds_k`: the memory/time trade-off parameter: `2 <= bds_k <= depth`, with `depth - bds_k` even.
+  - Output:
+    - a BDS state: a dictionary with the fields
+      - `state_ctr`: the state counter whose authentication path `auth` currently holds.
+      - `bds_k`: the parameter `bds_k`.
+      - `auth`: the current authentication path, one node per layer, from the leaf's sibling upwards.
+      - `keep`: nodes remembered to compute upcoming left authentication nodes, keyed by layer.
+      - `retain`: precomputed right nodes of the top layers, keyed by `(node_index, layer)`.
+      - `treehash`: one instance per layer `j < depth - bds_k`: a completed `node`, the
+        `next_leaf` it will consume, and a `stack` of partial subtree roots paired with their layers.
+
+  This function is only used in the stateful path, and only by the signer.
+
+  Layers are counted relative to the BXMSS tree: layer `j` sits at FXMSS height
+  `FXMSS_HEIGHT - depth + j`, so layer 0 holds the WOTS+C leaves and layer `depth` the root.
+  The initial state consists of nodes computed during key generation anyway, so
+  implementations may fill it as a byproduct of `shrincs_keygen`.
+  """
+  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  assert tree_shape == FXMSS_SHAPE_BALANCED
+  assert 2 <= bds_k <= tree_depth
+  assert (tree_depth - bds_k) % 2 == 0
+
+  leaf_layer = FXMSS_HEIGHT - tree_depth
+  ADRS = bytearray(22)
+
+  # The authentication path of leaf zero.
+  auth = [b''] * tree_depth
+  for j in range(tree_depth):
+    auth[j] = fxmss_node(sk_seed, 1, leaf_layer + j, pk_seed, sf_structure, ADRS)
+
+  # One treehash instance per layer below the retained layers.
+  treehash = [None] * (tree_depth - bds_k)
+  for j in range(tree_depth - bds_k):
+    treehash[j] = {
+      'node': fxmss_node(sk_seed, 3, leaf_layer + j, pk_seed, sf_structure, ADRS),
+      'next_leaf': None,
+      'stack': [],
+    }
+
+  # Retain every future right node of the top bds_k - 1 layers below the root.
+  retain = {}
+  for j in range(tree_depth - bds_k, tree_depth - 1):
+    for node_index in range(3, 2**(tree_depth - j), 2):
+      retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, sf_structure, ADRS)
+
+  return {'state_ctr': 0, 'bds_k': bds_k, 'auth': auth, 'keep': {}, 'retain': retain, 'treehash': treehash}
