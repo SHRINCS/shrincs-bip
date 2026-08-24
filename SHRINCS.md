@@ -2282,11 +2282,11 @@ SLH-DSA is built out of the WOTS-TW, XMSS, and FORS subschemes already defined e
 In SLH-DSA, the signer uses a hypertree of XMSS trees to sign one of many possible FORS keypairs, which then signs the actual message.
 The addition of FORS makes SLH-DSA secure against a limited degree of leaf reuse, allowing us to discard state-management requirements.
 
-By hashing a _randomizer_ with the message, the signer randomly selects the exact position of the FORS leaf used to sign the message, in a way the verifier can reproduce.
-This ensures an adversary querying the signer for signatures cannot control which FORS leaf a signer will use, nor can they predictably control which FORS leaf to use for a forgery.
+By hashing a _randomizer_ with the message, the signer randomly selects the exact position of the FORS keypair used to sign the message, in a way the verifier can reproduce.
+This ensures an adversary querying the signer for signatures cannot control which FORS keypair a signer will use, nor can they predictably control which FORS keypair to use for a forgery.
 The randomizer is sampled pseudorandomly by the signer, using the `PRF_msg_sl` hash function.
 
-The signer uses the selected FORS leaf to sign the message, and then certifies the FORS leaf using a hypertree signature.
+The signer uses the selected FORS keypair to sign the message, and then certifies the FORS public key using a hypertree signature.
 The final SLH-DSA signature consists of:
 
 - A 16-byte _randomizer_
@@ -2302,7 +2302,7 @@ The following sections describe the algorithms used for SLH-DSA.
 
 <!-- DOC START slh_dsa_digest_message -->
 The SLH-DSA message hashing function. Derives the FORS message digest, bottom-layer XMSS tree
-index, and FORS leaf index from `message` under `H_msg_sl`.
+index, and FORS keypair index from `message` under `H_msg_sl`.
 
 - Inputs:
   - `R`: a 16-byte randomizer.

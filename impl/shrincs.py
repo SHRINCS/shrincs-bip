@@ -1092,7 +1092,7 @@ def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes
 def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> tuple[bytes, int, int]:
   """
   The SLH-DSA message hashing function. Derives the FORS message digest, bottom-layer XMSS tree
-  index, and FORS leaf index from `message` under `H_msg_sl`.
+  index, and FORS keypair index from `message` under `H_msg_sl`.
 
   - Inputs:
     - `R`: a 16-byte randomizer.
