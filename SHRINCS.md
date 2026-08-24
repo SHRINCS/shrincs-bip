@@ -59,7 +59,7 @@ An _unbalanced_ tree minimizes the size of the first few signatures but makes ea
 A _balanced_ tree instead produces constant-size signatures.
 
 The **stateless** component generates larger signatures, but does not require the signer to manage state.
-An SLH-DSA parameter set has a _signature budget_: the maximum number of signatures that may be produced under one public key while retaining the targeted security level.
+An SLH-DSA parameter set determines its _signature budget_: the maximum number of signatures that may be produced under one public key while retaining the targeted security level.
 Standardized SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
 
 Each component produces a 16-byte root hash as part of its public key.
@@ -178,19 +178,17 @@ One can also improve stateless SHRINCS signing performance at the cost of statel
 
 ### Why not use a standardized SLH-DSA parameter set?
 
-The signature budget of SLH-DSA is dictated by its parameter set.
-Standardized SLH-DSA parameter sets target a signature budget of 2<sup>64</sup>.
 The stateless component of SHRINCS uses a non-standard SLH-DSA parameter set, primarily to reduce the signature budget from 2<sup>64</sup> to 2<sup>40</sup> signatures per public key.
-Reducing the signature budget reduces the stateless signature size from 7856 bytes in SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes in SHRINCS, a reduction of <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->26<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->%.
-SHRINCS' stateless parameter set also requires <!-- CONST START SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->23<!-- CONST END SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->% less work to sign, and <!-- CONST START SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->28<!-- CONST END SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->% less work to verify, compared to SLH-DSA-SHA2-128s.
+Reducing the signature budget reduces the stateless signature size from 7,856 bytes for SLH-DSA-SHA2-128s to <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> bytes for the stateless component of SHRINCS, a reduction of <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->26<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT -->%.
+The stateless parameter set also requires <!-- CONST START SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->23<!-- CONST END SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT -->% fewer SHA256 compressions for average-case signing and <!-- CONST START SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->28<!-- CONST END SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT -->% fewer for worst-case verification than SLH-DSA-SHA2-128s.
 
-The reduced signature budget in SHRINCS remains far beyond what could be exercised on-chain in Bitcoin.
+The 2<sup>40</sup> signature budget remains far beyond what could be exercised on-chain.
 With Bitcoin's current 4 MB block size limit, 200 years of blocks would consume approximately <!-- CONST START SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->0.66<!-- CONST END SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT -->% of a key's signature budget if all block space were used for stateless SHRINCS signatures under that public key.
 
 The 2<sup>40</sup> signature budget is not reduced further for two reasons.
 
 First, off-chain protocols may generate many signatures under one public key.
-Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain, but may be seen by adversaries.
+Off-chain protocols are not constrained by block space and may produce many signatures that never appear on the blockchain.
 A budget of 2<sup>40</sup> permits approximately 1.1 trillion signatures under a single public key, leaving substantial room for such protocols.
 
 Second, a smaller budget would be easier to exhaust through repeated adversarial signing requests.
