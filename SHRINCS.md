@@ -936,7 +936,8 @@ def H_msg_sl(R: bytes, pk_seed: bytes, sl_root: bytes, M: bytes) -> bytes:
 ```
 <!-- DOC END H_msg_sl -->
 
-The 4-byte zero-padding at the end of the outer hash input ensures `H_msg_sl` matches the definition in FIPS-205,[^slhdsa] in which `H_msg_sl` is defined using MGF1-SHA-256[^mgf1].
+The outer hash computes the first 32-byte MGF1-SHA-256 block.
+`slh_dsa_digest_message` consumes its first `m = 24` bytes, which match the FIPS-205 definition for this parameter set.[^slhdsa][^mgf1]
 
 
 ##### `H_msg_sf(...)`
