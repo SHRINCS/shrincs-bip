@@ -200,17 +200,17 @@ At a sustained rate of 1,000 signatures per second, producing 2<sup>40</sup> sig
 
 ### Why not support multiple parameter sets?
 
-Given the diverse configurability of SHRINCS' components, it would be reasonable to wonder if one could allow different parameter sets within a unified SHRINCS scheme, and so support more use-cases.
-Taken to the extreme, signers could even select their own parameters at key-generation time.
+The parameters of both SHRINCS components can be tuned to provide different trade-offs among signature size, signature budget, and key-generation, signing, and verification costs.
+SHRINCS could therefore allow signers to select among multiple parameter sets at key generation.
 
-SHRINCS elects to fix only a single parameter set for both the stateful and stateless components, rather than allowing signers to customize parameters between keys.
-This rigidity has several motivations:
+SHRINCS instead fixes a single parameter set for both the stateful and stateless components.
+This choice has three motivations:
 
-- Misuse resistance. Wallet developers could misunderstand or misuse different parameter sets, or pick unsafe parameters.
-- Simplicity. Verifiers would need to support multiple parameter sets, which adds complexity, handicaps optimization and may introduce denial of service attacks.
-- Privacy. Multiple parameter sets would degrade privacy for the entire network as wallet fingerprinting would be even easier.
+- Misuse resistance. Wallet developers could misunderstand or misuse different parameter sets, or choose unsafe parameters.
+- Implementation and integration. Supporting multiple parameter sets would increase verifier implementation complexity and test coverage requirements, make behavior across parameter sets harder to analyze, and complicate resource accounting in protocols that use SHRINCS.
+- Privacy. Multiple parameter sets would make wallet fingerprinting easier, reducing anonymity sets across the network.
 
-SHRINCS instead aims for a balanced parameter set which is flexible enough to support any on-chain or off-chain use case within Bitcoin.
+The selected parameter set balances signature size, signature budget, and key-generation, signing, and verification costs for a broad range of on-chain and off-chain Bitcoin use cases.
 
 ### Why these specific parameters?
 
