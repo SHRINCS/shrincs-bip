@@ -1426,7 +1426,7 @@ def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey:
 
 def xmss_leaf_cache_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> list[bytes]:
   """
-  The XMSS cache generation function. Computes the WOTS-TW public keys of every leaf in the XMSS tree 
+  The XMSS cache generation function. Computes the WOTS-TW public keys of every leaf in the XMSS tree
   at the location prefilled in `ADRS`, for reuse across signatures as a leaf cache.
 
   - Inputs:
@@ -1534,7 +1534,7 @@ def uxmss_cache_gen(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> dict
 
 def uxmss_auth_path(uxmss_cache: dict[tuple[int, int], bytes], leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes) -> list[bytes]:
   """
-  Computes the Merkle authentication path from a cache. Every path node is read from there, 
+  Computes the Merkle authentication path from a cache. Every path node is read from there,
   except the leaf's sibling on the spine, which is recombined from the cached leaves below it.
 
   - Inputs:
@@ -1686,7 +1686,7 @@ def bds_auth_path(bds_state: dict) -> list[bytes]:
 def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
   """
   The BDS treehash scheduling function. Performs a single treehash update: picks the active
-  instance whose lowest stacked node sits on the lowest layer, consumes that instance's next 
+  instance whose lowest stacked node sits on the lowest layer, consumes that instance's next
   leaf, and merges it up the stack. An instance completes once the merged node reaches its target layer.
 
   - Inputs:
@@ -1808,5 +1808,5 @@ def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structu
         bds_state['treehash'][j]['next_leaf'] = s + 1 + 3 * 2**j
 
   # Distribute the round's budget of treehash updates.
-  for i in range((tree_depth - bds_k) // 2):
+  for _ in range((tree_depth - bds_k) // 2):
     bds_treehash_update(bds_state, sk_seed, pk_seed, sf_structure)

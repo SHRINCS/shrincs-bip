@@ -135,7 +135,7 @@ To improve stateful signing performance further at the cost of memory, one can c
 
 The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signing budget, using hypertree pruning[^pruning].
 
-Recommended cache constructions for both signature parts, together the storage requirements, are specified under [On Managing Caches](#on-managing-caches).
+Recommended cache constructions for both signature parts, together with the storage requirements, are specified under [On Managing Caches](#on-managing-caches).
 
 TODO:
 - compare verification costs to Schnorr?
@@ -2261,20 +2261,20 @@ Unlike the state counter, a cache is not so critical. Every cached value is a de
 
 Note that although a bad cache cannot compromise security, it can still waste the signing budget. The state counter must be incremented for every stateful signing attempt, including one that produced an invalid signature. Because a corrupted cache surfaces only in the signatures it invalidates, signers using caches SHOULD verify their own stateful signatures before releasing them - and regenerate the cache if verification fails.
 
-The BDS traversal state is also recomputable from the secret key and the state counter, but unlike the passive caches, it must be recalculated for each signature. A BDS state that fails must be regenerated (repeated) before stateful signing can resume.
+The BDS traversal state is also recomputable from the secret key and the state counter, but unlike the passive caches, it must be advanced by exactly one update per stateful signature, in lockstep with the state counter. A BDS state that falls out of step with the counter must be regenerated before stateful signing can resume.
 
 ##### The Stateless Cache
 
-Every stateless signature contains a top-layer tree signature. A cold signer regenerates this tree per each stateless signature: `2**SPHX_XMSS_HEIGHT` WOTS-TW leaves.
+Every stateless signature contains a top-layer tree signature. A cold signer regenerates this tree for each stateless signature: `2**SPHX_XMSS_HEIGHT` WOTS-TW leaves.
 
 The stateless cache stores the WOTS-TW public keys of the top-layer tree: `2**SPHX_XMSS_HEIGHT` hashes of 16 bytes each, or <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes in total. The cache is filled once by `xmss_leaf_cache_gen` (naturally at key-generation time).
 
-To use the cache, the signer substitutes `xmss_sign_from_cache` for `xmss_sign` at the top layer of `hypertree_sign` (that is, when `j == SPHX_LAYER_COUNT - 1`). The internal Merkle nodes above the cached leaves are recomputed on demand by `xmss_node_from_cache`. This reduces the cost of signing the top layer from <!-- CONST START XMSS_SIGN_COMPRESSIONS -->291839<!-- CONST END XMSS_SIGN_COMPRESSIONS --> to at most <!-- CONST START STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS -->1017<!-- CONST END STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS --> compressions, and the total cost of a stateless signature from <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> to <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS -->1414132<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS --> compressions -a speedup of <!-- CONST START STATELESS_SIGN_CACHED_SPEED_RATIO -->1.21<!-- CONST END STATELESS_SIGN_CACHED_SPEED_RATIO -->x.
+To use the cache, the signer substitutes `xmss_sign_from_cache` for `xmss_sign` at the top layer of `hypertree_sign` (that is, when `j == SPHX_LAYER_COUNT - 1`). The internal Merkle nodes above the cached leaves are recomputed on demand by `xmss_node_from_cache`. This reduces the cost of signing the top layer from <!-- CONST START XMSS_SIGN_COMPRESSIONS -->291839<!-- CONST END XMSS_SIGN_COMPRESSIONS --> to at most <!-- CONST START STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS -->1017<!-- CONST END STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS --> compressions, and the total cost of a stateless signature from <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> to <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS -->1414132<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS --> compressions - a speedup of <!-- CONST START STATELESS_SIGN_CACHED_SPEED_RATIO -->1.21<!-- CONST END STATELESS_SIGN_CACHED_SPEED_RATIO -->x.
 
 ##### `xmss_leaf_cache_gen(...)`
 
 <!-- DOC START xmss_leaf_cache_gen -->
-The XMSS cache generation function. Computes the WOTS-TW public keys of every leaf in the XMSS tree 
+The XMSS cache generation function. Computes the WOTS-TW public keys of every leaf in the XMSS tree
 at the location prefilled in `ADRS`, for reuse across signatures as a leaf cache.
 
 - Inputs:
@@ -2367,7 +2367,7 @@ def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes]
 
 ##### The UXMSS Cache
 
-A UXMSS tree of depth `d` requires to calculate `2*d + 1` nodes in total: one WOTS+C leaf per layer (an exception is the deepest layer), joined by the internal spine nodes. Every authentication path is included in this set: for the signing leaf at depth `k`, it is the leaf's sibling on the spine followed by the leaf public keys at depths `k - 1` through `1`.
+A UXMSS tree of depth `d` requires calculating `2*d + 1` nodes in total: one WOTS+C leaf per layer (an exception is the deepest layer), joined by the internal spine nodes. Every authentication path is included in this set: for the signing leaf at depth `k`, it is the leaf's sibling on the spine followed by the leaf public keys at depths `k - 1` through `1`.
 
 The UXMSS cache stores the `d + 1` leaf public keys: <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes at the recommended maximum depth `d = FXMSS_HEIGHT`, or <!-- CONST START UXMSS_31_CACHE_SIZE -->512<!-- CONST END UXMSS_31_CACHE_SIZE --> bytes at depth 31. The cache is filled once by `uxmss_cache_gen` (recommended at key-generation time).
 
@@ -2409,7 +2409,7 @@ def uxmss_cache_gen(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> dict
 ##### `uxmss_auth_path(...)`
 
 <!-- DOC START uxmss_auth_path -->
-Computes the Merkle authentication path from a cache. Every path node is read from there, 
+Computes the Merkle authentication path from a cache. Every path node is read from there,
 except the leaf's sibling on the spine, which is recombined from the cached leaves below it.
 
 - Inputs:
@@ -2605,7 +2605,7 @@ def bds_auth_path(bds_state: dict) -> list[bytes]:
 
 <!-- DOC START bds_treehash_update -->
 The BDS treehash scheduling function. Performs a single treehash update: picks the active
-instance whose lowest stacked node sits on the lowest layer, consumes that instance's next 
+instance whose lowest stacked node sits on the lowest layer, consumes that instance's next
 leaf, and merges it up the stack. An instance completes once the merged node reaches its target layer.
 
 - Inputs:
@@ -2734,7 +2734,7 @@ def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structu
         bds_state['treehash'][j]['next_leaf'] = s + 1 + 3 * 2**j
 
   # Distribute the round's budget of treehash updates.
-  for i in range((tree_depth - bds_k) // 2):
+  for _ in range((tree_depth - bds_k) // 2):
 ```
 <!-- DOC END bds_state_update -->
 

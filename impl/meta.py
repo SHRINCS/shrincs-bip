@@ -231,9 +231,8 @@ SL_LEAF_CACHE_SIZE = 2**SPHX_XMSS_HEIGHT * 16
 
 # Maximum SHA256 compressions needed to sign with the top-layer XMSS tree using the leaf cache.
 #
-# WOTS-TW signing: 
-#   One PRF call per chain, plus at most WOTS_TW_CHECKSUM_MAX chain steps in total +
-#   Internal nodes from cached leaves: the sibling subtree at height j costs 2**j - 1 calls
+# WOTS-TW signing: one PRF call per chain, plus at most WOTS_TW_CHECKSUM_MAX chain steps +
+# Internal nodes from cached leaves: the sibling subtree at height j costs 2**j - 1 compression calls
 STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS = WOTS_TW_CHAIN_COUNT + WOTS_TW_CHECKSUM_MAX + \
                                           (2**SPHX_XMSS_HEIGHT - 1 - SPHX_XMSS_HEIGHT)
 
