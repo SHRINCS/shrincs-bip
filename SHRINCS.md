@@ -2756,17 +2756,21 @@ Comprehensive test vectors covering every algorithm are still TODO; they are req
 > It does not sample or protect secret key material, and it performs no state management at all: `shrincs_sign` takes the state counter as a caller-supplied argument and does nothing to prevent the same counter being used twice.
 > See [On Managing State](#on-managing-state) for the rules a real implementation must enforce.
 
+
 ## Optimized Implementation
 
 A fully optimized implementation of SHRINCS is still TODO.
+
 
 ## Acknowledgements
 
 TODO
 
+
 ## Copyright
 
 This document and the SHRINCS reference code is licensed under either of the CC0-1.0 or MIT license, at your option.
+
 
 ## Footnotes
 
