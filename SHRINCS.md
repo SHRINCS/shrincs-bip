@@ -135,7 +135,14 @@ To improve stateful signing performance further at the cost of memory, one can c
 
 The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching). One can also improve stateless SHRINCS signing performance at the cost of stateless signing budget, using hypertree pruning[^pruning].
 
-Recommended cache constructions for both signature parts, together with the storage requirements, are specified under [On Managing Caches](#on-managing-caches).
+Recommended cache constructions for both signature parts, together with the storage requirements, are specified under [On Managing Caches](#on-managing-caches). With those caches in place, signing costs become:
+
+| Signature Type | Cache | Cache Size | Signing Cost in SHA256 Compressions |
+|-|-|-|-|
+| Stateless | [Stateless Cache](#the-stateless-cache) | <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes | <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS -->1414132<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS --> |
+| Stateful (UXMSS; depth 255) | [UXMSS Cache](#the-uxmss-cache) | <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes | <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->417<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> (average) |
+| Stateful (BXMSS; depth 10) | [BXMSS Cache](#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS -->2907<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS --> (average) |
+| Stateful (BXMSS; depth 20) | [BXMSS Cache](#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS -->5527<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS --> (average) |
 
 TODO:
 - compare verification costs to Schnorr?
@@ -251,7 +258,7 @@ We prescribe and prove secure only the BXMSS and UXMSS tree shapes, and encourag
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
-Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
+Thankfully signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS. Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth. With the [UXMSS Cache](#the-uxmss-cache) filled during key generation, each stateful signature then costs about <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->417<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> compressions (see [On Managing Caches](#on-managing-caches)).
 
 The stateless component is much harder for low-power signers to work with, as the parameters are more-or-less fixed in the stateless scheme, and requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> SHA256 compressions to sign. To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signing budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
