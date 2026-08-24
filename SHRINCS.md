@@ -268,7 +268,7 @@ In other words, using a `b`-bit hash gives `b` bits of classical security, and `
 
 While the definition of quantum security bits is less clear, the classical analogue is well-studied.
 The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time `O(sqrt(n))`, where `n` is the order of the curve.
-The secp256k1 curve order is an approximately 2<sup>256</sup> bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
+The secp256k1 curve order is a 256-bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
 
 Having no concrete basis on which to select a level of quantum security against Grover's algorithm, SHRINCS aims to match BIP340's level of classical security, and so follows the NIST-I security category: 128 bits of classical security, and 64 bits of quantum security.
 
