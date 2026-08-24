@@ -1813,7 +1813,7 @@ A _tree structure_ for FXMSS is encoded as a tuple of two numbers: ***shape*** a
 These two parameters define the FXMSS _tree structure_.
 
 The shape and depth bytes will be encoded in the serialized SHRINCS secret key so that implementations which import the key have a clear directive for how to build the same FXMSS tree in the SHRINCS stateful path.
-Implementations which import SHRINCS keys MUST respect the shape and depth bytes - doing otherwise would be unsafe and may lead to forgeries and theft. <!-- TODO: not anymore -->
+Implementations which import SHRINCS keys MUST respect the shape and depth bytes to reproduce the stateful tree and issue valid stateful signatures.
 
 
 #### Tree Shapes
