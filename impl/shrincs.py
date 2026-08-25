@@ -302,7 +302,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 
   - Inputs:
     - `sk_prf`: a 16-byte secret.
-    - `opt_rand`: a 16-byte salt.
+    - `opt_rand`: a 16-byte value.
     - `M`: a variable-length message.
   - Output:
     - a 16-byte hash.
@@ -310,7 +310,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
   This function is only used in the stateless path, and only by the signer.
 
   `opt_rand` is set to either `pk_seed` (giving the "deterministic variant" of SLH-DSA[^slhdsa]),
-  or a 16-byte salt sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases
+  or a 16-byte random value sampled from a secure RNG (the "hedged variant" of SLH-DSA, which increases
   resistance to side-channel attacks).
   """
   return hmac_sha256(key=sk_prf, message=opt_rand + M)[:16]
@@ -1127,7 +1127,7 @@ def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_s
   salts all hashes with `pk_seed`, derives the randomizer from `sk_prf`/`opt_rand`, and binds the
   signature to `sl_root`. Verifiers must use `slh_dsa_verify` with the same `ctx`.
 
-  The optional additional data `opt_rand` is used to further salt the randomizer. If omitted,
+  When provided, `opt_rand` supplies the additional randomness used to derive the randomizer. If omitted,
   the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
 
   The resulting signature is composed of (1) a randomizer, (2) a FORS signature, and (3) a
@@ -1140,7 +1140,7 @@ def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_s
     - `sk_prf`: a 16-byte secret.
     - `pk_seed`: a 16-byte public seed.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
-    - `opt_rand`: an optional 16-byte salt for the randomizer.
+    - `opt_rand`: optional 16-byte additional randomness.
   - Output:
     - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
@@ -1293,7 +1293,7 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
       previously issued, or `None` to sign statelessly.
-    - `opt_rand`: an optional 16-byte salt for the randomizer in SLH-DSA (unused in the stateful path;
+    - `opt_rand`: optional 16-byte additional randomness for SLH-DSA (unused in the stateful path;
       if omitted, the stateless path uses the deterministic variant of SLH-DSA).
   - Output:
     - a `SHRINCS_SL_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
