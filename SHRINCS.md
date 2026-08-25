@@ -841,7 +841,7 @@ This aligns with definitions in FIPS-205[^slhdsa].
 ##### `PRF_msg_sl(...)`
 
 <!-- DOC START PRF_msg_sl -->
-The `PRF_msg_sl` pseudorandom function. Derives the per-message randomizer (salt) for the stateless path via
+The `PRF_msg_sl` pseudorandom function. Derives the per-message randomizer for the stateless path via
 HMAC-SHA256.
 
 - Inputs:
@@ -867,7 +867,7 @@ def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
 ##### `PRF_msg_sf(...)`
 
 <!-- DOC START PRF_msg_sf -->
-The `PRF_msg_sf` function. Derives the per-message randomizer (salt) for the stateful path via
+The `PRF_msg_sf` function. Derives the per-message randomizer for the stateful path via
 HMAC-SHA256.
 
 - Inputs:
@@ -2081,7 +2081,7 @@ A FORS keypair consists of a _forest_ of merkle trees of a fixed size, where eac
 We parameterize the number of merkle trees as `SPHX_FORS_COUNT`, and the height of each tree as `SPHX_FORS_HEIGHT`.
 The FORS public key is a hash of the merkle roots of the entire forest.
 
-When signing, a message is mapped - via a salted hash - to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each.
+When signing, a message and randomizer `R` are mapped via a hash to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each.
 Each index identifies a specific preimage from each merkle tree which the signer must reveal, along with a merkle authentication path.
 The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
 
@@ -2093,9 +2093,9 @@ Each signature reveals one of the preimages in each merkle tree in the forest.
 Over the course of many signatures, the signer may reuse preimages that have already been revealed in prior signatures, because some messages may map to intersecting index-sets.
 
 Unless he has an efficient way to find preimages, an adversary must hope the signer publishes signatures that admit a forgery by mixing and matching preimages from prior signatures.
-The adversary _cannot_ control which index-sets the victim signs (because of the salt), and so he cannot trick the signer into exposing specific preimages, even if the adversary can query the signer for arbitrary signatures.
+The adversary _cannot_ control which index-sets the victim signs, and so he cannot trick the signer into exposing specific preimages, even if the adversary can query the signer for arbitrary signatures.
 
-However, the adversary _may_ grind to find a message-salt pair which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery.
+However, the adversary _may_ grind to find a message-randomizer pair which maps to an index-set that is a _subset_ of the index-sets signed previously, which would admit a forgery.
 The probability that this occurs with a randomly sampled index-set can be made arbitrarily low by using more and taller trees, or by reducing the limit on the number of signatures the signer is expected to produce.
 This is formalized as the security notion of _interleaved target-subset resilience._[^sphincs+]
 
