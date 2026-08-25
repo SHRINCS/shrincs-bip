@@ -120,7 +120,7 @@ Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have
 
 ### Key Generation
 
-SHRINCS key generation is much slower than verification, because we must generate two XMSS trees, each of different sizes.
+SHRINCS key generation is much slower than verification because it generates the stateless component's top-layer XMSS tree and the stateful component's FXMSS tree.
 The cost of key-generation depends on the _structure_ of the stateful component's FXMSS tree - See the [FXMSS](#fxmss) specification section for a full explanation.
 In general, putting more up-front work into key-generation allows the key a larger stateful signature budget.
 The key-generation cost of the stateless component is constant.
