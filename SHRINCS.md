@@ -652,7 +652,7 @@ The `T_sl` tweaked hash function. Compresses `WOTS_TW_CHAIN_COUNT` Winternitz ch
 single 16-byte hash.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `M_l`: a `WOTS_TW_CHAINS_SIZE`-byte concatenation of chain tips.
 - Output:
@@ -674,7 +674,7 @@ The `T_sf` tweaked hash function. Compresses `WOTS_C_CHAIN_COUNT` Winternitz cha
 single 16-byte hash.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `M_l`: a `WOTS_C_CHAINS_SIZE`-byte concatenation of chain tips.
 - Output:
@@ -696,7 +696,7 @@ The `T_k` tweaked hash function. Compresses `SPHX_FORS_COUNT` FORS tree roots in
 16-byte hash.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `M_k`: a `SPHX_FORS_COUNT * 16`-byte concatenation of FORS tree roots.
 - Output:
@@ -718,7 +718,7 @@ The `F` tweaked hash function. Hashes a single 16-byte input, to generate and it
 hash chains and to hash FORS leaves.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `M_1`: a 16-byte hash.
 - Output:
@@ -740,7 +740,7 @@ The `H` tweaked hash function. Combines a pair of 16-byte Merkle child nodes int
 parent, building the Merkle trees in XMSS and FORS.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `M_2`: a 32-byte concatenation of two child node hashes.
 - Output:
@@ -762,7 +762,7 @@ The `H_grind` tweaked hash function. Maps a 32-byte `digest` and grinding `count
 constant-sum message space for WOTS+C.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `digest`: a 32-byte digest.
   - `counter`: a 16-bit unsigned integer.
@@ -820,7 +820,7 @@ The `PRF` pseudorandom function. Derives a secret 16-byte preimage from `sk_seed
 and key generation.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sk_seed`: a 16-byte secret.
   - `ADRS`: a 22-byte address.
 - Output:
@@ -874,7 +874,7 @@ HMAC-SHA256.
 
 - Inputs:
   - `sk_prf`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `M`: a variable-length message.
 - Output:
@@ -911,7 +911,7 @@ The `H_msg_sl` message hash function. Produces the 32-byte signing digest for th
 
 - Inputs:
   - `R`: a 16-byte randomizer.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sl_root`: the 16-byte stateless root hash.
   - `M`: a variable-length message.
 - Output:
@@ -938,7 +938,7 @@ The `H_msg_sf` message hash function. Produces the 32-byte signing digest for th
 
 - Inputs:
   - `R`: a 16-byte randomizer.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sf_root`: the 16-byte stateful root hash.
   - `ADRS`: a 22-byte address.
   - `M`: a variable-length message.
@@ -1039,7 +1039,7 @@ and chain the node belongs to.
   - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
   - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must
     not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte hash at index `start + steps`.
@@ -1069,7 +1069,7 @@ and chain the node belongs to.
   - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
   - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must
     not exceed `2**WOTS_C_CHAIN_BITS - 1`.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte hash at index `start + steps`.
@@ -1200,7 +1200,7 @@ keypair location prefilled in `ADRS`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte hash representing the WOTS-TW public key.
@@ -1234,7 +1234,7 @@ location prefilled in `ADRS`.
 - Inputs:
   - `message`: a 16-byte message to sign.
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a `WOTS_TW_CHAINS_SIZE`-byte signature.
@@ -1265,7 +1265,7 @@ The WOTS-TW verification function. Recovers a WOTS-TW public key from a `signatu
 - Inputs:
   - `signature`: a `WOTS_TW_CHAINS_SIZE`-byte signature.
   - `message`: a 16-byte message.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte hash representing the WOTS-TW public key.
@@ -1322,7 +1322,7 @@ The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message
 constant-sum index set, returning the lowest such counter and its index set.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `ADRS`: a 22-byte address.
 - Outputs:
@@ -1359,7 +1359,7 @@ The WOTS+C digest validation function. Evaluates a signature's grinding `counter
 constant-sum index set it yields, or null if the counter is invalid.
 
 - Inputs:
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `ADRS`: a 22-byte address.
   - `counter`: a 16-bit unsigned integer.
@@ -1389,7 +1389,7 @@ location prefilled in `ADRS`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte hash representing the WOTS+C public key.
@@ -1426,7 +1426,7 @@ keypair location prefilled in `ADRS`.
 - Inputs:
   - `message_digest`: a 32-byte message digest to sign.
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a `2 + WOTS_C_CHAINS_SIZE`-byte signature, or null.
@@ -1468,7 +1468,7 @@ The WOTS+C verification function. Recovers a WOTS+C public key from a `signature
 - Inputs:
   - `signature`: a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
   - `message_digest`: a 32-byte message digest.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte hash representing the WOTS+C public key, or null.
@@ -1587,7 +1587,7 @@ in the hypertree to ensure the hashes are properly tweaked.
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 32-bit unsigned integer, the index (from the left) of the node in the XMSS layer.
   - `node_height`: a 32-bit unsigned integer, the height (from the bottom) of the node in the XMSS layer.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte XMSS node hash.
@@ -1627,7 +1627,7 @@ the location of the XMSS tree in the hypertree to ensure the hashes are properly
   - `message`: a 16-byte message to sign.
   - `sk_seed`: a 16-byte secret.
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
@@ -1660,7 +1660,7 @@ hypertree to ensure the hashes are properly tweaked.
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
   - `signature`: a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
   - `message`: a 16-byte message.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte XMSS root node hash.
@@ -1719,7 +1719,7 @@ The hypertree signing function. Signs a 16-byte `message` through a hypertree of
 - Inputs:
   - `message`: a 16-byte message to sign.
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
   - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
 - Output:
@@ -1756,7 +1756,7 @@ it against `sl_root`.
 - Inputs:
   - `message`: a 16-byte message.
   - `signature`: a `HYPERTREE_SIGNATURE_SIZE`-byte signature.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `tree_index`: a 64-bit unsigned integer, the index (from the left) of the bottom-layer XMSS tree to sign with.
   - `leaf_index`: a 32-bit unsigned integer, the index (from the left) of the WOTS-TW key in the bottom-layer XMSS tree to sign with.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
@@ -1915,7 +1915,7 @@ The FXMSS internal node computation function. Recursively computes the FXMSS nod
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
   - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
   - `ADRS`: a 22-byte address.
 - Output:
@@ -1970,7 +1970,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
   - `sk_seed`: a 16-byte secret.
   - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
   - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
 - Output:
   - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
@@ -2024,7 +2024,7 @@ WOTS+C leaf in the tree.
     `FXMSS_HEIGHT - leaf_height`. Specifically:
     `len(signature) == 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`.
   - `message_digest`: a 32-byte message digest.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
 - Output:
   - a 16-byte FXMSS root node hash, or null.
 
@@ -2116,7 +2116,7 @@ keypair to ensure the hashes are properly tweaked.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
   - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
 - Output:
@@ -2149,7 +2149,7 @@ to ensure the hashes are properly tweaked.
   - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
     `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
   - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte FORS node hash.
@@ -2191,7 +2191,7 @@ prefilled with the location of the FORS keypair to ensure the hashes are properl
 - Inputs:
   - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a `FORS_SIGNATURE_SIZE`-byte signature.
@@ -2223,7 +2223,7 @@ the hashes are properly tweaked.
 - Inputs:
   - `signature`: a `FORS_SIGNATURE_SIZE`-byte signature.
   - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte hash of the FORS public key.
@@ -2297,7 +2297,7 @@ index, and FORS keypair index from `message` under `H_msg_sl`.
 
 - Inputs:
   - `R`: a 16-byte randomizer.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
   - `message`: a variable-length message.
 - Outputs:
@@ -2344,7 +2344,7 @@ hypertree signature, all concatenated together.
   - `ctx`: a context of at most 255 bytes.
   - `sk_seed`: a 16-byte secret.
   - `sk_prf`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
   - `opt_rand`: an optional 16-byte salt for the randomizer.
 - Output:
@@ -2387,7 +2387,7 @@ The SLH-DSA verification function. Recovers the root-tree root from a `signature
   - `message`: a variable-length message.
   - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
   - `ctx`: a context of at most 255 bytes.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
 - Output:
   - a boolean indicating if the signature is valid.
