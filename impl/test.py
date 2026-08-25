@@ -1,12 +1,11 @@
 from random import randbytes
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
 from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
-from shrincs import xmss_node, xmss_sign, xmss_leaf_cache_gen, xmss_node_from_cache, xmss_sign_from_cache
 from shrincs import SPHX_LAYER_COUNT, SPHX_XMSS_HEIGHT
-from shrincs import fxmss_sign, shrincs_sf_leaf_select
-from shrincs import uxmss_cache_gen, uxmss_auth_path, fxmss_sign_from_auth_path
-from shrincs import fxmss_node, fxmss_pubkey_from_sig
-from shrincs import bds_state_init, bds_auth_path, bds_state_update
+from shrincs import xmss_node, xmss_sign, fxmss_node, fxmss_sign, fxmss_pubkey_from_sig, shrincs_sf_leaf_select
+from caches import xmss_leaf_cache_gen, xmss_node_from_cache, xmss_sign_from_cache
+from caches import uxmss_cache_gen, uxmss_auth_path, fxmss_sign_from_auth_path
+from caches import bds_state_init, bds_auth_path, bds_state_update
 
 def top_tree_adrs() -> bytearray:
   """Returns a fresh ADRS locating the top-layer XMSS tree in the hypertree."""

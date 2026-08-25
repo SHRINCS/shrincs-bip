@@ -12,11 +12,11 @@ templated markdown documents. We parse markdown comments as doc/const
 insert directives.
 """
 
-from impl import shrincs, meta
+from impl import shrincs, meta, caches
 
 DOCUMENTS = [
   {'markdown': 'SHRINCS.md', 'module': shrincs, 'source': 'impl/shrincs.py'},
-  {'markdown': 'docs/CACHE_MANAGEMENT.md', 'module': shrincs, 'source': 'impl/shrincs.py'},
+  {'markdown': 'docs/CACHE_MANAGEMENT.md', 'module': caches, 'source': 'impl/caches.py'},
 ]
 
 class SpecFunction:
