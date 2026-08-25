@@ -447,7 +447,7 @@ This is then split into 3 x 16-byte seeds.
 
 - `sk_seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
 - `sk_prf` is a secret value used to derive per-message randomness.
-- `pk_seed` is a salt value which is appended to the public key.
+- `pk_seed` is the public seed included in the public key.
 
 Note this is the bare minimum needed to generate a full SHRINCS public key.
 More performant (but larger) secret key representations are possible.
