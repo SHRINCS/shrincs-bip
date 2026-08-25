@@ -1124,7 +1124,7 @@ def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: by
 def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
   """
   The SLH-DSA signing function. Signs `message` with `sk_seed`, prepending the context `ctx`;
-  salts all hashes with `pk_seed`, derives the randomizer from `sk_prf`/`opt_rand`, and binds the
+  uses `pk_seed` as the public seed, derives the randomizer from `sk_prf`/`opt_rand`, and binds the
   signature to `sl_root`. Verifiers must use `slh_dsa_verify` with the same `ctx`.
 
   When provided, `opt_rand` supplies the additional randomness used to derive the randomizer. If omitted,
