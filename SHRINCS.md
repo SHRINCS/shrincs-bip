@@ -267,7 +267,8 @@ The instance of SHRINCS specified here uses 16-byte outputs for its tweakable ha
 
 ### Why SHA256 and not some newer hash function?
 
-SHA256 is used because it is already part of Bitcoin consensus, because hardware optimization techniques are readily available, and because if security of SHA256 is broken, then many other features of Bitcoin will also be compromised anyway.
+SHA256 is already part of Bitcoin's consensus rules and fundamental to Bitcoin's security.
+Using it for SHRINCS avoids adding another hash function to consensus validation and allows implementations to reuse existing code and any available hardware acceleration.
 
 ### Why use WOTS+C in the stateful path?
 
@@ -276,7 +277,7 @@ The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces small
 WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
 
 An alternative choice would be to use WOTS-TW in the stateful path too, which would reduce code surface at the cost of signature size and verification time.
-Concretely, with the parameter set used in SHRINCS, this would result in at most <!-- CONST START STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->8<!-- CONST END STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->% larger stateful signatures, and slightly longer (and non-constant) verification time.
+With the parameter set specified here, this would result in stateful signatures up to approximately <!-- CONST START STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->8<!-- CONST END STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->% larger and require more hash computations for verification on average, although the exact number would depend on the signed message.
 The additional code complexity appears to be worth the efficiency gains in this case:
 The stateful component would be the primary signing tool used in Bitcoin transactions, and thus the WOTS+C optimization is warranted.
 
