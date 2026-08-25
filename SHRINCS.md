@@ -18,7 +18,7 @@
 This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based post-quantum signature scheme, for use in Bitcoin transaction authorization.
 
 SHRINCS combines compact stateful hash-based signatures with a stateless fallback[^hbsb].
-It is instantiated with SHA256, targeting NIST security level 1: 128 bits of classical and 64 bits of quantum security.
+It is instantiated with SHA256, targeting NIST security category 1: 128 bits of classical and 64 bits of quantum security.
 A security proof is TODO.
 
 This specification describes the key generation, signing, and verification algorithms of SHRINCS.
@@ -261,20 +261,9 @@ Applications that want to hedge against state reuse, implementation flaws, or ot
 
 ### Why NIST security category 1?
 
-The security of SHRINCS relies solely on the security of the underlying hash function, which seems very robust in general.
+The SHRINCS instance specified here targets NIST security category 1 to match BIP340's approximately 128-bit classical security level.[^bip340-security]
 
-Given a hash function with output width of `b` bits (given a big enough internal state), the best-known classical preimage-finding attack is simple trial-and-error, which yields a preimage after 2<sup>b</sup> tries on average.
-The best case quantum attack using Grover's algorithm yields a preimage in time on the order of O(2<sup>b/2</sup>).
-In other words, using a `b`-bit hash gives `b` bits of classical security, and `b/2` bits of quantum security against preimage-finding.
-
-While the definition of quantum security bits is less clear, the classical analogue is well-studied.
-The elliptic curve discrete log problem, which BIP340 relies upon, can be solved classically in time `O(sqrt(n))`, where `n` is the order of the curve.
-The secp256k1 curve order is a 256-bit number, thus the BIP340 algorithm has around 256/2 = 128 bits of classical security against forgery and key recovery.
-
-Having no concrete basis on which to select a level of quantum security against Grover's algorithm, SHRINCS aims to match BIP340's level of classical security, and so follows the NIST-I security category: 128 bits of classical security, and 64 bits of quantum security.
-
-SHRINCS achieves this by using a 128-bit truncation of the SHA256 hash function to instantiate its tweakable hash functions and PRFs.
-This mirrors the NIST FIPS-205 specification's reasoning for their SLH-DSA-SHA2-128 hash-based parameter sets.[^why128]
+The instance of SHRINCS specified here uses 16-byte outputs for its tweakable hash functions and pseudorandom functions, matching the output length used by the SHA2 category 1 parameter sets in FIPS-205.[^slhdsa][^why128]
 
 ### Why SHA256 and not some newer hash function?
 
@@ -2833,7 +2822,11 @@ This document and the SHRINCS reference code are licensed under either the CC0-1
 [^wotsgrind]: https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
 [^bop]: https://eprint.iacr.org/2025/1844
 [^bop-delving]: https://delvingbitcoin.org/t/bird-of-prey-2-non-malleable-schnorr-pq-signatures/2514
-[^why128]: Readers may wonder why we can use 128-bit hash functions safely here, when the rest of Bitcoin depends on 256-bit hashes. This is because most of the usage of hash functions in Bitcoin depends on collision resistance for security, and collisions in a b-bit hash function can be found in only 2<sup>b/2</sup> attempts classically, due to the birthday "paradox". In SHRINCS we do not need collision resistance, so we can get away with much smaller hash functions.
+[^bip340-security]: The best known classical attacks against the elliptic-curve discrete logarithm problem in secp256k1 require work proportional to the square root of the group order.
+    Since that order is approximately 2<sup>256</sup>, these attacks require approximately 2<sup>128</sup> group operations.
+[^why128]: Although Bitcoin relies on full 32-byte SHA256 outputs elsewhere, this specification uses 16-byte hash outputs.
+    By the birthday paradox, a generic search can find two inputs with the same 16-byte hash output after approximately 2<sup>64</sup> evaluations.
+    This does not conflict with the category 1 target because SHRINCS does not rely on preventing such collisions to resist signature forgery.
 [^xmss-directional]: Can we still prove XMSS secure if we use an unstructured (directionless) tree, a la taproot? (better privacy and XMSS clients are more flexible) No. Unstructured XMSS trees would give an attacker an advantage in multi-target attacks. Say you have an XMSS tree with height two (i.e. four leaves). Let's say you reveal the two intermediate nodes in the first layer to an attacker, e.g. by signing a transaction. The hash function used to compute both of these nodes must be the same - otherwise it would not be a directionless tree - So the attacker can try preimage search on both hash function outputs at once. This doubles their chances of successfully finding a preimage. Scaled up, with more target hashes, the attacker increases their advantage even more.
 [^fxmss_node_index]: The key requirement for a valid FXMSS tree shape is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable. This provides plenty of space while maintaining a fixed max-length encoding for node indexes.
 [^last_two_sigs]: The last two UXMSS leaves are both at equal depth, and so their signatures both have the same length.
