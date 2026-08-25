@@ -214,16 +214,17 @@ The selected parameter set balances signature size, signature budget, and key-ge
 
 ### Why these specific parameters?
 
-SLH-DSA parameters have very sensitive security requirements, and designers need automated parameter search and visualization tools[^sl_param_tool][^sl_param_search] to fully assess and compare candidate parameter sets.
-The stateless parameters for SHRINCS are chosen such that signing, key-generation, and verification costs remain bounded below that of the "short" SLH-DSA parameter sets (e.g. SLH-DSA-SHA2-128s), which are used as a yardstick for what is considered reasonable by standards bodies like NIST.
+The stateless parameter set specified here was selected using automated parameter-search and analysis tools.[^sl_param_tool][^sl_param_search]
+Among the candidate parameter sets meeting the targeted security level and 2<sup>40</sup> signature budget, the stateless parameter set specified here minimizes signature size subject to keeping its key-generation cost, average signing cost, and worst-case verification cost below those of SLH-DSA-SHA2-128s.
 
-The stateful parameters are chosen to minimize the cost-per-byte of verifying SHRINCS signatures, while keeping the worst-case cost-per-byte relatively consistent across the stateful and stateless components.
+The stateful parameter set specified here keeps its worst-case verification cost per signature byte close to that of the stateless component.
+One way the stateful signature size could be reduced further is to increase `WOTS_C_CHAIN_BITS`, which decreases `WOTS_C_CHAIN_COUNT`.
+However, this would increase key-generation and signing costs and raise the worst-case verification cost per signature byte above that of the stateless component.
 
-Because SHRINCS' verification is cheaper per-byte than Schnorr, SHRINCS allows for the possibility that a witness discount may accompany its deployment, although it does not specifically require such a change.
-
-The most obvious change one could make to the stateful parameters would be to increase `WOTS_C_CHAIN_BITS`, and thus decrease `WOTS_C_CHAIN_COUNT`.
-This would give us smaller stateful signatures, but would increase key-generation and signing costs significantly, while verification cost increases too, but more gradually.
-These changes would also result in a verification cost-per-byte noticeably greater than the stateless component, approaching that of Schnorr.
+Signatures from both components have a lower worst-case verification cost per byte than BIP340 signatures.
+This leaves room for a witness discount that partly compensates for the larger signature size.
+Such a discount could increase effective block capacity without a proportional increase in worst-case signature-verification work.
+This specification does not define such a discount.
 
 ### Why not use a SPHINCS+ variant with smaller signatures for the stateless component?
 
