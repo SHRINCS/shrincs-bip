@@ -238,25 +238,26 @@ The ability to reuse SLH-DSA implementations and draw on its existing security a
 
 ### Why not a hybrid scheme?
 
-There exist _signature combiners_ such as Bird-of-Prey[^bop] which allow efficient hybridization of classical and post-quantum signature schemes.
-A hybrid scheme is at least as secure as either of the two base schemes, requiring successful attacks on both base schemes to be considered vulnerable as a whole.
-With a well-designed combiner, one can achieve stronger security notions than naive signature and public key concatenation.
-Well-designed signature combiners like BoP also reduce overall signature size compared to a naive combiner because the verifier can recover or reuse some components of the signature.[^bop-delving]
+A hybrid signature scheme combines two signature schemes so that it remains unforgeable as long as either component remains unforgeable.
+The simplest construction pairs the two public keys, concatenates the two signatures, and accepts only if both signatures verify.
+SHRINCS can therefore be used as the post-quantum component of a hybrid without modification, for example together with BIP340.
 
-This specification does **not** use a dedicated hybrid signature scheme combiner for Schnorr+SHRINCS, for a few reasons:
+A dedicated non-black-box combiner can preserve stronger security properties or reduce the combined signature size.
+Bird-of-Prey-2[^bop], for example, preserves strong unforgeability when one component is compromised.
+Strong unforgeability prevents an attacker from producing a different valid signature for a message for which it has already obtained a valid signature.
 
-- **Redundancy.** Deploying SHRINCS as a standalone signature scheme is desirable for efficient quantum-safe spending of bitcoin.
-  If standalone SHRINCS is available, users will already have access to hybridization techniques by using more naive hybrid constructions.
-- **Lack of value.** Strong unforgeability - one of the main selling points of using a combiner - is not security-critical in Bitcoin because segregated witnesses don't affect TXIDs.
-  At best a hybrid scheme would provide a minor ~5%-10% improvement in combined signature size over a naive concatenation approach.
-- **Complexity & fragility.** A hybrid scheme would necessitate new Schnorr signing sub-algorithms, because combiners like Bird-of-Prey don't use Schnorr as a black-box.
-  This greatly expands the scope of implementation.
-- **Security.** Standalone SHRINCS uses strictly weaker cryptographic assumptions than BIP340, so adding hybridization with Schnorr hedges only against implementation flaws or state reuse in SHRINCS.
-  Both risks can already be effectively mitigated using formal code verification and cautious wallet design.
+This specification does not define a dedicated hybrid signature scheme for the following reasons:
 
-Therefore, deploying a unified hybrid scheme would not offer justifiable value to Bitcoin users, and comes at the expense of great risk and effort in adding a bespoke new signature algorithm, which very few people would use because of the cheaper options available, such as keeping the keys for each algorithm compartmentalized.
+- **Limited additional benefit.** Strong unforgeability does not appear to provide an additional property required for Bitcoin transaction authorization.
+  Producing a different valid signature for an already signed transaction neither authorizes a different transaction nor changes its transaction identifier, because witness data is excluded from the transaction identifier.
+  For a hybrid of BIP340 and SHRINCS, Bird-of-Prey-2 could reduce the combined signature size by 32 bytes relative to concatenation.[^bop-delving]
+- **Complexity.** A Bird-of-Prey-2 combiner for BIP340 and SHRINCS would require modified BIP340 signing and verification algorithms rather than treating BIP340 as a black box.
+  It would also require showing that SHRINCS satisfies the requirements imposed on the post-quantum component by the Bird-of-Prey-2 security proof.[^bop]
+- **Cryptographic assumptions.** The SHRINCS instance specified here is hash-based and uses SHA256, which BIP340 already relies on for security.
+  It therefore does not introduce an entirely new family of cryptographic assumptions.
 
-Users who do find value in hedging against state reuse or implementation flaws in SHRINCS may do so using explicit multisignature constructions which verify signatures from both algorithms individually.
+The limited additional benefits of a dedicated combiner do not justify its complexity.
+Applications that want to hedge against state reuse, implementation flaws, or other failures affecting SHRINCS can instead combine it with another signature scheme through concatenation.
 
 ### Why NIST security category 1?
 
