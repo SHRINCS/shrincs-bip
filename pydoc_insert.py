@@ -16,6 +16,7 @@ from impl import shrincs, meta
 
 DOCUMENTS = [
   {'markdown': 'SHRINCS.md', 'module': shrincs, 'source': 'impl/shrincs.py'},
+  {'markdown': 'docs/CACHE_MANAGEMENT.md', 'module': shrincs, 'source': 'impl/shrincs.py'},
 ]
 
 class SpecFunction:
