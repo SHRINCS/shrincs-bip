@@ -6,19 +6,25 @@ set -e
 # around it from the source file. Python considers cached bytecode current when the
 # source's size and mtime-second are unchanged, which a reordering edit can satisfy, so a
 # stale cache yields fresh code beside a stale docstring. This check would then compare
-# `SHRINCS.md` against that and report it in sync.
+# the templated documents against that and report them in sync.
 rm -rf impl/__pycache__ __pycache__
 
-./pydoc_insert.py --dry-run || (
+./pydoc_insert.py --dry-run || {
   echo "Template script failed!"
   exit 1
-)
+}
 
-diff -q SHRINCS.md SHRINCS.new.md || (
-  diff -C 5 SHRINCS.md SHRINCS.new.md || : # ignore exit code, just print the diff
-  echo ""
-  echo "  SHRINCS.md needs templating update! Run ./pydoc_insert.py"
-  echo ""
-  rm -f SHRINCS.new.md
-  exit 1
-)
+# Compare every templated document against its regenerated *.new.md version.
+for new in *.new.md docs/*.new.md; do
+  [ -e "$new" ] || continue
+  orig="${new%.new.md}.md"
+  diff -q "$orig" "$new" || {
+    diff -C 5 "$orig" "$new" || : # ignore exit code, just print the diff
+    echo ""
+    echo "  $orig needs templating update! Run ./pydoc_insert.py"
+    echo ""
+    rm -f "$new"
+    exit 1
+  }
+  rm -f "$new"
+done
