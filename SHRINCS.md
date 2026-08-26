@@ -2689,6 +2689,9 @@ This function is used only by the verifier.
 
 ```py
 def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey: bytes) -> bool:
+  if len(shrincs_pubkey) != 48:
+    return False
+
   pk_seed = shrincs_pubkey[0:16]
   sl_root = shrincs_pubkey[16:32]
   sf_root = shrincs_pubkey[32:48]
