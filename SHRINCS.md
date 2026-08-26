@@ -112,8 +112,8 @@ The variance in stateless compression count can be controlled by the signer with
 
 The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
 
-For comparison, if one benchmarks the cost of BIP-340 Schnorr signature verification compared against SHA256 hashing, one can compute the equivalent cost of Schnorr in terms of SHA256 hash compressions.
-Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have a cost of around 1.3 - 2.0 software SHA256 compressions per byte.[^bip340_sha256_bench]
+For comparison, the cost of BIP-340 Schnorr verification can be expressed as an equivalent number of SHA256 compression calls by benchmarking both operations on the same system.
+One benchmark using libsecp256k1's SHA256 implementation found that BIP-340 verification, including public-key parsing, took the same time as 127 compression calls, or 1.98 equivalent compressions per byte of the 64-byte signature.[^bip340_sha256_bench]
 
 
 ### Key Generation
