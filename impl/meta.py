@@ -4,6 +4,14 @@
 from .shrincs import *
 from math import comb, floor, log2
 
+
+# Find the coefficient of x^p in the expanded polynomial (1 + x + x^2 + ... + x^(w-1))^l1.
+# This is the number of possible WOTS messages whose indexes sum to `p`.
+#   https://mathworld.wolfram.com/Dice.html
+#   https://mathworld.wolfram.com/images/equations/Dice/NumberedEquation7.svg
+def num_messages_sum(w: int, l1: int, p: int) -> int:
+  return sum(((-1)**k * comb(l1, k) * comb(p + l1 - w*k - 1, l1 - 1) for k in range(p//w + 1)))
+
 # Returns log2(Pr[sum(n random s-sided dice) != p]**tries).
 # Used to compute the probability of WOTS+C grinding failure.
 # Logic taken from https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
@@ -15,7 +23,7 @@ def target_sum_fail_probability_log2(n: int, s: int, p: int, tries: int) -> floa
   #
   # Uses the formula from https://mathworld.wolfram.com/Dice.html
   #   https://mathworld.wolfram.com/images/equations/Dice/NumberedEquation7.svg
-  c = sum(((-1)**k * comb(n, k) * comb(p - s*k - 1, n - 1) for k in range((p-n)//s + 1)))
+  c = num_messages_sum(s, n, p)
 
   # The number of invalid combinations (i.e. # of possible combos minus # of valid combos)
   q = d - c
@@ -33,7 +41,7 @@ WOTS_C_GRIND_FAIL_PROBABILITY_LOG = floor(
   -target_sum_fail_probability_log2(
     WOTS_C_CHAIN_COUNT,                         # Number of WOTS+C chains
     2**WOTS_C_CHAIN_BITS,                       # WOTS+C chain length
-    WOTS_C_CONSTANT_SUM + WOTS_C_CHAIN_COUNT,   # Target WOTS+C sum is modified because of non-zero dice rolls.
+    WOTS_C_CONSTANT_SUM,
     2**16
   )
 )
@@ -136,7 +144,8 @@ STATEFUL_VERIFY_SPEED_RATIO = round(STATELESS_VERIFY_COMPRESSIONS_MAX / STATEFUL
 WOTS_TW_KEYGEN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT * 2**WOTS_TW_CHAIN_BITS + \
                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16)
 
-# Little helper to compute the number of checksum compressions.
+# Helper to compute the number of SHA256 compressions needed to sign
+# a WOTS-TW message with a given checksum.
 def checksum_compressions(checksum: int) -> int:
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
@@ -144,14 +153,30 @@ def checksum_compressions(checksum: int) -> int:
     checksum >>= WOTS_TW_CHAIN_BITS
   return sum(checksum_indexes)
 
-# The expected index is half the max index.
-WOTS_TW_AVERAGE_MESSAGE_COMPRESSIONS = WOTS_TW_CHAIN_COUNT1 * ((2**WOTS_TW_CHAIN_BITS - 1) / 2)
+# Take the average checksum compression cost over a uniform distribution of messages.
+def wots_tw_checksum_compressions_avg(w: int, l1: int, l2: int) -> float:
+  expanded = [num_messages_sum(w, l1, i) for i in range(1 + l1 * (w-1))]
 
-# Some checksums are more likely than others, but the distribution is symmetric about the middle, so this still works.
-WOTS_TW_AVERAGE_CHECKSUM_COMPRESSIONS = checksum_compressions(WOTS_TW_CHECKSUM_MAX // 2)
+  # the polynomial accounts for every possible message.
+  assert sum(expanded) == w**l1
+
+  # Sum and average all the compressions needed for each possible checksum,
+  # weighted by the probability of that checksum occurring.
+  checksum_compressions_acc = 0
+  for msg_sum, weight in enumerate(expanded):
+    checksum = l1 * (w - 1) - msg_sum
+    checksum_compressions_acc += checksum_compressions(checksum) * weight
+  return checksum_compressions_acc / (w**l1)
+
+
+# The expected index is half the max index.
+WOTS_TW_AVERAGE_MESSAGE_SIGN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT1 * ((2**WOTS_TW_CHAIN_BITS - 1) / 2)
+
+# Checksum chain signing cost averaged over all messages.
+WOTS_TW_AVERAGE_CHECKSUM_SIGN_COMPRESSIONS = wots_tw_checksum_compressions_avg(2**WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1, WOTS_TW_CHAIN_COUNT2)
 
 # PRF invocations + message chain compressions + checksum chain compressions
-WOTS_TW_SIGN_COMPRESSIONS_AVG = round(WOTS_TW_CHAIN_COUNT + WOTS_TW_AVERAGE_MESSAGE_COMPRESSIONS + WOTS_TW_AVERAGE_CHECKSUM_COMPRESSIONS)
+WOTS_TW_SIGN_COMPRESSIONS_AVG = round(WOTS_TW_CHAIN_COUNT + WOTS_TW_AVERAGE_MESSAGE_SIGN_COMPRESSIONS + WOTS_TW_AVERAGE_CHECKSUM_SIGN_COMPRESSIONS)
 
 # Generating other WOTS leaves +
 # WOTS-TW signing +
@@ -185,7 +210,7 @@ SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_SIGN
 SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_VERIFY_COMPRESSIONS_MAX / 3893))
 
 
-EXPECTED_WOTS_C_GRINDING_ATTEMPTS = 1 / (1 - 2**target_sum_fail_probability_log2(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM + WOTS_C_CHAIN_COUNT, 1))
+EXPECTED_WOTS_C_GRINDING_ATTEMPTS = 1 / (1 - 2**target_sum_fail_probability_log2(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM, 1))
 
 # WOTS chains +
 # Combining WOTS chain tips
