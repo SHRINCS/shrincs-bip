@@ -297,6 +297,11 @@ Implementations that cannot safely manage state can still generate valid SHRINCS
 If a key pair's state counter is lost, corrupted, or otherwise uncertain, an implementation MUST refuse stateful signing.
 The stateless fallback allows the implementation to do so while always maintaining the ability to sign with that key pair.
 
+State reuse can be detected before publication by comparing a stateful signature with earlier signatures, providing defense in depth against failures in the signer's state management.
+Each stateful signature reveals the WOTS+C leaf it uses and can be rejected if the same leaf identifier has previously been observed under the same key pair.
+This defense assumes that an honest party performs the check and has access to the earlier signature.
+It therefore does not replace the signer's state-management requirements.
+
 ### Why does the stateful path use "flexible" XMSS?
 
 SHRINCS uses FXMSS in its stateful component, which supports binary merkle trees of (almost) arbitrary structure.
