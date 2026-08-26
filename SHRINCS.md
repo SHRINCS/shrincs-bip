@@ -2459,7 +2459,7 @@ This mirrors the interface of SLH-DSA[^slhdsa], and in fact the stateless signin
 
 #### On Managing State
 
-A SHRINCS secret key is not complete without its accompanying state.
+A SHRINCS secret key needs its accompanying state to use the high-efficiency stateful signing component.
 Every SHRINCS key has a fixed number of stateful signature slots which allow the signer to use compact WOTS+C signatures via the FXMSS (stateful) signing path.
 As previously discussed in [the section on WOTS](#wots-schemes), reusing a one-time signature keypair within FXMSS to sign distinct messages will break the security of the scheme and permit forgeries.
 To avoid using the same WOTS+C keypair more than once, signers using FXMSS must track a single integer, called the _state counter._
