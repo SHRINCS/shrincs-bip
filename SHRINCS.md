@@ -93,15 +93,12 @@ The exact correspondence between parameters common between this document and FIP
 
 ## Performance
 
-As a hash-based signature scheme, the primary performance bottleneck in SHRINCS is in the computation of a hash function, namely SHA256.
-The faster a computer can perform SHA256 hashing, the faster it can create SHRINCS keys, issue new signatures, and/or verify signatures.
-
-In this section, we'll show the exact costs to run different SHRINCS algorithms, denominated in terms of SHA256 compressions which dominate SHRINCS runtime.
-The computations used to generate the numbers below are shown in [`impl/meta.py`](./impl/meta.py).
+SHRINCS performance during key generation, signing, and verification is dominated by hash function calls.
+The tables below therefore report SHA256 compression counts computed by [`impl/meta.py`](./impl/meta.py).
+Actual runtimes depend on the implementation, including its use of SHA256 hardware acceleration.[^sha_ni_bench]
 
 ### Verification
 
-SHRINCS has very fast verification, especially with SHA256 hardware acceleration.
 In this table we show exact compression counts, and show the maximum _compressions per byte_ (C/B) needed to verify a SHRINCS stateful and stateless signature.
 
 | Signing Component | Verify Cost in SHA256 Compressions (min - max) | C/B (max) |
