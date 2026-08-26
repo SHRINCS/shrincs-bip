@@ -185,7 +185,7 @@ SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_SIGN
 SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_VERIFY_COMPRESSIONS_MAX / 3893))
 
 
-EXPECTED_WOTS_C_GRINDING_ATTEMPTS = round(1 / (1 - 2**target_sum_fail_probability_log2(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM + WOTS_C_CHAIN_COUNT, 1)))
+EXPECTED_WOTS_C_GRINDING_ATTEMPTS = 1 / (1 - 2**target_sum_fail_probability_log2(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM + WOTS_C_CHAIN_COUNT, 1))
 
 # WOTS chains +
 # Combining WOTS chain tips
@@ -202,13 +202,15 @@ WOTS_C_KEYGEN_COMPRESSIONS = (WOTS_C_CHAIN_COUNT * 2**WOTS_C_CHAIN_BITS + \
 # Regenerating other leaves
 # H() invocations (merkle nodes) (averaged over all leaves)
 def uxmss_sign_compressions(depth: int) -> int:
-  return 1 + sha256_compressions(2 + 16 + 16 + 32) + \
-          4 + \
-          EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
-          WOTS_C_CONSTANT_SUM + \
-          WOTS_C_CHAIN_COUNT + \
-          depth * WOTS_C_KEYGEN_COMPRESSIONS + \
-          round(depth * (depth - 1) / (2 * (depth + 1)))
+  return round(
+    1 + sha256_compressions(2 + 16 + 16 + 32) +
+    4 +
+    EXPECTED_WOTS_C_GRINDING_ATTEMPTS +
+    WOTS_C_CONSTANT_SUM +
+    WOTS_C_CHAIN_COUNT +
+    depth * WOTS_C_KEYGEN_COMPRESSIONS +
+    depth * (depth - 1) / (2 * (depth + 1))
+  )
 
 UXMSS_31_SIGN_COMPRESSIONS_AVG  = uxmss_sign_compressions(31)
 UXMSS_255_SIGN_COMPRESSIONS_AVG = uxmss_sign_compressions(255)
@@ -223,13 +225,15 @@ UXMSS_255_SIGN_COMPRESSIONS_AVG = uxmss_sign_compressions(255)
 # Regenerating other leaves +
 # H() invocations (merkle nodes)
 def bxmss_sign_compressions(depth: int) -> int:
-  return 1 + sha256_compressions(2 + 16 + 16 + 32) + \
-          4 + \
-          EXPECTED_WOTS_C_GRINDING_ATTEMPTS + \
-          WOTS_C_CONSTANT_SUM + \
-          WOTS_C_CHAIN_COUNT + \
-          (2**depth - 1) * WOTS_C_KEYGEN_COMPRESSIONS + \
-          2**depth - 1 - depth
+  return round(
+    1 + sha256_compressions(2 + 16 + 16 + 32) +
+    4 +
+    EXPECTED_WOTS_C_GRINDING_ATTEMPTS +
+    WOTS_C_CONSTANT_SUM +
+    WOTS_C_CHAIN_COUNT +
+    (2**depth - 1) * WOTS_C_KEYGEN_COMPRESSIONS +
+    2**depth - 1 - depth
+  )
 
 BXMSS_5_SIGN_COMPRESSIONS_AVG  = bxmss_sign_compressions(5)
 BXMSS_8_SIGN_COMPRESSIONS_AVG  = bxmss_sign_compressions(8)
