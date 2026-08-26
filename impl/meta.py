@@ -37,14 +37,29 @@ def target_sum_fail_probability_log2(n: int, s: int, p: int, tries: int) -> floa
   #   log2(r ** tries) = log2(r) * tries
   return log2(r) * tries
 
-WOTS_C_GRIND_FAIL_PROBABILITY_LOG = floor(
-  -target_sum_fail_probability_log2(
-    WOTS_C_CHAIN_COUNT,                         # Number of WOTS+C chains
-    2**WOTS_C_CHAIN_BITS,                       # WOTS+C chain length
-    WOTS_C_CONSTANT_SUM,
-    2**16
-  )
-)
+# Helper to encode the checksum for a WOTS-TW message. Taken from shrincs.py
+def encode_checksum(checksum: int) -> list[int]:
+  checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
+  for i in range(WOTS_TW_CHAIN_COUNT2):
+    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
+    checksum >>= WOTS_TW_CHAIN_BITS
+  return checksum_indexes
+
+# Compute the average checksum chain index over a uniform distribution of messages.
+def wots_tw_checksum_index_avg(w: int, l1: int, l2: int) -> float:
+  msg_sum_counts = [num_messages_sum(w, l1, i) for i in range(1 + l1 * (w-1))]
+
+  # ensure we have accounted for every possible message.
+  assert sum(msg_sum_counts) == w**l1
+
+  # Sum and average all the indexes for each possible encoded checksum,
+  # weighted by the probability of that checksum occurring.
+  checksum_index_acc = 0
+  for msg_sum, weight in enumerate(msg_sum_counts):
+    checksum = l1 * (w - 1) - msg_sum
+    checksum_index_acc += sum(encode_checksum(checksum)) * weight
+  return checksum_index_acc / (w**l1) / WOTS_TW_CHAIN_COUNT2
+
 
 def sha256_compressions(size: int) -> int:
   """Compute the number of SHA256 compressions needed to hash a given size preimage."""
@@ -98,6 +113,12 @@ FORS_VERIFY_COMPRESSIONS = SPHX_FORS_COUNT + \
                            SPHX_FORS_COUNT * SPHX_FORS_HEIGHT + \
                            sha256_compressions(22 + SPHX_FORS_COUNT * 16) # Combining FORS roots
 
+# The expected WOTS index is half the max index.
+WOTS_TW_AVERAGE_MESSAGE_INDEX = (2**WOTS_TW_CHAIN_BITS - 1) / 2
+
+# Checksum chain signing cost averaged over all messages.
+WOTS_TW_AVERAGE_CHECKSUM_INDEX = wots_tw_checksum_index_avg(2**WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1, WOTS_TW_CHAIN_COUNT2)
+
 # Minimum SHA256 compressions needed to verify an XMSS signature.
 #
 # WOTS verify cost + H() invocations (merkle nodes)
@@ -113,7 +134,14 @@ XMSS_VERIFY_COMPRESSIONS_MAX = sum((2**WOTS_TW_CHAIN_BITS - i - 1 for i in wots_
                                sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16) + \
                                SPHX_XMSS_HEIGHT
 
-XMSS_VERIFY_COMPRESSIONS_AVG = (XMSS_VERIFY_COMPRESSIONS_MIN + XMSS_VERIFY_COMPRESSIONS_MAX) // 2
+# WOTS_TW_CHAIN_COUNT1 * Average WOTS message chain cost +
+# WOTS_TW_CHAIN_COUNT2 * Average WOTS checksum chain cost +
+# Combining WOTS chain tips +
+# H() invocations (merkle nodes)
+XMSS_VERIFY_COMPRESSIONS_AVG = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1 - WOTS_TW_AVERAGE_MESSAGE_INDEX) + \
+                               WOTS_TW_CHAIN_COUNT2 * (2**WOTS_TW_CHAIN_BITS - 1 - WOTS_TW_AVERAGE_CHECKSUM_INDEX) + \
+                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16) + \
+                               SPHX_XMSS_HEIGHT
 
 # Minimum SHA256 compressions needed to verify a stateless SHRINCS signature.
 #
@@ -144,39 +172,14 @@ STATEFUL_VERIFY_SPEED_RATIO = round(STATELESS_VERIFY_COMPRESSIONS_MAX / STATEFUL
 WOTS_TW_KEYGEN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT * 2**WOTS_TW_CHAIN_BITS + \
                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16)
 
-# Helper to compute the number of SHA256 compressions needed to sign
-# a WOTS-TW message with a given checksum.
-def checksum_compressions(checksum: int) -> int:
-  checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
-  for i in range(WOTS_TW_CHAIN_COUNT2):
-    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
-    checksum >>= WOTS_TW_CHAIN_BITS
-  return sum(checksum_indexes)
-
-# Take the average checksum compression cost over a uniform distribution of messages.
-def wots_tw_checksum_compressions_avg(w: int, l1: int, l2: int) -> float:
-  expanded = [num_messages_sum(w, l1, i) for i in range(1 + l1 * (w-1))]
-
-  # the polynomial accounts for every possible message.
-  assert sum(expanded) == w**l1
-
-  # Sum and average all the compressions needed for each possible checksum,
-  # weighted by the probability of that checksum occurring.
-  checksum_compressions_acc = 0
-  for msg_sum, weight in enumerate(expanded):
-    checksum = l1 * (w - 1) - msg_sum
-    checksum_compressions_acc += checksum_compressions(checksum) * weight
-  return checksum_compressions_acc / (w**l1)
-
-
-# The expected index is half the max index.
-WOTS_TW_AVERAGE_MESSAGE_SIGN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT1 * ((2**WOTS_TW_CHAIN_BITS - 1) / 2)
-
-# Checksum chain signing cost averaged over all messages.
-WOTS_TW_AVERAGE_CHECKSUM_SIGN_COMPRESSIONS = wots_tw_checksum_compressions_avg(2**WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1, WOTS_TW_CHAIN_COUNT2)
-
-# PRF invocations + message chain compressions + checksum chain compressions
-WOTS_TW_SIGN_COMPRESSIONS_AVG = round(WOTS_TW_CHAIN_COUNT + WOTS_TW_AVERAGE_MESSAGE_SIGN_COMPRESSIONS + WOTS_TW_AVERAGE_CHECKSUM_SIGN_COMPRESSIONS)
+# PRF invocations +
+# message chain compressions +
+# checksum chain compressions
+WOTS_TW_SIGN_COMPRESSIONS_AVG = round(
+  WOTS_TW_CHAIN_COUNT +
+  WOTS_TW_CHAIN_COUNT1 * (WOTS_TW_AVERAGE_MESSAGE_INDEX) +
+  WOTS_TW_CHAIN_COUNT2 * (WOTS_TW_AVERAGE_CHECKSUM_INDEX)
+)
 
 # Generating other WOTS leaves +
 # WOTS-TW signing +
@@ -197,18 +200,28 @@ FORS_TREE_GEN_COMPRESSIONS = 3 * 2**SPHX_FORS_HEIGHT - 1
 # Combining FORS roots +
 # Hypertree signing (d - 1 XMSS layers) +
 # Signing with top XMSS layer
-STATELESS_SIGN_COMPRESSIONS_AVG = 1 + sha256_compressions(2 + 16 + 16 + 32) + \
-                                  4 + \
-                                  SPHX_FORS_COUNT * FORS_TREE_GEN_COMPRESSIONS + \
-                                  sha256_compressions(22 + SPHX_FORS_COUNT * 16) + \
-                                  (SPHX_LAYER_COUNT - 1) * (XMSS_SIGN_COMPRESSIONS_AVG + XMSS_VERIFY_COMPRESSIONS_AVG) + \
-                                  XMSS_SIGN_COMPRESSIONS_AVG
+STATELESS_SIGN_COMPRESSIONS_AVG = round(
+  1 + sha256_compressions(2 + 16 + 16 + 32) +
+  4 +
+  SPHX_FORS_COUNT * FORS_TREE_GEN_COMPRESSIONS +
+  sha256_compressions(22 + SPHX_FORS_COUNT * 16) +
+  (SPHX_LAYER_COUNT - 1) * (XMSS_SIGN_COMPRESSIONS_AVG + XMSS_VERIFY_COMPRESSIONS_AVG) +
+  XMSS_SIGN_COMPRESSIONS_AVG
+)
 
 # 1 - SHRINCS work / SLH-DSA work
 # TODO: compute the SLH-DSA costs using the same logic we use for SHRINCS
 SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_SIGN_COMPRESSIONS_AVG / 2218245))
 SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_VERIFY_COMPRESSIONS_MAX / 3893))
 
+WOTS_C_GRIND_FAIL_PROBABILITY_LOG = floor(
+  -target_sum_fail_probability_log2(
+    WOTS_C_CHAIN_COUNT,                         # Number of WOTS+C chains
+    2**WOTS_C_CHAIN_BITS,                       # WOTS+C chain length
+    WOTS_C_CONSTANT_SUM,
+    2**16
+  )
+)
 
 EXPECTED_WOTS_C_GRINDING_ATTEMPTS = 1 / (1 - 2**target_sum_fail_probability_log2(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM, 1))
 
