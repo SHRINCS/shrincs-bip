@@ -4,7 +4,7 @@ This repository is the staging ground for work on the SHRINCS specification docu
 
 > [!WARNING]
 >
-> All code and cryptography specified in this repository is highly experimental, and subject to change.
+> All code and cryptography specified in this repository are highly experimental and subject to change.
 >
 > Formal security proofs and optimized implementations are forthcoming as future work.
 
