@@ -175,11 +175,9 @@ WOTS_TW_KEYGEN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT * 2**WOTS_TW_CHAIN_BITS + \
 # PRF invocations +
 # message chain compressions +
 # checksum chain compressions
-WOTS_TW_SIGN_COMPRESSIONS_AVG = round(
-  WOTS_TW_CHAIN_COUNT +
-  WOTS_TW_CHAIN_COUNT1 * (WOTS_TW_AVERAGE_MESSAGE_INDEX) +
-  WOTS_TW_CHAIN_COUNT2 * (WOTS_TW_AVERAGE_CHECKSUM_INDEX)
-)
+WOTS_TW_SIGN_COMPRESSIONS_AVG = WOTS_TW_CHAIN_COUNT + \
+                                WOTS_TW_CHAIN_COUNT1 * (WOTS_TW_AVERAGE_MESSAGE_INDEX) + \
+                                WOTS_TW_CHAIN_COUNT2 * (WOTS_TW_AVERAGE_CHECKSUM_INDEX)
 
 # Generating other WOTS leaves +
 # WOTS-TW signing +
