@@ -95,6 +95,7 @@ The exact correspondence between parameters common between this document and FIP
 
 SHRINCS performance during key generation, signing, and verification is dominated by hash function calls.
 The tables below therefore report SHA256 compression counts computed by [`impl/meta.py`](./impl/meta.py).
+The signing and verification counts assume a 32-byte caller-supplied message and an empty context.
 Actual runtimes depend on the implementation, including its use of SHA256 hardware acceleration.[^sha_ni_bench]
 
 ### Verification
@@ -158,8 +159,6 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 | Stateful (BXMSS; depth 12) | <!-- CONST START BXMSS_12_SIGN_COMPRESSIONS_AVG -->2137923<!-- CONST END BXMSS_12_SIGN_COMPRESSIONS_AVG --> | 2<sup>12</sup> |
 | Stateful (BXMSS; depth 16) | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS_AVG -->34209599<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS_AVG --> | 2<sup>16</sup> |
 | Stateful (BXMSS; depth 20) | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS_AVG -->547356475<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS_AVG --> | 2<sup>20</sup> |
-
-<sub>\*These metrics assume a 32-byte message.</sub>
 
 One can improve SHRINCS signing performance significantly using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
 
