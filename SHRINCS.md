@@ -110,7 +110,7 @@ In this table we show exact compression counts, and show the maximum _compressio
 The variance in stateful verify compression count can be caused by signers supplying larger stateful signatures, which require additional hash invocations to verify.
 The variance in stateless compression count can be controlled by the signer with no change to signature size, and is owed to the fact that the signatures of the WOTS-TW subscheme have a non-constant verification cost which depends on a signer-controlled hash.
 
-The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
+SHRINCS verification time can be reduced using CPU instructions designed specifically for SHA256[^sha_ni_bench] or by evaluating independent SHA256 computations in parallel with vectorized (SIMD) CPU instructions[^simd_bench].
 
 For comparison, the cost of BIP-340 Schnorr verification can be expressed as an equivalent number of SHA256 compression calls by benchmarking both operations on the same system.
 One benchmark using libsecp256k1's SHA256 implementation found that BIP-340 verification, including public-key parsing, took the same time as 127 compression calls, or 1.98 equivalent compressions per byte of the 64-byte signature.[^bip340_sha256_bench]
@@ -137,7 +137,7 @@ Note this cost includes both stateful and stateless components.
 | BXMSS; depth 16 | <!-- CONST START BXMSS_16_KEYGEN_COMPRESSIONS -->34502142<!-- CONST END BXMSS_16_KEYGEN_COMPRESSIONS --> | 2<sup>16</sup> |
 | BXMSS; depth 20 | <!-- CONST START BXMSS_20_KEYGEN_COMPRESSIONS -->547649022<!-- CONST END BXMSS_20_KEYGEN_COMPRESSIONS --> | 2<sup>20</sup> |
 
-The best known way to improve SHRINCS key-generation performance is either to use vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or to use heavy parallelism libraries such as CUDA or Vulkan[^vulkan].
+SHRINCS key-generation performance can be improved by evaluating independent SHA256 hashes in parallel using vectorized CPU instructions[^simd_bench][^sha256x8], or using CUDA or Vulkan[^vulkan].
 
 One can also improve SHRINCS key-generation performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
@@ -160,7 +160,7 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 | Stateful (BXMSS; depth 16) | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS_AVG -->34209599<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS_AVG --> | 2<sup>16</sup> |
 | Stateful (BXMSS; depth 20) | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS_AVG -->547356475<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS_AVG --> | 2<sup>20</sup> |
 
-One can improve SHRINCS signing performance significantly using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
+SHRINCS signing performance can be improved by evaluating independent SHA256 hashes in parallel using vectorized CPU instructions[^simd_bench][^sha256x8], or using CUDA or Vulkan[^vulkan].
 
 To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#fxmss) tree which are produced during key-generation or prior signing attempts.
 Caching reduces the fraction of the FXMSS tree which the signer must regenerate on each signing attempt, which is by far the greatest computational cost in stateful signing.
@@ -2805,7 +2805,7 @@ This document and the SHRINCS reference code are licensed under either the CC0-1
 [^sha_ni]: https://en.wikipedia.org/wiki/SHA_instruction_set
 [^sha_ni_bench]: https://conduition.io/code/fast-slh-dsa/#Hardware-Acceleration
 [^simd_bench]: https://conduition.io/code/fast-slh-dsa/#Vectorized-Hashing
-[^sha256x8]: https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c
+[^sha256x8]: The [`sphincs/sphincsplus`](https://github.com/sphincs/sphincsplus/tree/7ec789ace6874d875f4bb84cb61b81155398167e) reference-code repository includes a [vectorized SHA256 implementation](https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c).
 [^vulkan]: For comparison, a 2025 benchmark of a [Vulkan implementation of SLH-DSA-SHA2-128s](https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA) reports a signing time of 2.67 ms on a commodity RTX 3060 Ti GPU.
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
 [^sl_param_tool]: https://blockstreamresearch.github.io/SPHINCS-Parameters/site/stateless.html
