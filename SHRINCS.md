@@ -279,22 +279,23 @@ The stateful component would be the primary signing tool used in Bitcoin transac
 
 ### Why statefulness?
 
-SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm.
-A stateful signature algorithm is one in which signers must keep track of how many messages they have previously signed.
-This "statefulness burden" introduces complexity into implementations, which must ensure state is managed correctly and consistently.
-See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
+Stateful signing is a significant departure from the signature schemes already used in Bitcoin.
+Although SHRINCS also supports a stateless path, its stateful path requires signers to keep track of how many times each key pair has been used for stateful signing.
+This state-management burden introduces implementation complexity, and incorrect state management can compromise security.
 
-SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness:
-Approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO -->x smaller signatures, which require approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO -->x less compute time to verify (compared to the stateless component).
-
-SHRINCS signers who cannot manage state, or implementors who do not yet have the time/energy to devote to properly writing state management, can still generate valid SHRINCS keys and sign using the stateless component.
-Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of a keypair's state counter.
+Signers using the stateful component accept this implementation complexity and its associated risks in exchange for smaller signatures and a lower maximum verification cost.
+The smallest stateful signature is approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO --> times smaller than a stateless signature.
+Verification of a maximum-depth stateful signature requires <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> SHA256 compressions.
+A stateless signature requires at most <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2792<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> SHA256 compressions, approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO --> times as many.
 
 ### Isn't statefulness unsafe?
 
-If used incorrectly, a stateful signature scheme admits trivial forgeries by anyone observing signatures that reuse the same state.
-Thankfully, because of the stateless fallback component, any SHRINCS signer can follow a prescribed set of implementation-level invariants to ensure such situations never occur, while always maintaining the ability to sign in an emergency scenario (lost or corrupted state).
-See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
+The security of stateful signing requires that a state counter value is never reused under the same key pair.
+Reusing a state counter value under the same key pair can enable anyone who observes the resulting signatures to produce forgeries.
+Implementations can prevent such reuse by enforcing the invariants specified in [On Managing State](#on-managing-state).
+Implementations that cannot safely manage state can still generate valid SHRINCS key pairs and sign using the stateless component.
+If a key pair's state counter is lost, corrupted, or otherwise uncertain, an implementation MUST refuse stateful signing.
+The stateless fallback allows the implementation to do so while always maintaining the ability to sign with that key pair.
 
 ### Why does the stateful path use "flexible" XMSS?
 
