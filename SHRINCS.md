@@ -2615,6 +2615,7 @@ This function is used only by the signer.
 
 ```py
 def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: Optional[int], opt_rand: Optional[bytes]) -> Optional[bytes]:
+  assert len(shrincs_seckey) == 82
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
