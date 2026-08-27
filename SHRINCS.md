@@ -773,11 +773,11 @@ This function is only used in the stateful path, and by both the signer and the 
 ```py
 def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> bytes:
   assert counter <= 0xFFFF
-  return sha256(pk_seed + zeros(48) + ADRS[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
+  return sha256(pk_seed + zeros(48) + ADRS[:10] + digest + zeros(8) + counter.to_bytes(2))[:16]
 ```
 <!-- DOC END H_grind -->
 
-The extra 4 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule boundaries.
+The extra 8 bytes of padding before the counter ensures the counter lines up with the SHA256 message schedule word boundaries.
 
 Notice we only use the first 10 bytes of `ADRS`.
 This ensures the entire hash input fits inside a single SHA256 compression call, given the cached `pk_seed` input.
