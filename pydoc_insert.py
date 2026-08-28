@@ -6,22 +6,25 @@ from argparse import ArgumentParser
 import shutil
 
 """
-This script parses the shrincs.py implementation, to substitute
-docstrings and exact python code for reference functions and constants
-into SHRINCS.md. We parse markdown comments as doc/const insert directives.
+This script parses the reference implementation, to substitute docstrings
+and exact python code for reference functions and constants into the
+templated markdown documents. We parse markdown comments as doc/const
+insert directives.
 """
 
-from impl import shrincs, meta
+from impl import shrincs, meta, caches
 
-with open('impl/shrincs.py') as fh:
-  shrincs_code_lines = [line.rstrip() for line in fh]
+DOCUMENTS = [
+  {'markdown': 'SHRINCS.md', 'module': shrincs, 'source': 'impl/shrincs.py'},
+  {'markdown': 'docs/CACHE_MANAGEMENT.md', 'module': caches, 'source': 'impl/caches.py'},
+]
 
 class SpecFunction:
   """
-  Data structure to document a SHRINCS specification function.
+  Data structure to document a specification function.
   """
-  def __init__(self, function_name: str):
-    fn = shrincs.__getattribute__(function_name)
+  def __init__(self, module, code_lines, function_name: str):
+    fn = module.__getattribute__(function_name)
     positions = list(fn.__code__.co_positions())
     def_line = positions[0][0] - 1
     code_start_line = positions[1][0] - 1
@@ -30,24 +33,22 @@ class SpecFunction:
       self.docstring = inspect.cleandoc(fn.__doc__)
     else:
       self.docstring = None
-    self.codestring = '\n'.join([shrincs_code_lines[def_line], *shrincs_code_lines[code_start_line : code_end_line]])
+    self.codestring = '\n'.join([code_lines[def_line], *code_lines[code_start_line : code_end_line]])
 
 
 regex_doc_start = r"^<!-- DOC START (\w+) -->$"
 regex_doc_end = r"^<!-- DOC END (\w+) -->$"
 regex_const = r"<!-- CONST START (\w+) -->\S*<!-- CONST END (\w+) -->"
 
-if __name__ == "__main__":
-  parser = ArgumentParser(description="SHRINCS.md templating script.")
-  parser.add_argument("-n", "--dry-run", action="store_true",
-                     help="Produce the templated specification file in SHRINCS.new.md but do not overwrite SHRINCS.md.")
-  args = parser.parse_args()
+def template_document(markdown_path: str, module, source_path: str) -> str:
+  with open(source_path) as fh:
+    code_lines = [line.rstrip() for line in fh]
 
-  with open('SHRINCS.md') as fh:
+  with open(markdown_path) as fh:
     markdown_lines = [line for line in fh]
 
-  # with sys.stdout as out:
-  with open('SHRINCS.new.md', 'w') as out:
+  out_path = markdown_path.replace('.md', '.new.md')
+  with open(out_path, 'w') as out:
     i = 0
     while i < len(markdown_lines):
       doc_start_match = re.match(regex_doc_start, markdown_lines[i])
@@ -56,7 +57,7 @@ if __name__ == "__main__":
         function_name = doc_start_match.group(1)
         out.write(markdown_lines[i])
 
-        spec_fn = SpecFunction(function_name)
+        spec_fn = SpecFunction(module, code_lines, function_name)
         if spec_fn.docstring is not None:
           out.write(spec_fn.docstring + '\n\n')
         out.write("```py" + '\n')
@@ -72,7 +73,6 @@ if __name__ == "__main__":
             raise RuntimeError("failed to find closing <!-- DOC END %s --> comment" % function_name)
 
       elif const_start_match:
-        replacements = []
         line = markdown_lines[i]
         for match in re.finditer(regex_const, markdown_lines[i]):
           matched_string = match.group(0)
@@ -89,5 +89,15 @@ if __name__ == "__main__":
 
       i += 1
 
-  if not args.dry_run:
-    shutil.move('SHRINCS.new.md', 'SHRINCS.md')
+  return out_path
+
+if __name__ == "__main__":
+  parser = ArgumentParser(description="Templating script for the specification documents.")
+  parser.add_argument("-n", "--dry-run", action="store_true",
+                     help="Produce the templated documents as *.new.md files but do not overwrite the originals.")
+  args = parser.parse_args()
+
+  for document in DOCUMENTS:
+    out_path = template_document(document['markdown'], document['module'], document['source'])
+    if not args.dry_run:
+      shutil.move(out_path, document['markdown'])
