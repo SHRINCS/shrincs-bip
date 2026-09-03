@@ -55,6 +55,8 @@ On the other hand, if the state counter is incremented before the secret key is 
 Of course, fault injection attacks on the state storage medium must still be mitigated.
 The signer must never create a signature until it is confident the state counter storage cannot be rolled back.
 
+If using multiple storage media (see [Redundancy](#redundancy)) then the counter must be fully committed into all available storage media before the signature is issued.
+
 ### Compression
 
 Under typical usage in a Bitcoin wallet, assuming one UXMSS SHRINCS key per address, there could be potentially thousands or millions of used SHRINCS keys whose state must be tracked by the wallet.
@@ -93,11 +95,13 @@ At least one of these media should be durable and rollback-resistant (e.g. a TPM
 
 *Triple redundancy* is best.
 Three independent storage media allow the signer to reconstruct the correct state when one medium disagrees with the other two.
-If your threat model includes a situation where two of the three media have been compromised, then even with triple redundancy the wallet must still assume the highest provided counter is correct.
+If the wallet threat model includes a situation where two of the three media have been compromised, then even with triple redundancy the wallet must still assume the highest provided counter is correct.
 
 If state recovery is not a desired goal, and the wallet only wants a boolean yes/no as to whether the state storage media are in agreement, the wallet may store a commitment to the state in the secondary media, while maintaining the full set of counters in just one primary medium.
 
 [Offloading](#offloading) is such an example of a simple double redundancy setup, where one medium (the hardware wallet) stores only a commitment and if the two media disagree on the current state then the stateful path is not usable anymore.
+
+Note that when signing, the wallet must successfully commit the updated state into *all* storage media before creating the signature (see [Store-then-Sign](#store-then-sign)).
 
 ## Wallet Recovery
 
