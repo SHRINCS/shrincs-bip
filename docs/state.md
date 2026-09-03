@@ -15,8 +15,8 @@ This complexity is instead offloaded to the caller, which in the case of Bitcoin
 
 The consequences of state misuse are severe: Sign two different messages with the same key and state counter, and an adversary who observed both signatures gains the ability to forge.
 
-State management also creates engineering challenges for low-memory or high-volume signers: If we have a signer who generates `n` keys, it seems like at bare minimum a naive signer must store `n` bits of state - one bit per key to indicate whether the key has been used.
-For full utility the signer would more likely want to store `n` *bytes* of state, with a 1-byte counter per keypair.
+State management also creates engineering challenges for low-memory or high-volume signers: If we have a signer who generates `n` SHRINCS keys, it seems like at bare minimum a naive signer must store `n` bits of state - one bit per key to indicate whether the key has been used.
+For full utility with UXMSS the signer would more likely want to store at least `n` *bytes* of state, with a 1-byte counter per keypair.
 
 Thankfully there are many defensive engineering measures stateful signers can take to reduce the risks and complexities of managing state.
 
