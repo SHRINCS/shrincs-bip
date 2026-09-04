@@ -510,7 +510,8 @@ Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as
 
 Every quantity in this specification denotes a mathematical integer, and every operation on one is exact.
 Nothing overflows, underflows, wraps, is reduced modulo a word size, saturates, or is truncated; a difference is never clamped at zero, and the only rounding is that of the two division forms above.
-An operation whose result would fall outside the range this specification gives that value does not yield some other value instead: it violates the specification.
+If an operation would produce a result outside the range specified for that value, the operation violates the specification.
+It does not produce a different value within the range.
 
 The [value types](#value-types) above are therefore refinements, not representations.
 `UInt8` through `UInt64` assert that a value lies in `[0, 2**8)` through `[0, 2**64)`.
@@ -1074,9 +1075,9 @@ and chain the node belongs to.
 
 - Inputs:
   - `node`: a 16-byte hash.
-  - `start`: an 8-bit unsigned integer, the index of `node` in its hash chain, less than
+  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
     `2**WOTS_TW_CHAIN_BITS`.
-  - `steps`: an 8-bit unsigned integer, the number of steps to take up the chain; `start + steps`
+  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
     must not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
@@ -1087,7 +1088,7 @@ This function is only used in the stateless path, and by both the signer and the
 
 ```py
 def wots_tw_chain_iter(
-    node: Bytes[16], start: UInt8, steps: UInt8, pk_seed: Bytes[16], ADRS: bytearray
+    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
 ) -> Bytes[16]:
   ADRS[9] = SL_WOTS_TW_HASH
   for j in range(start, start+steps):
@@ -1107,9 +1108,9 @@ and chain the node belongs to.
 
 - Inputs:
   - `node`: a 16-byte hash.
-  - `start`: an 8-bit unsigned integer, the index of `node` in its hash chain, less than
+  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
     `2**WOTS_C_CHAIN_BITS`.
-  - `steps`: an 8-bit unsigned integer, the number of steps to take up the chain; `start + steps`
+  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
     must not exceed `2**WOTS_C_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
@@ -1120,7 +1121,7 @@ This function is only used in the stateful path, and by both the signer and the 
 
 ```py
 def wots_c_chain_iter(
-    node: Bytes[16], start: UInt8, steps: UInt8, pk_seed: Bytes[16], ADRS: bytearray
+    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
 ) -> Bytes[16]:
   ADRS[9] = SF_WOTS_C_HASH
   for j in range(start, start+steps):
@@ -2758,7 +2759,7 @@ def shrincs_sign(
     shrincs_seckey: Bytes[82],
     state_ctr: Optional[UInt64],
     opt_rand: Optional[Bytes[16]],
-) -> Optional[Union[Bytes[SPHX_SIGNATURE_SIZE],
+) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
                     Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
   assert len(shrincs_seckey) == 82
   sk_seed      = shrincs_seckey[0:16]
@@ -2825,10 +2826,10 @@ in memory-constrained environments.
 
 - Inputs:
   - `message`: a message of at most `2**61 - 384` bytes.
-  - `signature`: a candidate signature, of any length. The accepted lengths are exactly
-    `SPHX_SIGNATURE_SIZE` for the stateless path and `SHRINCS_SF_SIGNATURE_SIZE_MIN` to
-    `SHRINCS_SF_SIGNATURE_SIZE_MAX` in steps of 16 for the stateful path; any other
-    length is rejected.
+  - `signature`: a candidate signature, of any length. The stateless path accepts exactly
+    `SHRINCS_SL_SIGNATURE_SIZE` bytes. Stateful signature lengths range from
+    `SHRINCS_SF_SIGNATURE_SIZE_MIN` to `SHRINCS_SF_SIGNATURE_SIZE_MAX`, and the indicator byte
+    determines the exact accepted length. Every other length is rejected.
   - `ctx`: a context of at most 255 bytes.
   - `shrincs_pubkey`: a 48-byte SHRINCS public key.
 - Output:

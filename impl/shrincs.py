@@ -385,7 +385,7 @@ def PRF_msg_sf(sk_prf: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray, M: bytes)
 #  Winternitz algorithms
 
 def wots_tw_chain_iter(
-    node: Bytes[16], start: UInt8, steps: UInt8, pk_seed: Bytes[16], ADRS: bytearray
+    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
 ) -> Bytes[16]:
   """
   The WOTS-TW hash chain iteration function. Iterates the hash chain from index `start` by `steps`
@@ -394,9 +394,9 @@ def wots_tw_chain_iter(
 
   - Inputs:
     - `node`: a 16-byte hash.
-    - `start`: an 8-bit unsigned integer, the index of `node` in its hash chain, less than
+    - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
       `2**WOTS_TW_CHAIN_BITS`.
-    - `steps`: an 8-bit unsigned integer, the number of steps to take up the chain; `start + steps`
+    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
       must not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
     - `pk_seed`: a 16-byte public seed.
     - `ADRS`: a 22-byte address.
@@ -412,7 +412,7 @@ def wots_tw_chain_iter(
   return node
 
 def wots_c_chain_iter(
-    node: Bytes[16], start: UInt8, steps: UInt8, pk_seed: Bytes[16], ADRS: bytearray
+    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
 ) -> Bytes[16]:
   """
   The WOTS+C hash chain iteration function. Iterates the hash chain from index `start` by `steps`
@@ -421,9 +421,9 @@ def wots_c_chain_iter(
 
   - Inputs:
     - `node`: a 16-byte hash.
-    - `start`: an 8-bit unsigned integer, the index of `node` in its hash chain, less than
+    - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
       `2**WOTS_C_CHAIN_BITS`.
-    - `steps`: an 8-bit unsigned integer, the number of steps to take up the chain; `start + steps`
+    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
       must not exceed `2**WOTS_C_CHAIN_BITS - 1`.
     - `pk_seed`: a 16-byte public seed.
     - `ADRS`: a 22-byte address.
@@ -1432,7 +1432,7 @@ def shrincs_sign(
     shrincs_seckey: Bytes[82],
     state_ctr: Optional[UInt64],
     opt_rand: Optional[Bytes[16]],
-) -> Optional[Union[Bytes[SPHX_SIGNATURE_SIZE],
+) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
                     Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
   """
   The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`:
@@ -1521,10 +1521,10 @@ def shrincs_verify(
 
   - Inputs:
     - `message`: a message of at most `2**61 - 384` bytes.
-    - `signature`: a candidate signature, of any length. The accepted lengths are exactly
-      `SPHX_SIGNATURE_SIZE` for the stateless path and `SHRINCS_SF_SIGNATURE_SIZE_MIN` to
-      `SHRINCS_SF_SIGNATURE_SIZE_MAX` in steps of 16 for the stateful path; any other
-      length is rejected.
+    - `signature`: a candidate signature, of any length. The stateless path accepts exactly
+      `SHRINCS_SL_SIGNATURE_SIZE` bytes. Stateful signature lengths range from
+      `SHRINCS_SF_SIGNATURE_SIZE_MIN` to `SHRINCS_SF_SIGNATURE_SIZE_MAX`, and the indicator byte
+      determines the exact accepted length. Every other length is rejected.
     - `ctx`: a context of at most 255 bytes.
     - `shrincs_pubkey`: a 48-byte SHRINCS public key.
   - Output:
