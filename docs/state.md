@@ -79,10 +79,92 @@ However in the case of Bitcoin hardware wallets, we probably do not want to rest
 Instead, the hardware wallet can store a **commitment** to the state counters, and offload the raw state counters to an untrusted *host* device.
 A simple way to think of this is as a Merkle tree where the leaves are counters.
 
-<!-- TODO diagram -->
+```
+      o
+    /   \
+   /     \
+  o       o
+ / \     / \
+1   3   5   1
+```
 
 When signing, the hardware wallet expects the host to provide the correct counter for the chosen signing key, along with an opening proof to show the state is valid and corresponds to the commitment stored on the hardware wallet.
 The hardware wallet must then increment the state and update its commitment in its non-volatile storage *before* creating the signature (see [Store-then-Sign](#store-then-sign)).
+
+Let's say we sign with the third key and use state 5. The host provides the following values to the hardware wallet:
+
+```
+      o
+    /   \
+   /     \
+  o       o
+         / \
+        5   1
+```
+
+The hardware wallet can then increment the state counter 5 up to 6, and recalculate a new root using only the proof provided by the host - without being given all the other unchanged state counters.
+
+```
+      o
+    /   \
+   /     \
+  o       o
+         / \
+        6   1
+```
+
+This only requires $\log_2(n)$ compute time on the device for storing $n$ SHRINCS key states.
+Naively it requires $\log_2(n)$ space as well, but that can be improved via streaming: The host sends the merkle path in discrete chunks, while the device opens the commitment and computes the next updated root in parallel.
+
+<details>
+  <summary><h3>Example</h3></summary>
+
+From the device's POV:
+
+- Given the leaf values `5` and `1`, compute two hashes: `x = H(5, 1)` and `x' = H(5+1, 1)`.
+- Given the merkle node `y = H(1, 3)` update `x = H(y, x)` and `x' = H(y, x')`.
+  - Repeat some number of times.
+- Check if `x` matches the commitment stored on the device, and if so update it to `x'`, then sign with the state counter 5.
+
+This approach requires more round trips between the host and device, but needs very little working memory.
+</details>
+
+#### Packing
+
+In principle this works, but it is very inefficient, because there is only one state counter per leaf.
+A more efficient approach would be to *pack* multiple state counters together into each leaf, so that a hashed leaf takes up the same amount of space as a *packet* of counters.
+This reduces the height of the merkle tree from $log_2(n)$ to $log_2(n / p)$ for a *packing rate* of $p$ counters per leaf.
+
+```
+                  ----------------  o  ----------------
+                 /                                     \
+          ----- o -----                          ------ o -----
+        /              \                        /              \
+      /                  \                    /                  \
+[3, 1, 6, ...]     [1, 0, 2, ...]       [9, 0, 3, ...]     [2, 5, 5, ...]
+```
+
+As an example, if we have a packing rate of $p = 32$ counters per leaf, a wallet with $2^{32}$ keys would have state proofs consisting of 27 hashes (plus the counter packet).
+
+#### Sparse State Trees
+
+Note that in such a use-case, many SHRINCS keys may have the same state counter, namely zero, so the merkle tree is *sparse*: Many of its leaves are a hash of the same data, e.g. `Z[0] = H(0x000000...)`
+This admits an easy host-side optimization because we can recursively compute `Z[i] = H(Z[i - 1] || Z[i - 1])`, where each `Z[i]` is the root of a height-`i` merkle tree whose leaves are all zero state counters.
+We can then refer to these roots by referencing an index `i` rather than sending the full hash over the wire between host and device.
+
+Consider a state counter merkle tree like this:
+
+```
+                  ----------------  o  ----------------
+                 /                                     \
+          ----- o -----                          ------ o -----
+        /              \                        /              \
+      /                  \                    /                  \
+[3, 1, 6, ...]     [0, 0, 0, ...]       [0, 0, 0, ...]     [0, 0, 0, ...]
+```
+
+Instead of sending `Z[0] = H([0, 0, 0, ...])` and `Z[1] = H(Z[0] || Z[0])` in full over the wire, the host can simply send pointers `0` and `1`.
+The hardware wallet can either recompute `Z[0]` and `Z[1]` on the fly with two hash invocations, or pull them from a cache.
 
 ### Redundancy
 
