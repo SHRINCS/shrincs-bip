@@ -169,19 +169,15 @@ The hardware wallet can either recompute `Z[0]` and `Z[1]` on the fly with two h
 ### Redundancy
 
 The best state storage medium is not one, but a combination of multiple storage media providing redundancy.
-If one medium fails or is rolled back, state can be recovered from the others.
 
-*Double redundancy* (two separate storage locations) will adequately protect a wallet in case either medium is somehow rolled back.
-If the signer finds both state storage media disagree on the counter for a given key, the signer cannot tell which is faulty and so she must use the higher of the two counters, or else use the stateless signing path to be very safe.
+Replicating state in $n$ different storage sites will protect a wallet in the event that up to $n - 1$ state storage sites are compromised or rolled back.
+If the signer finds her state storage media disagree on the counter for a given key, the signer cannot tell which is faulty and so she must use the higher of the two counters, or else use the stateless signing path to be very safe.
 At least one of these media should be durable and rollback-resistant (e.g. a TPM).
 
-*Triple redundancy* is best.
-Three independent storage media allow the signer to reconstruct the correct state when one medium disagrees with the other two.
-If the wallet threat model includes a situation where two of the three media have been compromised, then even with triple redundancy the wallet must still assume the highest provided counter is correct.
+When replicating state to storage media outside the signer's direct control (e.g. a cloud server; a host laptop), the signer should use authenticated encryption or stateless signatures to ensure state counters on the remote storage medium cannot be incremented adversarially.
 
-If state recovery is not a desired goal, and the wallet only wants a boolean yes/no as to whether the state storage media are in agreement, the wallet may store a commitment to the state in the secondary media, while maintaining the full set of counters in just one primary medium.
-
-[Offloading](#offloading) is such an example of a simple double redundancy setup, where one medium (the hardware wallet) stores only a commitment and if the two media disagree on the current state then the stateful path is not usable anymore.
+[Offloading](#offloading) is an example of a simple double redundancy setup, where one medium (the hardware wallet) stores only a commitment while the host computer stores a redundant copy of the full state.
+If the two media disagree on the current state (e.g. if the hardware wallet is lost), then the stateful path is not usable anymore.
 
 Note that when signing, the wallet must successfully commit the updated state into *all* storage media before creating the signature (see [Store-then-Sign](#store-then-sign)).
 
