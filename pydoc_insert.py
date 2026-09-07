@@ -67,8 +67,8 @@ class SpecFunction:
     self.codestring = '\n'.join(signature + shrincs_code_lines[body_from : ends_at])
 
 
-regex_doc_start = r"^<!-- DOC START (\w+) -->$"
-regex_doc_end = r"^<!-- DOC END (\w+) -->$"
+regex_doc_start = r"^<!-- DOC START (\w+) -->\W*$"
+regex_doc_end = r"^<!-- DOC END (\w+) -->\W*$"
 regex_const = r"<!-- CONST START (\w+) -->\S*<!-- CONST END (\w+) -->"
 
 if __name__ == "__main__":
