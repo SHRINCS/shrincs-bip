@@ -180,10 +180,3 @@ When replicating state to storage media outside the signer's direct control (e.g
 If the two media disagree on the current state (e.g. if the hardware wallet is lost), then the stateful path is not usable anymore.
 
 Note that when signing, the wallet must successfully commit the updated state into *all* storage media before creating the signature (see [Store-then-Sign](#store-then-sign)).
-
-## Wallet Recovery
-
-TODO
-- Wallet IDs
-- Multi-device pairing
-
