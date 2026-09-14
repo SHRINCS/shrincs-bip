@@ -442,7 +442,12 @@ def H_msg_sl(R: Bytes[16], pk_seed: Bytes[16], sl_root: Bytes[16], M: bytes) -> 
   return sha256(R + pk_seed + sha256(R + pk_seed + sl_root + M) + zeros(4))
 
 def H_msg_sf(
-    R: Bytes[16], pk_seed: Bytes[16], sf_root: Bytes[16], ADRS: bytearray, M: bytes
+    R: Bytes[16],
+    pk_seed: Bytes[16],
+    sf_root: Bytes[16],
+    leaf_height: UInt8,
+    leaf_index: UInt64,
+    M: bytes,
 ) -> Bytes[32]:
   """
   The `H_msg_sf` message hash function. Produces the 32-byte signing digest for the stateful path.
@@ -451,7 +456,8 @@ def H_msg_sf(
     - `R`: a 16-byte randomizer.
     - `pk_seed`: a 16-byte public seed.
     - `sf_root`: the 16-byte stateful root hash.
-    - `ADRS`: a 22-byte address.
+    - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf.
+    - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf.
     - `M`: a variable-length message.
   - Output:
     - a 32-byte hash.
@@ -460,7 +466,8 @@ def H_msg_sf(
 
   Note that `pk_seed` is not padded in this tweakable hash function.
   """
-  return sha256(R + pk_seed + sha256(R + pk_seed + sf_root + ADRS[:9] + M) + ADRS[:9])
+  leaf = leaf_height.to_bytes(1) + leaf_index.to_bytes(8)
+  return sha256(R + pk_seed + sha256(R + pk_seed + sf_root + leaf + M) + leaf)
 
 def PRF_msg_sl(sk_prf: Bytes[16], opt_rand: Bytes[16], M: bytes) -> Bytes[16]:
   """
@@ -482,7 +489,9 @@ def PRF_msg_sl(sk_prf: Bytes[16], opt_rand: Bytes[16], M: bytes) -> Bytes[16]:
   """
   return hmac_sha256(key=sk_prf, message=opt_rand + M)[:16]
 
-def PRF_msg_sf(sk_prf: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray, M: bytes) -> Bytes[16]:
+def PRF_msg_sf(
+    sk_prf: Bytes[16], pk_seed: Bytes[16], leaf_height: UInt8, leaf_index: UInt64, M: bytes
+) -> Bytes[16]:
   """
   The `PRF_msg_sf` function. Derives the per-message randomizer for the stateful path via
   HMAC-SHA256.
@@ -490,14 +499,16 @@ def PRF_msg_sf(sk_prf: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray, M: bytes)
   - Inputs:
     - `sk_prf`: a 16-byte secret.
     - `pk_seed`: a 16-byte public seed.
-    - `ADRS`: a 22-byte address.
+    - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf.
+    - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf.
     - `M`: a variable-length message.
   - Output:
     - a 16-byte hash.
 
   This function is only used in the stateful path, and only by the signer.
   """
-  return hmac_sha256(key=sk_prf + replicate(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
+  leaf = leaf_height.to_bytes(1) + leaf_index.to_bytes(8)
+  return hmac_sha256(key=sk_prf + replicate(0xFF, 48), message=pk_seed + leaf + M)[:16]
 
 
 #  Winternitz algorithms
@@ -1618,13 +1629,12 @@ def shrincs_sign(
   assert len(ctx) < 256
   bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
 
-  ADRS = bytearray(22)
-  ADRS[0] = leaf_height
-  ADRS[1:9] = leaf_index.to_bytes(8)
-  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, bound_message)
+  R = PRF_msg_sf(sk_prf, pk_seed, leaf_height, leaf_index, bound_message)
 
   # Bind the stateful signature to the stateless keypair.
-  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
+  message_digest = H_msg_sf(
+    R, pk_seed, sf_root, leaf_height, leaf_index, bound_message
+  )
   tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
   fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, tree_balanced, sf_structure[1])
   if fxmss_signature is None:
@@ -1707,16 +1717,14 @@ def shrincs_verify(
     if len(fxmss_signature) != 2 + WOTS_C_CHAINS_SIZE + leaf_depth * 16:
       return False
 
-    ADRS = bytearray(22)
-    ADRS[0] = leaf_height
-    ADRS[1:9] = leaf_index.to_bytes(8)
-
     # Stateful signatures must be bound to the stateless keypair and context
     # in the same manner as the stateless component.
     assert len(ctx) < 256
     bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
 
-    message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
+    message_digest = H_msg_sf(
+      R, pk_seed, sf_root, leaf_height, leaf_index, bound_message
+    )
     root = fxmss_pubkey_from_sig(leaf_index, leaf_height, fxmss_signature, message_digest, pk_seed)
     if root is None:
       return False
