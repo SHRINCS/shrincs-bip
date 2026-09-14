@@ -1368,10 +1368,11 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   This function is used only during key generation.
 
   > [!WARNING]
-  > The `sf_structure` argument must come from a trusted source or else be validated.
-  > If an adversary can control it, they may cause key-generation to fail, or hang consuming compute
-  > resources: a balanced tree of depth `sf_structure[1]` costs `2**sf_structure[1]` WOTS+C key
-  > generations, so implementations SHOULD reject a depth they cannot afford to compute.
+  > The `sf_structure` argument, consisting of a shape byte followed by a depth byte `d`, must come
+  > from a trusted source or else be validated. If an adversary can control it, they may cause
+  > key-generation to fail, or hang consuming compute resources. Computing the root of a balanced tree
+  > of depth `d` requires `2**d` WOTS+C public-key generations, so implementations should reject a
+  > depth they cannot afford to compute.
   """
   assert len(seed) == 48
   assert len(sf_structure) == 2
@@ -1462,6 +1463,13 @@ def shrincs_sign(
       or null.
 
   This function is used only by the signer.
+
+  > [!WARNING]
+  > The two-byte FXMSS tree structure encoded in `shrincs_seckey`, consisting of a shape byte followed
+  > by a depth byte `d`, must come from a trusted source or else be validated. If an adversary can
+  > control it, they may cause signing to fail, or hang consuming compute resources. Computing the
+  > authentication path for a balanced tree of depth `d` from scratch requires `(2**d) - 1` WOTS+C
+  > public-key generations, so implementations should reject a depth they cannot afford to compute.
 
   > [!CAUTION]
   > Using the same key to sign different `(message, ctx)` pairs with the same `state_ctr` is
