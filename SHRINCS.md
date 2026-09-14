@@ -2025,13 +2025,9 @@ def fxmss_node(
   is_bxmss_leaf = tree_balanced and node_depth == tree_depth
 
   if is_uxmss_leaf or is_bxmss_leaf:
-    if tree_balanced:
-      tree_shape = FXMSS_SHAPE_BALANCED
-    else:
-      tree_shape = FXMSS_SHAPE_UNBALANCED
     ADRS[0] = node_height
     ADRS[1:9] = node_index.to_bytes(8)
-    ADRS[10:14] = tree_shape.to_bytes(1) + tree_depth.to_bytes(1) + zeros(2)
+    ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
     return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
 
   # Catch and throw if control would enter an infinite recursive loop.
@@ -2094,15 +2090,10 @@ def fxmss_sign(
   else:
     assert leaf_index == 1 or leaf_depth == tree_depth
 
-  if tree_balanced:
-    tree_shape = FXMSS_SHAPE_BALANCED
-  else:
-    tree_shape = FXMSS_SHAPE_UNBALANCED
-
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  ADRS[10:14] = tree_shape.to_bytes(1) + tree_depth.to_bytes(1) + zeros(2)
+  ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
   if sig is None:
     return None # practically impossible
