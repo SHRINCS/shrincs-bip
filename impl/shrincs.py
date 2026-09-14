@@ -8,6 +8,7 @@
 # all.
 
 import hashlib
+from dataclasses import dataclass
 from typing import Annotated, Optional, Union
 
 #  Helper functions
@@ -158,6 +159,123 @@ UInt8  = Annotated[int, UINT(8)]
 UInt16 = Annotated[int, UINT(16)]
 UInt32 = Annotated[int, UINT(32)]
 UInt64 = Annotated[int, UINT(64)]
+
+
+#  Addresses
+
+@dataclass(frozen=True)
+class Address:
+  """
+  Base class for typed addresses used by tweakable hash functions. `height` and
+  `index` encode the common 9-byte prefix. On the stateless path they identify a
+  hypertree layer and XMSS tree. On the stateful path they identify an FXMSS node.
+  Concrete subclasses select the address type and expose its meaningful payload
+  fields.
+  """
+  height: UInt8
+  index: UInt64
+
+  def pack(
+      self,
+      address_type: UInt8,
+      word1: UInt32 = 0,
+      word2: UInt32 = 0,
+      word3: UInt32 = 0,
+  ) -> Bytes[22]:
+    """
+    Serializes the common prefix, address type, and three payload words to 22 bytes.
+    """
+    return (self.height.to_bytes(1)
+            + self.index.to_bytes(8)
+            + address_type.to_bytes(1)
+            + word1.to_bytes(4)
+            + word2.to_bytes(4)
+            + word3.to_bytes(4))
+
+@dataclass(frozen=True)
+class WotsTwHash(Address):
+  keypair_index: UInt32
+  chain_index: UInt32
+  hash_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_WOTS_TW_HASH,
+                     word1=self.keypair_index, word2=self.chain_index, word3=self.hash_index)
+
+@dataclass(frozen=True)
+class WotsTwPrf(Address):
+  keypair_index: UInt32
+  chain_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_WOTS_TW_PRF, word1=self.keypair_index, word2=self.chain_index)
+
+@dataclass(frozen=True)
+class WotsTwPk(Address):
+  keypair_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_WOTS_TW_PK, word1=self.keypair_index)
+
+@dataclass(frozen=True)
+class XmssTree(Address):
+  tree_height: UInt32
+  tree_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_XMSS_TREE, word2=self.tree_height, word3=self.tree_index)
+
+@dataclass(frozen=True)
+class ForsTree(Address):
+  keypair_index: UInt32
+  tree_height: UInt32
+  tree_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_FORS_TREE,
+                     word1=self.keypair_index, word2=self.tree_height, word3=self.tree_index)
+
+@dataclass(frozen=True)
+class ForsRoots(Address):
+  keypair_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_FORS_ROOTS, word1=self.keypair_index)
+
+@dataclass(frozen=True)
+class ForsPrf(Address):
+  keypair_index: UInt32
+  tree_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_FORS_PRF, word1=self.keypair_index, word3=self.tree_index)
+
+@dataclass(frozen=True)
+class WotsCHash(Address):
+  chain_index: UInt32
+  hash_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_WOTS_C_HASH, word2=self.chain_index, word3=self.hash_index)
+
+@dataclass(frozen=True)
+class WotsCPrf(Address):
+  tree_balanced: bool
+  tree_depth: UInt8
+  chain_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(
+      SF_WOTS_C_PRF,
+      word1=(int(self.tree_balanced) << 24) | (self.tree_depth << 16),
+      word2=self.chain_index,
+    )
+
+@dataclass(frozen=True)
+class WotsCPk(Address):
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_WOTS_C_PK)
+
+@dataclass(frozen=True)
+class WotsCGrind(Address):
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_WOTS_C_GRIND)
+
+@dataclass(frozen=True)
+class FxmssTree(Address):
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_FXMSS_TREE)
 
 
 #  Primitive cryptographic functions
