@@ -87,7 +87,7 @@ The hash functions are instantiated with SHA256, as in the FIPS-205 parameter se
 
 The algorithms specified below, `slh_dsa_sign_internal` and `slh_dsa_verify_internal`, match the FIPS-205 algorithms `slh_sign_internal` (Algorithm 19) and `slh_verify_internal` (Algorithm 20), including the optional additional randomness which Algorithm 19 receives as `addrnd`.
 The message binding which FIPS-205 performs in `slh_sign` (Algorithm 22) and `slh_verify` (Algorithm 24) is performed by `shrincs_sign` and `shrincs_verify` instead, in `shrincs_bind_message`, and binds one further value: see [Contexts](#contexts).
-An SLH-DSA implementation that exposes its internal algorithms and supports custom parameter sets can therefore be used for the stateless component of SHRINCS, with a thin wrapper to produce SHRINCS signatures.
+An SLH-DSA implementation that supports custom parameter sets can therefore be used for the stateless component of SHRINCS, with a thin wrapper to produce SHRINCS signatures: either through its internal algorithms on the bound message, or through its `slh_sign` and `slh_verify` on the message `sf_root || message` with the same `ctx`, since the binding those algorithms perform on that message is exactly `shrincs_bind_message`.
 
 This document nonetheless respecifies these algorithms in full, rather than referring to FIPS-205, in order to present both components of SHRINCS in one consistent notation.
 The exact correspondence between parameters common between this document and FIPS-205 is given in [the section on stateless parameters](#stateless-parameters).
