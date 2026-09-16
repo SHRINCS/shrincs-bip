@@ -99,6 +99,15 @@ FXMSS_SHAPE_UNBALANCED = 0
 FXMSS_SHAPE_BALANCED   = 1
 
 #  Message domain separators
+#
+#  The first byte of every bound message (see `shrincs_bind_message`). The
+#  value states how `message` is to be read. `MSG_DOMAIN_PURE` means the
+#  message is the content itself, as in FIPS-205 pure signing (Algorithms
+#  22 and 24), and is the only value this specification defines. The values
+#  1 through 255 are reserved for other message bindings, such as FIPS-205
+#  pre-hash signing (Algorithms 23 and 25), which binds a digest of the
+#  content under the value 1. A signature bound under one value never
+#  verifies under another.
 MSG_DOMAIN_PURE = 0
 
 #  ADRS type flags
