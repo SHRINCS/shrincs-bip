@@ -737,7 +737,7 @@ class WotsCPrf(Address):
   def to_bytes(self) -> Bytes[22]:
     return self.pack(
       SF_WOTS_C_PRF,
-      word1=(int(self.tree_balanced) << 24) | (self.tree_depth << 16),
+      word1=int(self.tree_balanced) * 2**24 + self.tree_depth * 2**16,
       word2=self.chain_index,
     )
 
