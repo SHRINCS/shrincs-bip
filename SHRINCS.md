@@ -483,9 +483,8 @@ They are inert in the implementation, and the sizes they state are requirements 
 - `Union[T, U]` is a value of one of the given types.
   Where this specification returns one, its length tells the reader which.
 - `Optional[T]` is either a `T` or the absence of one.
-- `bool` is true or false, and is never serialized.
-- `bytearray` is the 22-byte address described under [ADRS](#adrs).
-  It is the one value a function modifies in place, which is why it is not given a size here.
+- `bool` is true or false.
+  Where an address includes one, it is serialized as a single byte, 1 for true and 0 for false.
 
 These sizes are normative.
 A value is written into a field wide enough to hold it.
@@ -638,6 +637,127 @@ The following table describes how they are used under each ADRS type flag.
 | `SL_WOTS_TW_PRF` | 4 bytes: key pair index <br> 4 bytes: chain index <br> 4 bytes: zero padding | | | |
 | `SL_FORS_PRF` | 4 bytes: key pair index <br> 4 bytes: zero padding <br> 4 bytes: tree index | | | |
 
+The implementation below represents each address type as an immutable record which exposes only its meaningful fields.
+Serializing a record produces the 22-byte format above, with every unused payload word set to zero.
+
+<!-- ADDRESS TYPES START -->
+```py
+@dataclass(frozen=True)
+class Address:
+  """
+  Base class for typed addresses used by tweakable hash functions. `height` and
+  `index` encode the common 9-byte prefix. On the stateless path they identify a
+  hypertree layer and XMSS tree. On the stateful path they identify an FXMSS node.
+  Concrete subclasses select the address type and expose its meaningful payload
+  fields.
+  """
+  height: UInt8
+  index: UInt64
+
+  def pack(
+      self,
+      address_type: UInt8,
+      word1: UInt32 = 0,
+      word2: UInt32 = 0,
+      word3: UInt32 = 0,
+  ) -> Bytes[22]:
+    """
+    Serializes the common prefix, address type, and three payload words to 22 bytes.
+    """
+    return (self.height.to_bytes(1)
+            + self.index.to_bytes(8)
+            + address_type.to_bytes(1)
+            + word1.to_bytes(4)
+            + word2.to_bytes(4)
+            + word3.to_bytes(4))
+
+@dataclass(frozen=True)
+class WotsTwHash(Address):
+  keypair_index: UInt32
+  chain_index: UInt32
+  hash_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_WOTS_TW_HASH,
+                     word1=self.keypair_index, word2=self.chain_index, word3=self.hash_index)
+
+@dataclass(frozen=True)
+class WotsTwPrf(Address):
+  keypair_index: UInt32
+  chain_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_WOTS_TW_PRF, word1=self.keypair_index, word2=self.chain_index)
+
+@dataclass(frozen=True)
+class WotsTwPk(Address):
+  keypair_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_WOTS_TW_PK, word1=self.keypair_index)
+
+@dataclass(frozen=True)
+class XmssTree(Address):
+  tree_height: UInt32
+  tree_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_XMSS_TREE, word2=self.tree_height, word3=self.tree_index)
+
+@dataclass(frozen=True)
+class ForsTree(Address):
+  keypair_index: UInt32
+  tree_height: UInt32
+  tree_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_FORS_TREE,
+                     word1=self.keypair_index, word2=self.tree_height, word3=self.tree_index)
+
+@dataclass(frozen=True)
+class ForsRoots(Address):
+  keypair_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_FORS_ROOTS, word1=self.keypair_index)
+
+@dataclass(frozen=True)
+class ForsPrf(Address):
+  keypair_index: UInt32
+  tree_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SL_FORS_PRF, word1=self.keypair_index, word3=self.tree_index)
+
+@dataclass(frozen=True)
+class WotsCHash(Address):
+  chain_index: UInt32
+  hash_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_WOTS_C_HASH, word2=self.chain_index, word3=self.hash_index)
+
+@dataclass(frozen=True)
+class WotsCPrf(Address):
+  tree_balanced: bool
+  tree_depth: UInt8
+  chain_index: UInt32
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(
+      SF_WOTS_C_PRF,
+      word1=int(self.tree_balanced) * 2**24 + self.tree_depth * 2**16,
+      word2=self.chain_index,
+    )
+
+@dataclass(frozen=True)
+class WotsCPk(Address):
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_WOTS_C_PK)
+
+@dataclass(frozen=True)
+class WotsCGrind(Address):
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_WOTS_C_GRIND)
+
+@dataclass(frozen=True)
+class FxmssTree(Address):
+  def to_bytes(self) -> Bytes[22]:
+    return self.pack(SF_FXMSS_TREE)
+```
+<!-- ADDRESS TYPES END -->
+
 
 The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common leading fields (`layer` and `tree_address` for stateless types, `node_height` and `node_index` for stateful types) and the `type` field, followed by the type-specific interpretation of the 12-byte `payload`.
 Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
@@ -692,7 +812,7 @@ single 16-byte hash.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `ADRS`: a `WotsTwPk` address.
   - `M_l`: a `WOTS_TW_CHAINS_SIZE`-byte concatenation of chain tips.
 - Output:
   - a 16-byte hash.
@@ -700,8 +820,8 @@ single 16-byte hash.
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def T_sl(pk_seed: Bytes[16], ADRS: bytearray, M_l: Bytes[WOTS_TW_CHAINS_SIZE]) -> Bytes[16]:
-  return sha256(pk_seed + zeros(48) + ADRS + M_l)[:16]
+def T_sl(pk_seed: Bytes[16], ADRS: WotsTwPk, M_l: Bytes[WOTS_TW_CHAINS_SIZE]) -> Bytes[16]:
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes() + M_l)[:16]
 ```
 <!-- DOC END T_sl -->
 
@@ -714,7 +834,7 @@ single 16-byte hash.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `ADRS`: a `WotsCPk` address.
   - `M_l`: a `WOTS_C_CHAINS_SIZE`-byte concatenation of chain tips.
 - Output:
   - a 16-byte hash.
@@ -722,8 +842,8 @@ single 16-byte hash.
 This function is only used in the stateful path, and by both the signer and the verifier.
 
 ```py
-def T_sf(pk_seed: Bytes[16], ADRS: bytearray, M_l: Bytes[WOTS_C_CHAINS_SIZE]) -> Bytes[16]:
-  return sha256(pk_seed + zeros(48) + ADRS + M_l)[:16]
+def T_sf(pk_seed: Bytes[16], ADRS: WotsCPk, M_l: Bytes[WOTS_C_CHAINS_SIZE]) -> Bytes[16]:
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes() + M_l)[:16]
 ```
 <!-- DOC END T_sf -->
 
@@ -736,7 +856,7 @@ The `T_k` tweaked hash function. Compresses `SPHX_FORS_COUNT` FORS tree roots in
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `ADRS`: a `ForsRoots` address.
   - `M_k`: a `SPHX_FORS_COUNT * 16`-byte concatenation of FORS tree roots.
 - Output:
   - a 16-byte hash.
@@ -744,8 +864,8 @@ The `T_k` tweaked hash function. Compresses `SPHX_FORS_COUNT` FORS tree roots in
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def T_k(pk_seed: Bytes[16], ADRS: bytearray, M_k: Bytes[SPHX_FORS_COUNT * 16]) -> Bytes[16]:
-  return sha256(pk_seed + zeros(48) + ADRS + M_k)[:16]
+def T_k(pk_seed: Bytes[16], ADRS: ForsRoots, M_k: Bytes[SPHX_FORS_COUNT * 16]) -> Bytes[16]:
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes() + M_k)[:16]
 ```
 <!-- DOC END T_k -->
 
@@ -758,7 +878,7 @@ hash chains and to hash FORS leaves.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `ADRS`: a `WotsTwHash`, `WotsCHash` or `ForsTree` address.
   - `M_1`: a 16-byte hash.
 - Output:
   - a 16-byte hash.
@@ -766,8 +886,8 @@ hash chains and to hash FORS leaves.
 This function is used in both stateful and stateless paths, and by both the signer and the verifier.
 
 ```py
-def F(pk_seed: Bytes[16], ADRS: bytearray, M_1: Bytes[16]) -> Bytes[16]:
-  return sha256(pk_seed + zeros(48) + ADRS + M_1)[:16]
+def F(pk_seed: Bytes[16], ADRS: Union[WotsTwHash, WotsCHash, ForsTree], M_1: Bytes[16]) -> Bytes[16]:
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes() + M_1)[:16]
 ```
 <!-- DOC END F -->
 
@@ -780,7 +900,7 @@ parent, building the Merkle trees in XMSS and FORS.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `ADRS`: an `XmssTree`, `FxmssTree` or `ForsTree` address.
   - `M_2`: a 32-byte concatenation of two child node hashes.
 - Output:
   - a 16-byte hash.
@@ -788,8 +908,8 @@ parent, building the Merkle trees in XMSS and FORS.
 This function is used in both stateful and stateless paths, and by both the signer and the verifier.
 
 ```py
-def H(pk_seed: Bytes[16], ADRS: bytearray, M_2: Bytes[32]) -> Bytes[16]:
-  return sha256(pk_seed + zeros(48) + ADRS + M_2)[:16]
+def H(pk_seed: Bytes[16], ADRS: Union[XmssTree, FxmssTree, ForsTree], M_2: Bytes[32]) -> Bytes[16]:
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes() + M_2)[:16]
 ```
 <!-- DOC END H -->
 
@@ -802,7 +922,7 @@ constant-sum message space for WOTS+C.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `ADRS`: a `WotsCGrind` address, of which only the leading 10 bytes are hashed.
   - `digest`: a 32-byte digest.
   - `counter`: a 16-bit unsigned integer.
 - Output:
@@ -811,9 +931,9 @@ constant-sum message space for WOTS+C.
 This function is only used in the stateful path, and by both the signer and the verifier.
 
 ```py
-def H_grind(pk_seed: Bytes[16], ADRS: bytearray, digest: Bytes[32], counter: UInt16) -> Bytes[16]:
+def H_grind(pk_seed: Bytes[16], ADRS: WotsCGrind, digest: Bytes[32], counter: UInt16) -> Bytes[16]:
   assert counter <= 0xFFFF
-  return sha256(pk_seed + zeros(48) + ADRS[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes()[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
 ```
 <!-- DOC END H_grind -->
 
@@ -861,15 +981,17 @@ and key generation.
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
   - `sk_seed`: a 16-byte secret.
-  - `ADRS`: a 22-byte address.
+  - `ADRS`: a `WotsTwPrf`, `WotsCPrf` or `ForsPrf` address.
 - Output:
   - a 16-byte hash.
 
 This function is used in both stateful and stateless paths, but only by the signer.
 
 ```py
-def PRF(pk_seed: Bytes[16], sk_seed: Bytes[16], ADRS: bytearray) -> Bytes[16]:
-  return sha256(pk_seed + zeros(48) + ADRS + sk_seed)[:16]
+def PRF(
+    pk_seed: Bytes[16], sk_seed: Bytes[16], ADRS: Union[WotsTwPrf, WotsCPrf, ForsPrf]
+) -> Bytes[16]:
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes() + sk_seed)[:16]
 ```
 <!-- DOC END PRF -->
 
@@ -912,7 +1034,8 @@ HMAC-SHA256.
 - Inputs:
   - `sk_prf`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf.
+  - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf.
   - `M`: a variable-length message.
 - Output:
   - a 16-byte hash.
@@ -920,8 +1043,11 @@ HMAC-SHA256.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def PRF_msg_sf(sk_prf: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray, M: bytes) -> Bytes[16]:
-  return hmac_sha256(key=sk_prf + replicate(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
+def PRF_msg_sf(
+    sk_prf: Bytes[16], pk_seed: Bytes[16], leaf_height: UInt8, leaf_index: UInt64, M: bytes
+) -> Bytes[16]:
+  leaf = leaf_height.to_bytes(1) + leaf_index.to_bytes(8)
+  return hmac_sha256(key=sk_prf + replicate(0xFF, 48), message=pk_seed + leaf + M)[:16]
 ```
 <!-- DOC END PRF_msg_sf -->
 
@@ -977,7 +1103,8 @@ The `H_msg_sf` message hash function. Produces the 32-byte signing digest for th
   - `R`: a 16-byte randomizer.
   - `pk_seed`: a 16-byte public seed.
   - `sf_root`: the 16-byte stateful root hash.
-  - `ADRS`: a 22-byte address.
+  - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf.
+  - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf.
   - `M`: a variable-length message.
 - Output:
   - a 32-byte hash.
@@ -988,9 +1115,15 @@ Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
 def H_msg_sf(
-    R: Bytes[16], pk_seed: Bytes[16], sf_root: Bytes[16], ADRS: bytearray, M: bytes
+    R: Bytes[16],
+    pk_seed: Bytes[16],
+    sf_root: Bytes[16],
+    leaf_height: UInt8,
+    leaf_index: UInt64,
+    M: bytes,
 ) -> Bytes[32]:
-  return sha256(R + pk_seed + sha256(R + pk_seed + sf_root + ADRS[:9] + M) + ADRS[:9])
+  leaf = leaf_height.to_bytes(1) + leaf_index.to_bytes(8)
+  return sha256(R + pk_seed + sha256(R + pk_seed + sf_root + leaf + M) + leaf)
 ```
 <!-- DOC END H_msg_sf -->
 
@@ -1070,8 +1203,8 @@ Each scheme therefore has its own chaining function, which sets that type itself
 
 <!-- DOC START wots_tw_chain_iter -->
 The WOTS-TW hash chain iteration function. Iterates the hash chain from index `start` by `steps`
-steps, returning the node at index `start + steps`. The `ADRS` must be prefilled with the keypair
-and chain the node belongs to.
+steps, returning the node at index `start + steps`. Each step is tweaked by the address of the
+chain, with the hash index set to that step.
 
 - Inputs:
   - `node`: a 16-byte hash.
@@ -1080,7 +1213,10 @@ and chain the node belongs to.
   - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
     must not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair.
+  - `chain_index`: a 32-bit unsigned integer, the index of the chain within the keypair.
 - Output:
   - a 16-byte hash at index `start + steps`.
 
@@ -1088,12 +1224,17 @@ This function is only used in the stateless path, and by both the signer and the
 
 ```py
 def wots_tw_chain_iter(
-    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+    node: Bytes[16],
+    start: UInt32,
+    steps: UInt32,
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
+    chain_index: UInt32,
 ) -> Bytes[16]:
-  ADRS[9] = SL_WOTS_TW_HASH
   for j in range(start, start+steps):
-    ADRS[18:22] = j.to_bytes(4)
-    node = F(pk_seed, ADRS, node)
+    node = F(pk_seed, WotsTwHash(layer, tree_address, keypair_index, chain_index, j), node)
   return node
 ```
 <!-- DOC END wots_tw_chain_iter -->
@@ -1103,8 +1244,8 @@ def wots_tw_chain_iter(
 
 <!-- DOC START wots_c_chain_iter -->
 The WOTS+C hash chain iteration function. Iterates the hash chain from index `start` by `steps`
-steps, returning the node at index `start + steps`. The `ADRS` must be prefilled with the keypair
-and chain the node belongs to.
+steps, returning the node at index `start + steps`. Each step is tweaked by the address of the
+chain, with the hash index set to that step.
 
 - Inputs:
   - `node`: a 16-byte hash.
@@ -1113,7 +1254,9 @@ and chain the node belongs to.
   - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
     must not exceed `2**WOTS_C_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
+  - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
+  - `chain_index`: a 32-bit unsigned integer, the index of the chain within the keypair.
 - Output:
   - a 16-byte hash at index `start + steps`.
 
@@ -1121,12 +1264,16 @@ This function is only used in the stateful path, and by both the signer and the 
 
 ```py
 def wots_c_chain_iter(
-    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+    node: Bytes[16],
+    start: UInt32,
+    steps: UInt32,
+    pk_seed: Bytes[16],
+    node_height: UInt8,
+    node_index: UInt64,
+    chain_index: UInt32,
 ) -> Bytes[16]:
-  ADRS[9] = SF_WOTS_C_HASH
   for j in range(start, start+steps):
-    ADRS[18:22] = j.to_bytes(4)
-    node = F(pk_seed, ADRS, node)
+    node = F(pk_seed, WotsCHash(node_height, node_index, chain_index, j), node)
   return node
 ```
 <!-- DOC END wots_c_chain_iter -->
@@ -1240,32 +1387,36 @@ After appending the checksum, the final checksummed index sequence should look l
 #### `wots_tw_pubkey_gen(...)`
 
 <!-- DOC START wots_tw_pubkey_gen -->
-The WOTS-TW public key generation function. Computes the 16-byte WOTS-TW public key at the
-keypair location prefilled in `ADRS`.
+The WOTS-TW public key generation function. Computes the 16-byte WOTS-TW public key of the
+keypair at `keypair_index` in the XMSS tree at `layer` and `tree_address`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair.
 - Output:
   - a 16-byte hash representing the WOTS-TW public key.
 
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def wots_tw_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) -> Bytes[16]:
+def wots_tw_pubkey_gen(
+    sk_seed: Bytes[16],
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
+) -> Bytes[16]:
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
-    ADRS[9] = SL_WOTS_TW_PRF
-    ADRS[14:18] = i.to_bytes(4) # chain index
-    ADRS[18:22] = zeros(4) # zero hash index
-    sk = PRF(pk_seed, sk_seed, ADRS)
-    wots_pk[i] = wots_tw_chain_iter(sk, 0, 2**WOTS_TW_CHAIN_BITS - 1, pk_seed, ADRS)
+    sk = PRF(pk_seed, sk_seed, WotsTwPrf(layer, tree_address, keypair_index, i))
+    wots_pk[i] = wots_tw_chain_iter(
+      sk, 0, 2**WOTS_TW_CHAIN_BITS - 1, pk_seed, layer, tree_address, keypair_index, i
+    )
 
-  ADRS[9] = SL_WOTS_TW_PK
-  ADRS[14:22] = zeros(8)
-  wots_pk_hash = T_sl(pk_seed, ADRS, concat(wots_pk))
-  return wots_pk_hash
+  return T_sl(pk_seed, WotsTwPk(layer, tree_address, keypair_index), concat(wots_pk))
 ```
 <!-- DOC END wots_tw_pubkey_gen -->
 
@@ -1273,14 +1424,16 @@ def wots_tw_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) 
 #### `wots_tw_sign(...)`
 
 <!-- DOC START wots_tw_sign -->
-The WOTS-TW signing function. Produces a WOTS-TW signature on a 16-byte `message`, at the keypair
-location prefilled in `ADRS`.
+The WOTS-TW signing function. Produces a WOTS-TW signature on a 16-byte `message`, with the
+keypair at `keypair_index` in the XMSS tree at `layer` and `tree_address`.
 
 - Inputs:
   - `message`: a 16-byte message to sign.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair.
 - Output:
   - a `WOTS_TW_CHAINS_SIZE`-byte signature.
 
@@ -1288,16 +1441,20 @@ This function is only used in the stateless path, and only by the signer.
 
 ```py
 def wots_tw_sign(
-    message: Bytes[16], sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+    message: Bytes[16],
+    sk_seed: Bytes[16],
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
 ) -> Bytes[WOTS_TW_CHAINS_SIZE]:
   indexes = wots_tw_message_to_indexes(message)
   signature = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
-    ADRS[9] = SL_WOTS_TW_PRF
-    ADRS[14:18] = i.to_bytes(4)  # chain index
-    ADRS[18:22] = zeros(4) # zero hash index
-    sk = PRF(pk_seed, sk_seed, ADRS)
-    signature[i] = wots_tw_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
+    sk = PRF(pk_seed, sk_seed, WotsTwPrf(layer, tree_address, keypair_index, i))
+    signature[i] = wots_tw_chain_iter(
+      sk, 0, indexes[i], pk_seed, layer, tree_address, keypair_index, i
+    )
   return concat(signature)
 ```
 <!-- DOC END wots_tw_sign -->
@@ -1313,7 +1470,9 @@ The WOTS-TW verification function. Recovers a WOTS-TW public key from a `signatu
   - `signature`: a `WOTS_TW_CHAINS_SIZE`-byte signature.
   - `message`: a 16-byte message.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair.
 - Output:
   - a 16-byte hash representing the WOTS-TW public key.
 
@@ -1321,19 +1480,23 @@ This function is only used in the stateless path, and by both the signer and the
 
 ```py
 def wots_tw_pubkey_from_sig(
-    signature: Bytes[WOTS_TW_CHAINS_SIZE], message: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+    signature: Bytes[WOTS_TW_CHAINS_SIZE],
+    message: Bytes[16],
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
 ) -> Bytes[16]:
   indexes = wots_tw_message_to_indexes(message)
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
-    ADRS[14:18] = i.to_bytes(4)
     steps = 2**WOTS_TW_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_tw_chain_iter(signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed, ADRS)
+    wots_pk[i] = wots_tw_chain_iter(
+      signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed,
+      layer, tree_address, keypair_index, i
+    )
 
-  ADRS[9] = SL_WOTS_TW_PK
-  ADRS[14:22] = zeros(8)
-  wots_pk_hash = T_sl(pk_seed, ADRS, concat(wots_pk))
-  return wots_pk_hash
+  return T_sl(pk_seed, WotsTwPk(layer, tree_address, keypair_index), concat(wots_pk))
 ```
 <!-- DOC END wots_tw_pubkey_from_sig -->
 
@@ -1373,7 +1536,8 @@ constant-sum index set, returning the lowest such counter and its index set.
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
-  - `ADRS`: a 22-byte address.
+  - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
+  - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
 - Outputs:
   - the smallest valid grinding `counter`: a 16-bit unsigned integer.
   - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
@@ -1383,9 +1547,9 @@ This function is only used in the stateful path, and only by the signer.
 
 ```py
 def wots_c_grind_to_constant_sum(
-    pk_seed: Bytes[16], message_digest: Bytes[32], ADRS: bytearray
+    pk_seed: Bytes[16], message_digest: Bytes[32], node_height: UInt8, node_index: UInt64
 ) -> Optional[tuple[UInt16, Array[UInt16, WOTS_C_CHAIN_COUNT]]]:
-  ADRS[9] = SF_WOTS_C_GRIND
+  ADRS = WotsCGrind(node_height, node_index)
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
@@ -1412,7 +1576,8 @@ constant-sum index set it yields, or null if the counter is invalid.
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
-  - `ADRS`: a 22-byte address.
+  - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
+  - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
   - `counter`: a 16-bit unsigned integer.
 - Output:
   - a constant-sum set of hash chain indexes (`WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers), or null.
@@ -1421,10 +1586,13 @@ This function is only used in the stateful path, and only by the verifier.
 
 ```py
 def wots_c_map_digest(
-    pk_seed: Bytes[16], message_digest: Bytes[32], ADRS: bytearray, counter: UInt16
+    pk_seed: Bytes[16],
+    message_digest: Bytes[32],
+    node_height: UInt8,
+    node_index: UInt64,
+    counter: UInt16,
 ) -> Optional[Array[UInt16, WOTS_C_CHAIN_COUNT]]:
-  ADRS[9] = SF_WOTS_C_GRIND
-  hashed = H_grind(pk_seed, ADRS, message_digest, counter)
+  hashed = H_grind(pk_seed, WotsCGrind(node_height, node_index), message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
     return indexes
@@ -1437,35 +1605,42 @@ def wots_c_map_digest(
 #### `wots_c_pubkey_gen(...)`
 
 <!-- DOC START wots_c_pubkey_gen -->
-The WOTS+C public key generation function. Computes the 16-byte WOTS+C public key at the keypair
-location prefilled in `ADRS`.
+The WOTS+C public key generation function. Computes the 16-byte WOTS+C public key of the leaf
+at `node_height` and `node_index` in the FXMSS tree.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
+  - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
+  - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+    unbalanced (UXMSS) tree.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
   - a 16-byte hash representing the WOTS+C public key.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) -> Bytes[16]:
+def wots_c_pubkey_gen(
+    sk_seed: Bytes[16],
+    pk_seed: Bytes[16],
+    node_height: UInt8,
+    node_index: UInt64,
+    tree_balanced: bool,
+    tree_depth: UInt8,
+) -> Bytes[16]:
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
-  sf_structure = ADRS[10:12]
   for i in range(WOTS_C_CHAIN_COUNT):
-    ADRS[9] = SF_WOTS_C_PRF
-    ADRS[10:12] = sf_structure
-    ADRS[14:18] = i.to_bytes(4) # chain index
-    ADRS[18:22] = zeros(4) # zero hash index
-    sk = PRF(pk_seed, sk_seed, ADRS)
-    ADRS[10:14] = zeros(4)
-    wots_pk[i] = wots_c_chain_iter(sk, 0, 2**WOTS_C_CHAIN_BITS - 1, pk_seed, ADRS)
+    sk = PRF(
+      pk_seed, sk_seed,
+      WotsCPrf(node_height, node_index, tree_balanced, tree_depth, i)
+    )
+    wots_pk[i] = wots_c_chain_iter(
+      sk, 0, 2**WOTS_C_CHAIN_BITS - 1, pk_seed, node_height, node_index, i
+    )
 
-  ADRS[9] = SF_WOTS_C_PK
-  ADRS[14:22] = zeros(8)
-  wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
-  return wots_pk_hash
+  return T_sf(pk_seed, WotsCPk(node_height, node_index), concat(wots_pk))
 ```
 <!-- DOC END wots_c_pubkey_gen -->
 
@@ -1473,14 +1648,18 @@ def wots_c_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) -
 #### `wots_c_sign(...)`
 
 <!-- DOC START wots_c_sign -->
-The WOTS+C signing function. Produces a WOTS+C signature on a 32-byte `message_digest`, at the
-keypair location prefilled in `ADRS`.
+The WOTS+C signing function. Produces a WOTS+C signature on a 32-byte `message_digest`, with the
+leaf at `node_height` and `node_index` in the FXMSS tree.
 
 - Inputs:
   - `message_digest`: a 32-byte message digest to sign.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
+  - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
+  - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+    unbalanced (UXMSS) tree.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
   - a `2 + WOTS_C_CHAINS_SIZE`-byte signature, or null.
 
@@ -1488,24 +1667,29 @@ This function is only used in the stateful path, and only by the signer.
 
 ```py
 def wots_c_sign(
-    message_digest: Bytes[32], sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+    message_digest: Bytes[32],
+    sk_seed: Bytes[16],
+    pk_seed: Bytes[16],
+    node_height: UInt8,
+    node_index: UInt64,
+    tree_balanced: bool,
+    tree_depth: UInt8,
 ) -> Optional[Bytes[2 + WOTS_C_CHAINS_SIZE]]:
-  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
+  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, node_height, node_index)
   if grinded is None:
     return None # practically impossible
 
   counter, indexes = grinded
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
-  sf_structure = ADRS[10:12]
   for i in range(WOTS_C_CHAIN_COUNT):
-    ADRS[9] = SF_WOTS_C_PRF
-    ADRS[10:12] = sf_structure
-    ADRS[14:18] = i.to_bytes(4)  # chain index
-    ADRS[18:22] = zeros(4) # zero hash index
-    sk = PRF(pk_seed, sk_seed, ADRS)
-    ADRS[10:14] = zeros(4)
-    signature[i] = wots_c_chain_iter(sk, 0, indexes[i], pk_seed, ADRS)
+    sk = PRF(
+      pk_seed, sk_seed,
+      WotsCPrf(node_height, node_index, tree_balanced, tree_depth, i)
+    )
+    signature[i] = wots_c_chain_iter(
+      sk, 0, indexes[i], pk_seed, node_height, node_index, i
+    )
   return counter.to_bytes(2) + concat(signature)
 ```
 <!-- DOC END wots_c_sign -->
@@ -1524,7 +1708,8 @@ The WOTS+C verification function. Recovers a WOTS+C public key from a `signature
   - `signature`: a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
+  - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
 - Output:
   - a 16-byte hash representing the WOTS+C public key, or null.
 
@@ -1535,26 +1720,25 @@ def wots_c_pubkey_from_sig(
     signature: Bytes[2 + WOTS_C_CHAINS_SIZE],
     message_digest: Bytes[32],
     pk_seed: Bytes[16],
-    ADRS: bytearray,
+    node_height: UInt8,
+    node_index: UInt64,
 ) -> Optional[Bytes[16]]:
   counter = int.from_bytes(signature[0:2])
-  indexes = wots_c_map_digest(pk_seed, message_digest, ADRS, counter)
+  indexes = wots_c_map_digest(pk_seed, message_digest, node_height, node_index, counter)
 
   # Reject if counter doesn't satisfy the constant-sum requirement.
   if indexes is None:
     return None
 
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
-  ADRS[10:14] = zeros(4) # zeros reserved
   for i in range(WOTS_C_CHAIN_COUNT):
-    ADRS[14:18] = i.to_bytes(4)
     steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
-    wots_pk[i] = wots_c_chain_iter(signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed, ADRS)
+    wots_pk[i] = wots_c_chain_iter(
+      signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed,
+      node_height, node_index, i
+    )
 
-  ADRS[9] = SF_WOTS_C_PK
-  ADRS[14:22] = zeros(8)
-  wots_pk_hash = T_sf(pk_seed, ADRS, concat(wots_pk))
-  return wots_pk_hash
+  return T_sf(pk_seed, WotsCPk(node_height, node_index), concat(wots_pk))
 ```
 <!-- DOC END wots_c_pubkey_from_sig -->
 
@@ -1640,15 +1824,15 @@ These algorithms are used only for the stateless XMSS sub-scheme.
 
 <!-- DOC START xmss_node -->
 The XMSS internal node computation function. Recursively computes the XMSS node at the given
-`node_index` and `node_height`. The `ADRS` must be prefilled with the location of the XMSS tree
-in the hypertree to ensure the hashes are properly tweaked.
+`node_index` and `node_height`, in the XMSS tree at `layer` and `tree_address`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 32-bit unsigned integer, the index (from the left) of the node in the XMSS layer.
   - `node_height`: a 32-bit unsigned integer, the height (from the bottom) of the node in the XMSS layer.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
 - Output:
   - a 16-byte XMSS node hash.
 
@@ -1656,24 +1840,25 @@ This function is only used in the stateless path, and only by the signer.
 
 ```py
 def xmss_node(
-    sk_seed: Bytes[16], node_index: UInt32, node_height: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+    sk_seed: Bytes[16],
+    node_index: UInt32,
+    node_height: UInt32,
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
 ) -> Bytes[16]:
   if node_height == 0: # Bottom layer: return the WOTS-TW pubkey hash.
-    ADRS[10:14] = node_index.to_bytes(4)
-    return wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
+    return wots_tw_pubkey_gen(sk_seed, pk_seed, layer, tree_address, node_index)
 
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
-  lchild = xmss_node(sk_seed, lchild_index, child_height, pk_seed, ADRS)
-  rchild = xmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, ADRS)
+  lchild = xmss_node(sk_seed, lchild_index, child_height, pk_seed, layer, tree_address)
+  rchild = xmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, layer, tree_address)
 
   # Compute and return the parent node.
-  ADRS[9] = SL_XMSS_TREE
-  ADRS[10:14] = zeros(4)
-  ADRS[14:18] = node_height.to_bytes(4)
-  ADRS[18:22] = node_index.to_bytes(4)
-  return H(pk_seed, ADRS, lchild + rchild)
+  parent = XmssTree(layer, tree_address, node_height, node_index)
+  return H(pk_seed, parent, lchild + rchild)
 ```
 <!-- DOC END xmss_node -->
 
@@ -1682,15 +1867,16 @@ def xmss_node(
 
 <!-- DOC START xmss_sign -->
 The XMSS signing function. Produces a deterministic WOTS-TW signature at leaf `keypair_index` and
-appends the Merkle authentication path to form an XMSS signature. The `ADRS` must be prefilled with
-the location of the XMSS tree in the hypertree to ensure the hashes are properly tweaked.
+appends the Merkle authentication path to form an XMSS signature, in the XMSS tree at `layer` and
+`tree_address`.
 
 - Inputs:
   - `message`: a 16-byte message to sign.
   - `sk_seed`: a 16-byte secret.
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
 - Output:
   - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
 
@@ -1698,16 +1884,20 @@ This function is only used in the stateless path, and only by the signer.
 
 ```py
 def xmss_sign(
-    message: Bytes[16], sk_seed: Bytes[16], keypair_index: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+    message: Bytes[16],
+    sk_seed: Bytes[16],
+    keypair_index: UInt32,
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
 ) -> Bytes[SPHX_XMSS_SIGNATURE_SIZE]:
   # Sign the message with WOTS-TW.
-  ADRS[10:14] = keypair_index.to_bytes(4)
-  sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
+  sig = wots_tw_sign(message, sk_seed, pk_seed, layer, tree_address, keypair_index)
 
   # Append the Merkle authentication path.
   for j in range(SPHX_XMSS_HEIGHT):
     sibling_index = (keypair_index >> j) ^ 1
-    sig += xmss_node(sk_seed, sibling_index, j, pk_seed, ADRS)
+    sig += xmss_node(sk_seed, sibling_index, j, pk_seed, layer, tree_address)
 
   return sig
 ```
@@ -1718,15 +1908,15 @@ def xmss_sign(
 
 <!-- DOC START xmss_pubkey_from_sig -->
 The XMSS verification function. Recovers an XMSS root from a `signature` on a 16-byte `message`
-at leaf `keypair_index`. The `ADRS` must be prefilled with the location of the XMSS tree in the
-hypertree to ensure the hashes are properly tweaked.
+at leaf `keypair_index`, in the XMSS tree at `layer` and `tree_address`.
 
 - Inputs:
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
   - `signature`: a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
   - `message`: a 16-byte message.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
 - Output:
   - a 16-byte XMSS root node hash.
 
@@ -1738,25 +1928,21 @@ def xmss_pubkey_from_sig(
     signature: Bytes[SPHX_XMSS_SIGNATURE_SIZE],
     message: Bytes[16],
     pk_seed: Bytes[16],
-    ADRS: bytearray,
+    layer: UInt8,
+    tree_address: UInt64,
 ) -> Bytes[16]:
   wots_sig = signature[0 : WOTS_TW_CHAINS_SIZE]
   xmss_auth = signature[WOTS_TW_CHAINS_SIZE : SPHX_XMSS_SIGNATURE_SIZE]
 
-  ADRS[10:14] = keypair_index.to_bytes(4) # AKA keypair address
-  node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, ADRS)
-
-  ADRS[9] = SL_XMSS_TREE
-  ADRS[10:14] = zeros(4)
+  node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, layer, tree_address, keypair_index)
 
   for k in range(SPHX_XMSS_HEIGHT):
-    ADRS[14:18] = (k + 1).to_bytes(4)
-    ADRS[18:22] = (keypair_index >> (k+1)).to_bytes(4)
+    parent = XmssTree(layer, tree_address, k + 1, keypair_index >> (k+1))
     sibling = xmss_auth[k*16 : (k+1)*16]
     if (keypair_index >> k) & 1 == 1:
-      node = H(pk_seed, ADRS, sibling + node)
+      node = H(pk_seed, parent, sibling + node)
     else:
-      node = H(pk_seed, ADRS, node + sibling)
+      node = H(pk_seed, parent, node + sibling)
 
   return node
 ```
@@ -1806,15 +1992,11 @@ def hypertree_sign(
     tree_index: UInt64,
     leaf_index: UInt32,
 ) -> Bytes[HYPERTREE_SIGNATURE_SIZE]:
-  ADRS = bytearray(22)
-
   sig = b""
   for j in range(SPHX_LAYER_COUNT):
-    ADRS[0] = j
-    ADRS[1:9] = tree_index.to_bytes(8)
-    layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, ADRS)
+    layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
     if j < SPHX_LAYER_COUNT - 1:
-      message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+      message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
       tree_index >>= SPHX_XMSS_HEIGHT
     sig += layer_sig
@@ -1851,13 +2033,9 @@ def hypertree_verify(
     leaf_index: UInt32,
     sl_root: Bytes[16],
 ) -> bool:
-  ADRS = bytearray(22)
-
   for j in range(SPHX_LAYER_COUNT):
-    ADRS[0] = j
-    ADRS[1:9] = tree_index.to_bytes(8)
     layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
-    message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, ADRS)
+    message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     if j < SPHX_LAYER_COUNT - 1:
       leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
       tree_index >>= SPHX_XMSS_HEIGHT
@@ -2003,7 +2181,6 @@ The FXMSS internal node computation function. Recursively computes the FXMSS nod
   - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
     unbalanced (UXMSS) tree.
   - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
-  - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte FXMSS node hash.
 
@@ -2017,7 +2194,6 @@ def fxmss_node(
     pk_seed: Bytes[16],
     tree_balanced: bool,
     tree_depth: UInt8,
-    ADRS: bytearray,
 ) -> Bytes[16]:
   node_depth = FXMSS_HEIGHT - node_height
 
@@ -2025,10 +2201,9 @@ def fxmss_node(
   is_bxmss_leaf = tree_balanced and node_depth == tree_depth
 
   if is_uxmss_leaf or is_bxmss_leaf:
-    ADRS[0] = node_height
-    ADRS[1:9] = node_index.to_bytes(8)
-    ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
-    return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
+    return wots_c_pubkey_gen(
+      sk_seed, pk_seed, node_height, node_index, tree_balanced, tree_depth
+    )
 
   # Catch and throw if control would enter an infinite recursive loop.
   if tree_balanced:
@@ -2039,15 +2214,15 @@ def fxmss_node(
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
-  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, tree_balanced, tree_depth, ADRS)
-  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, tree_balanced, tree_depth, ADRS)
+  lchild = fxmss_node(
+    sk_seed, lchild_index, child_height, pk_seed, tree_balanced, tree_depth
+  )
+  rchild = fxmss_node(
+    sk_seed, lchild_index + 1, child_height, pk_seed, tree_balanced, tree_depth
+  )
 
   # Compute and return the parent node.
-  ADRS[0] = node_height
-  ADRS[1:9] = node_index.to_bytes(8)
-  ADRS[9] = SF_FXMSS_TREE
-  ADRS[10:22] = zeros(12)
-  return H(pk_seed, ADRS, lchild + rchild)
+  return H(pk_seed, FxmssTree(node_height, node_index), lchild + rchild)
 ```
 <!-- DOC END fxmss_node -->
 
@@ -2090,11 +2265,9 @@ def fxmss_sign(
   else:
     assert leaf_index == 1 or leaf_depth == tree_depth
 
-  ADRS = bytearray(22)
-  ADRS[0] = leaf_height
-  ADRS[1:9] = leaf_index.to_bytes(8)
-  ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
-  sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
+  sig = wots_c_sign(
+    message_digest, sk_seed, pk_seed, leaf_height, leaf_index, tree_balanced, tree_depth
+  )
   if sig is None:
     return None # practically impossible
 
@@ -2102,7 +2275,9 @@ def fxmss_sign(
   for j in range(leaf_depth):
     sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
-    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth, ADRS)
+    sig += fxmss_node(
+      sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
+    )
 
   return sig
 ```
@@ -2150,24 +2325,19 @@ def fxmss_pubkey_from_sig(
   # Ensure leaf_index describes a valid position in the FXMSS tree.
   assert leaf_index < 2 ** min(64, leaf_depth)
 
-  ADRS = bytearray(22)
-  ADRS[0] = leaf_height
-  ADRS[1:9] = leaf_index.to_bytes(8)
-  node = wots_c_pubkey_from_sig(wots_sig, message_digest, pk_seed, ADRS)
+  node = wots_c_pubkey_from_sig(
+    wots_sig, message_digest, pk_seed, leaf_height, leaf_index
+  )
   if node is None:
     return None
 
-  ADRS[9] = SF_FXMSS_TREE
-  ADRS[10:22] = zeros(12)
-
   for k in range(leaf_depth):
-    ADRS[0] += 1
-    ADRS[1:9] = (leaf_index >> (k+1)).to_bytes(8)
+    parent = FxmssTree(leaf_height + k + 1, leaf_index >> (k+1))
     sibling = xmss_auth[k*16 : (k+1)*16]
     if (leaf_index >> k) & 1 == 1:
-      node = H(pk_seed, ADRS, sibling + node)
+      node = H(pk_seed, parent, sibling + node)
     else:
-      node = H(pk_seed, ADRS, node + sibling)
+      node = H(pk_seed, parent, node + sibling)
 
   return node
 ```
@@ -2219,13 +2389,15 @@ The following sections describe the algorithms needed for FORS key-generation, s
 
 <!-- DOC START fors_sk_gen -->
 The FORS secret preimage generation function. Generates the secret 16-byte preimage of the FORS
-leaf at forest-wide index `node_index`. The `ADRS` must be prefilled with the location of the FORS
-keypair to ensure the hashes are properly tweaked.
+leaf at forest-wide index `node_index`, for the FORS keypair at `keypair_index` in the XMSS tree
+at `layer` and `tree_address`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
   - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
 - Output:
   - a 16-byte preimage.
@@ -2237,12 +2409,14 @@ within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEI
 
 ```py
 def fors_sk_gen(
-    sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray, node_index: UInt32
+    sk_seed: Bytes[16],
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
+    node_index: UInt32,
 ) -> Bytes[16]:
-  ADRS[9] = SL_FORS_PRF
-  ADRS[14:18] = zeros(4)
-  ADRS[18:22] = node_index.to_bytes(4)
-  return PRF(pk_seed, sk_seed, ADRS)
+  return PRF(pk_seed, sk_seed, ForsPrf(layer, tree_address, keypair_index, node_index))
 ```
 <!-- DOC END fors_sk_gen -->
 
@@ -2251,8 +2425,8 @@ def fors_sk_gen(
 
 <!-- DOC START fors_node -->
 The FORS internal node computation function. Recursively computes the FORS node at the forest-wide
-`node_index` and `node_height`. The `ADRS` must be prefilled with the location of the FORS keypair
-to ensure the hashes are properly tweaked.
+`node_index` and `node_height`, for the FORS keypair at `keypair_index` in the XMSS tree at
+`layer` and `tree_address`.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
@@ -2260,7 +2434,9 @@ to ensure the hashes are properly tweaked.
     `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
   - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
 - Output:
   - a 16-byte FORS node hash.
 
@@ -2272,24 +2448,32 @@ within a single tree. The index of node `l` in tree `t` at height `h` is
 
 ```py
 def fors_node(
-    sk_seed: Bytes[16], node_index: UInt32, node_height: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+    sk_seed: Bytes[16],
+    node_index: UInt32,
+    node_height: UInt32,
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
 ) -> Bytes[16]:
   if node_height == 0:
-    preimage = fors_sk_gen(sk_seed, pk_seed, ADRS, node_index)
-    ADRS[9] = SL_FORS_TREE
-    ADRS[14:18] = zeros(4)
-    ADRS[18:22] = node_index.to_bytes(4)
-    return F(pk_seed, ADRS, preimage)
+    preimage = fors_sk_gen(
+      sk_seed, pk_seed, layer, tree_address, keypair_index, node_index
+    )
+    leaf = ForsTree(layer, tree_address, keypair_index, 0, node_index)
+    return F(pk_seed, leaf, preimage)
 
   lchild_index = 2 * node_index
   child_height = node_height - 1
-  lchild = fors_node(sk_seed, lchild_index, child_height, pk_seed, ADRS)
-  rchild = fors_node(sk_seed, lchild_index + 1, child_height, pk_seed, ADRS)
+  lchild = fors_node(
+    sk_seed, lchild_index, child_height, pk_seed, layer, tree_address, keypair_index
+  )
+  rchild = fors_node(
+    sk_seed, lchild_index + 1, child_height, pk_seed, layer, tree_address, keypair_index
+  )
 
-  ADRS[9] = SL_FORS_TREE
-  ADRS[14:18] = node_height.to_bytes(4)
-  ADRS[18:22] = node_index.to_bytes(4)
-  return H(pk_seed, ADRS, lchild + rchild)
+  parent = ForsTree(layer, tree_address, keypair_index, node_height, node_index)
+  return H(pk_seed, parent, lchild + rchild)
 ```
 <!-- DOC END fors_node -->
 
@@ -2297,14 +2481,16 @@ def fors_node(
 #### `fors_sign(...)`
 
 <!-- DOC START fors_sign -->
-The FORS signing function. Produces a FORS signature on a `message_digest`. The `ADRS` must be
-prefilled with the location of the FORS keypair to ensure the hashes are properly tweaked.
+The FORS signing function. Produces a FORS signature on a `message_digest`, for the FORS keypair
+at `keypair_index` in the XMSS tree at `layer` and `tree_address`.
 
 - Inputs:
   - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
   - `sk_seed`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
 - Output:
   - a `FORS_SIGNATURE_SIZE`-byte signature.
 
@@ -2312,16 +2498,23 @@ This function is only used in the stateless path, and only by the signer.
 
 ```py
 def fors_sign(
-    message_digest: Bytes[FORS_DIGEST_SIZE], sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+    message_digest: Bytes[FORS_DIGEST_SIZE],
+    sk_seed: Bytes[16],
+    pk_seed: Bytes[16],
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
 ) -> Bytes[FORS_SIGNATURE_SIZE]:
   sig = b""
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
   for i in range(SPHX_FORS_COUNT):
     leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
-    sig += fors_sk_gen(sk_seed, pk_seed, ADRS, leaf_index)
+    sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, leaf_index)
     for j in range(SPHX_FORS_HEIGHT):
       sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + ((index_set[i] >> j) ^ 1)
-      sig += fors_node(sk_seed, sibling_index, j, pk_seed, ADRS)
+      sig += fors_node(
+        sk_seed, sibling_index, j, pk_seed, layer, tree_address, keypair_index
+      )
   return sig
 ```
 <!-- DOC END fors_sign -->
@@ -2331,14 +2524,16 @@ def fors_sign(
 
 <!-- DOC START fors_pubkey_from_sig -->
 The FORS verification function. Recovers a FORS public key from a `signature` on a
-`message_digest`. The `ADRS` must be prefilled with the location of the FORS keypair to ensure
-the hashes are properly tweaked.
+`message_digest`, for the FORS keypair at `keypair_index` in the XMSS tree at
+`layer` and `tree_address`.
 
 - Inputs:
   - `signature`: a `FORS_SIGNATURE_SIZE`-byte signature.
   - `message_digest`: a `FORS_DIGEST_SIZE`-byte message digest.
   - `pk_seed`: a 16-byte public seed.
-  - `ADRS`: a 22-byte address.
+  - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
+  - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
+  - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
 - Output:
   - a 16-byte hash of the FORS public key.
 
@@ -2349,7 +2544,9 @@ def fors_pubkey_from_sig(
     signature: Bytes[FORS_SIGNATURE_SIZE],
     message_digest: Bytes[FORS_DIGEST_SIZE],
     pk_seed: Bytes[16],
-    ADRS: bytearray,
+    layer: UInt8,
+    tree_address: UInt64,
+    keypair_index: UInt32,
 ) -> Bytes[16]:
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
 
@@ -2360,26 +2557,23 @@ def fors_pubkey_from_sig(
     offset += 16
     tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
 
-    ADRS[9] = SL_FORS_TREE
-    ADRS[14:18] = zeros(4)
-    ADRS[18:22] = tree_index.to_bytes(4)
-    node = F(pk_seed, ADRS, preimage)
+    leaf = ForsTree(layer, tree_address, keypair_index, 0, tree_index)
+    node = F(pk_seed, leaf, preimage)
     for j in range(SPHX_FORS_HEIGHT):
-      ADRS[14:18] = (j + 1).to_bytes(4)
-      ADRS[18:22] = (tree_index >> (j+1)).to_bytes(4)
+      parent = ForsTree(
+        layer, tree_address, keypair_index, j + 1, tree_index >> (j+1)
+      )
 
       sibling = signature[offset : offset+16]
       offset += 16
 
       if (index_set[i] >> j) & 1 == 1:
-        node = H(pk_seed, ADRS, sibling + node)
+        node = H(pk_seed, parent, sibling + node)
       else:
-        node = H(pk_seed, ADRS, node + sibling)
+        node = H(pk_seed, parent, node + sibling)
     roots += node
 
-  ADRS[9] = SL_FORS_ROOTS
-  ADRS[14:22] = zeros(8)
-  return T_k(pk_seed, ADRS, roots)
+  return T_k(pk_seed, ForsRoots(layer, tree_address, keypair_index), roots)
 ```
 <!-- DOC END fors_pubkey_from_sig -->
 
@@ -2494,12 +2688,10 @@ def slh_dsa_sign(
   R = PRF_msg_sl(sk_prf, opt_rand, contextualized_msg)
   fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, contextualized_msg)
 
-  ADRS = bytearray(22)
-  ADRS[1:9] = tree_index.to_bytes(8)
-  ADRS[10:14] = leaf_index.to_bytes(4)
-
-  fors_signature = fors_sign(fors_digest, sk_seed, pk_seed, ADRS)
-  fors_pubkey = fors_pubkey_from_sig(fors_signature, fors_digest, pk_seed, ADRS)
+  fors_signature = fors_sign(fors_digest, sk_seed, pk_seed, 0, tree_index, leaf_index)
+  fors_pubkey = fors_pubkey_from_sig(
+    fors_signature, fors_digest, pk_seed, 0, tree_index, leaf_index
+  )
   hypertree_signature = hypertree_sign(fors_pubkey, sk_seed, pk_seed, tree_index, leaf_index)
 
   return R + fors_signature + hypertree_signature
@@ -2546,11 +2738,9 @@ def slh_dsa_verify(
 
   fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, contextualized_msg)
 
-  ADRS = bytearray(22)
-  ADRS[1:9] = tree_index.to_bytes(8)
-  ADRS[10:14] = leaf_index.to_bytes(4)
-
-  fors_pubkey = fors_pubkey_from_sig(fors_signature, fors_digest, pk_seed, ADRS)
+  fors_pubkey = fors_pubkey_from_sig(
+    fors_signature, fors_digest, pk_seed, 0, tree_index, leaf_index
+  )
   return hypertree_verify(fors_pubkey, hypertree_signature, pk_seed, tree_index, leaf_index, sl_root)
 ```
 <!-- DOC END slh_dsa_verify -->
@@ -2671,11 +2861,11 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   sk_prf  = seed[16:32]
   pk_seed = seed[32:48]
 
-  ADRS = bytearray(22)
-  ADRS[0] = SPHX_LAYER_COUNT - 1
-  sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, ADRS)
+  sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, SPHX_LAYER_COUNT - 1, 0)
   tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
-  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1], bytearray(22))
+  sf_root = fxmss_node(
+    sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
+  )
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root
@@ -2801,15 +2991,17 @@ def shrincs_sign(
   assert len(ctx) < 256
   bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
 
-  ADRS = bytearray(22)
-  ADRS[0] = leaf_height
-  ADRS[1:9] = leaf_index.to_bytes(8)
-  R = PRF_msg_sf(sk_prf, pk_seed, ADRS, bound_message)
+  R = PRF_msg_sf(sk_prf, pk_seed, leaf_height, leaf_index, bound_message)
 
   # Bind the stateful signature to the stateless keypair.
-  message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
+  message_digest = H_msg_sf(
+    R, pk_seed, sf_root, leaf_height, leaf_index, bound_message
+  )
   tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
-  fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, tree_balanced, sf_structure[1])
+  fxmss_signature = fxmss_sign(
+    message_digest, sk_seed, leaf_index, leaf_height, pk_seed,
+    tree_balanced, sf_structure[1]
+  )
   if fxmss_signature is None:
     return None # practically impossible
 
@@ -2898,16 +3090,14 @@ def shrincs_verify(
     if len(fxmss_signature) != 2 + WOTS_C_CHAINS_SIZE + leaf_depth * 16:
       return False
 
-    ADRS = bytearray(22)
-    ADRS[0] = leaf_height
-    ADRS[1:9] = leaf_index.to_bytes(8)
-
     # Stateful signatures must be bound to the stateless keypair and context
     # in the same manner as the stateless component.
     assert len(ctx) < 256
     bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
 
-    message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
+    message_digest = H_msg_sf(
+      R, pk_seed, sf_root, leaf_height, leaf_index, bound_message
+    )
     root = fxmss_pubkey_from_sig(leaf_index, leaf_height, fxmss_signature, message_digest, pk_seed)
     if root is None:
       return False
