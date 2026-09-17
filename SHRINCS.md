@@ -483,7 +483,9 @@ They are inert in the implementation, and the sizes they state are requirements 
 - `Union[T, U]` is a value of one of the given types.
   Where this specification returns one, its length tells the reader which.
 - `Optional[T]` is either a `T` or the absence of one.
-- `bool` is true or false, and is never serialized.
+- `bool` is true or false.
+  Where an address includes one, it is serialized as a single byte, 1 for true and 0 for false.
+
 These sizes are normative.
 A value is written into a field wide enough to hold it.
 Writing one into a narrower field is an error rather than a value reduced to fit, and every field this specification writes is wide enough for every value which can reach it.
