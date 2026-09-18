@@ -21,3 +21,4 @@ We have a few simple rules to keep things organized and running smoothly:
 - Representing AI-generated text as your own words when communicating over Github is prohibited. If other users wanted to talk to an AI, they would talk to an AI. People prefer talking to other humans.
   - Translation services are the sole exception, and the writing that is translated must be human-authored.
   - Writing "my AI says XYZ" and pasting a large blob of AI-generated text is acceptable, provided the AI has something important to say which you cannot personally comprehend, and would like to discuss as an artifact. This should not be a common practice.
+- When you share something an AI produced, whether a finding or quoted text, consider linking to the conversation if your tool supports it, as Claude and ChatGPT do. It lets reviewers see what the AI was asked and what context it had.
