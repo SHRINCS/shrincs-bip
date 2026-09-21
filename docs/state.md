@@ -167,8 +167,11 @@ When replicating state to storage media outside the signer's direct control (e.g
   This would admit a denial of service attack where the attacker can force the signer to use the larger and more expensive stateless component, or in the case of UXMSS, force the signer to create a larger-than-expected stateful signature.
 - Adversaries with read control over the media can see your current state counters, leaking information about the signer's internal operations.
 
-To mitigate these risks, the signer should use an authenticated encryption scheme to hide and authenticate the uploaded state.
-If hiding is not a required property, a symmetric signature (e.g. HMAC) suffices to authenticate the state.
+To mitigate these risks, the signer should use an authenticated encryption scheme[^hmac] to hide, sign, and authenticate the state uploaded to such a medium.
+
+
+With a fully authenticated $n$-redundancy state storage setup, as long as at least one storage medium remains secure, even an adversary who can control $n-1$ state storage media cannot cause a SHRINCS signer to use the wrong state - neither too high nor too low.
+This is because the SHRINCS signer will always use the highest _authentic_ counter across all $n$ redundant media, and will not authorize a new counter unless the previous counter was also authentic.
 
 ### Fresh Addresses
 
@@ -189,3 +192,7 @@ This means we can use compression algorithms (e.g. [huffman trees](https://en.wi
 Even an approach as simple as passing the state counters through the [GZip algorithm](https://en.wikipedia.org/wiki/Gzip) before storing them can reduce their combined size by a factor of \~3x.
 
 More elegant compression algorithms can be optimized specifically to compress UXMSS state counters, and this format could be standardized across wallets.
+
+## Footnotes
+
+[^authenc]: If hiding is not a required property, a symmetric signature (e.g. HMAC) suffices to authenticate the state.
