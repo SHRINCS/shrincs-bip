@@ -151,15 +151,24 @@ The hardware wallet can either recompute `Z[0]` and `Z[1]` on the fly with two h
 The best state storage medium is not one, but a combination of multiple storage media providing redundancy.
 
 Replicating state in $n$ different storage sites will protect a wallet in the event that up to $n - 1$ state storage sites are compromised or rolled back.
-If the signer finds her state storage media disagree on the counter for a given key, the signer cannot tell which is faulty and so she must use the higher of the two counters, or else use the stateless signing path to be very safe.
+If the signer finds her state storage media disagree on the counter for a given key, the signer cannot tell which is faulty and so she must use the highest of the $n$ counters, or else use the stateless signing path to be very safe.
 At least one of these media should be durable and rollback-resistant (e.g. a TPM).
-
-When replicating state to storage media outside the signer's direct control (e.g. a cloud server; a host laptop), the signer should use authenticated encryption or stateless signatures to ensure state counters on the remote storage medium cannot be incremented adversarially.
 
 [Offloading](#offloading) is an example of a simple double redundancy setup, where one medium (the hardware wallet) stores only a commitment while the host computer stores a redundant copy of the full state.
 If the two media disagree on the current state (e.g. if the hardware wallet is lost), then the stateful path is not usable anymore.
 
 Note that when signing, the wallet must successfully commit the updated state into *all* storage media before creating the signature (see [Store-then-Sign](#store-then-sign)).
+
+#### Remote Media
+
+When replicating state to storage media outside the signer's direct control (e.g. a cloud server; a host laptop), this opens up several risks:
+
+- State counters on the remote storage medium could be incremented by an adversary with write control over the media.
+  This would admit a denial of service attack where the attacker can force the signer to use the larger and more expensive stateless component, or in the case of UXMSS, force the signer to create a larger-than-expected stateful signature.
+- Adversaries with read control over the media can see your current state counters, leaking information about the signer's internal operations.
+
+To mitigate these risks, the signer should use an authenticated encryption scheme to hide and authenticate the uploaded state.
+If hiding is not a required property, a symmetric signature (e.g. HMAC) suffices to authenticate the state.
 
 ### Fresh Addresses
 
