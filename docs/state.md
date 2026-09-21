@@ -33,17 +33,6 @@ These media are all unsuitable as primary state storage media for one reason or 
 
 It is possible to combine multiple unsafe state storage media into a cohesive redundant system (see [Redundancy](#redundancy)), but having at least one robust state storage medium is safest, even if that medium only stores a commitment and not the full state itself (see [Offloading](#offloading)).
 
-### Fresh Addresses
-
-**The easiest way for a wallet to avoid state reuse is to avoid address reuse.**
-
-If a consumer wallet only receives one UTXO per address and uses a unique SHRINCS key per address, then state reuse is only possible in rare edgecases when double-signing the same transaction, or RBFing an unconfirmed transaction.
-Once that UTXO is spent and confirmed, if no other UTXOs are ever received, the wallet has no more reason to use the stateful path on that key.
-Even if state is reused (e.g. by tricking the wallet to sign a different invalid transaction spending the same UTXO), this will have no meaningful economic consequence to the user.
-
-This also has a benefit for wallet performance. If a wallet can safely assume an address will only be used a few times, the program can get away with much shallower FXMSS trees, and can store much smaller state counters too.
-For example, if a wallet imposes an artificial limit of 4 stateful signatures per keypair, it only needs to generate 4 WOTS+C leaves per key, and only needs to store 2 bits of state per key.
-
 ### Store-then-Sign
 
 To reduce the chance of a state counter being reused, wallets must increment state counters and ensure the change is committed into durable storage *before* invoking SHRINCS' cryptographic signing code.
@@ -180,3 +169,14 @@ When replicating state to storage media outside the signer's direct control (e.g
 If the two media disagree on the current state (e.g. if the hardware wallet is lost), then the stateful path is not usable anymore.
 
 Note that when signing, the wallet must successfully commit the updated state into *all* storage media before creating the signature (see [Store-then-Sign](#store-then-sign)).
+
+### Fresh Addresses
+
+**The easiest way for a wallet to avoid state reuse is to avoid address reuse.**
+
+If a consumer wallet only receives one UTXO per address and uses a unique SHRINCS key per address, then state reuse is only possible in rare edgecases when double-signing the same transaction, or RBFing an unconfirmed transaction.
+Once that UTXO is spent and confirmed, if no other UTXOs are ever received, the wallet has no more reason to use the stateful path on that key.
+Even if state is reused (e.g. by tricking the wallet to sign a different invalid transaction spending the same UTXO), this will have no meaningful economic consequence to the user.
+
+This also has a benefit for wallet performance. If a wallet can safely assume an address will only be used a few times, the program can get away with much shallower FXMSS trees, and can store much smaller state counters too.
+For example, if a wallet imposes an artificial limit of 4 stateful signatures per keypair, it only needs to generate 4 WOTS+C leaves per key, and only needs to store 2 bits of state per key.
