@@ -35,7 +35,7 @@ It is possible to combine multiple unsafe state storage media into a cohesive re
 
 ### Store-then-Sign
 
-To reduce the chance of a state counter being reused, wallets must increment state counters and ensure the change is committed into durable storage *before* invoking SHRINCS' cryptographic signing code.
+Wallets must increment state counters and ensure the change is committed into durable storage *before* invoking SHRINCS' cryptographic signing code.
 
 If the signer creates the signature *before* incrementing the state counter, even if the signer doesn't release the signature outright the signature could still be leaked locally through side-channels or shared memory access.
 
