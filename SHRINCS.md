@@ -369,8 +369,7 @@ To remedy this, hardware wallets can implement a software-level trade-off in SLH
 
 Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signature budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
 
->[!WARNING]
-> SHRINCS keys generated using hypertree pruning for the stateless component **are not compatible with SHRINCS implementations which do not support hypertree pruning.** In fact, importing a key across such incompatible implementations may result in lost funds.[^pruning]
+Implementations using hypertree pruning must reproduce the same pruning strategy when regenerating a key.
 
 
 ## Specification
