@@ -46,21 +46,12 @@ The signer must never create a signature until it is confident the state counter
 
 If using multiple storage media (see [Redundancy](#redundancy)) then the counter must be fully committed into all available storage media before the signature is issued.
 
-### Compression
+### Offloading
 
 Under typical usage in a Bitcoin wallet, assuming one UXMSS SHRINCS key per address, there could be potentially thousands or millions of used SHRINCS keys whose state must be tracked by the wallet.
 This could result in a disk usage blowup as the state size grows linearly with wallet usage.
 
-Thankfully state counters for UXMSS will follow a consistent distribution with most counters staying between 0 and 2 (inclusive).
-
-This means we can use compression algorithms (e.g. [huffman trees](https://en.wikipedia.org/wiki/Huffman_coding)) to losslessly compress a block of many state counters down to a much smaller size.
-Even an approach as simple as passing the state counters through the [GZip algorithm](https://en.wikipedia.org/wiki/Gzip) before storing them can reduce their combined size by a factor of \~3x.
-
-More elegant compression algorithms can be optimized specifically to compress UXMSS state counters, and this format could be standardized across wallets.
-
-### Offloading
-
-Storing compressed state counters for many SHRINCS keys is sometimes not an option, e.g. on a secure element with tightly limited storage.
+Storing state counters for many SHRINCS keys is sometimes not an option, e.g. on a secure element with tightly limited storage.
 The constrained storage capacity of such devices simply does not permit it.
 The signer device could restrict the number of SHRINCS keys the signer can use, commensurate with the maximum number of state counters that the signing device can store securely.
 However in the case of Bitcoin hardware wallets, we probably do not want to restrict the number of addresses a wallet can create.
@@ -180,3 +171,12 @@ Even if state is reused (e.g. by tricking the wallet to sign a different invalid
 
 This also has a benefit for wallet performance. If a wallet can safely assume an address will only be used a few times, the program can get away with much shallower FXMSS trees, and can store much smaller state counters too.
 For example, if a wallet imposes an artificial limit of 4 stateful signatures per keypair, it only needs to generate 4 WOTS+C leaves per key, and only needs to store 2 bits of state per key.
+
+### Compression
+
+State counters for UXMSS will follow a consistent distribution with most counters staying between 0 and 2 (inclusive).
+
+This means we can use compression algorithms (e.g. [huffman trees](https://en.wikipedia.org/wiki/Huffman_coding)) to losslessly compress a block of many state counters down to a much smaller size.
+Even an approach as simple as passing the state counters through the [GZip algorithm](https://en.wikipedia.org/wiki/Gzip) before storing them can reduce their combined size by a factor of \~3x.
+
+More elegant compression algorithms can be optimized specifically to compress UXMSS state counters, and this format could be standardized across wallets.
