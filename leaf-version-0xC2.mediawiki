@@ -1,7 +1,7 @@
 <pre>
-  BIP: Tapscript Leaf Version 0xC2
+  BIP: ?
   Layer: Consensus (soft fork)
-  Title: Post-Quantum Signature Algorithms
+  Title: Tapscript Version 0xC2, Multi-Scheme Scripts
   Authors: conduition <conduition@proton.me>
            Ethan Heilman <1ethan.r.heilman@gmail.com>
            Mikhail Kudinov <m.kudinov@tue.nl>
@@ -9,9 +9,9 @@
            Jonas Nick <jonas@n-ck.net>
   Status: Draft
   Type: Specification
-  License: CC0-1.0 or MIT
+  License: BSD-3-Clause
   Created: 2026-04-07
-  Version: 0.0.1
+  Version: 0.0.2
   Requires: 340, 341, 342
 </pre>
 
@@ -273,3 +273,7 @@ Mike Casey
 <references/>
 
 ==Changelog==
+
+==Copyright==
+
+This BIP is licensed under the BSD-3-Clause License.
