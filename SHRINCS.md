@@ -2640,10 +2640,15 @@ We specify three cache constructions:
 - A [**UXMSS Cache**](docs/CACHE_MANAGEMENT.md#the-uxmss-cache), which stores the WOTS+C public keys on every layer of a UXMSS tree.
 - The [**BXMSS Cache**](docs/CACHE_MANAGEMENT.md#the-bxmss-cache) with the usage of BDS tree traversal algorithm[^bds], which schedules the computation of upcoming authentication path nodes across signatures, so each following signature requires regenerating only a fraction of the tree.
 
-Unlike the state counter, a cache is not so critical. Every cached value is a deterministic function of the secret key, so a signer can regenerate its cache from scratch at any time. The rules defined in [On Managing State](#on-managing-state) do not apply to caches:
+Unlike the state counter, a cache is not critical for security, as long as it never determines the signing leaf.
+Signers MUST select the stateful signing leaf only from the state counter and the tree structure, with [`shrincs_sf_leaf_select`](#shrincs_sf_leaf_select), and MUST NOT select it, or set or restore the state counter, from any value held in a cache. Under this rule, a stale, corrupted, or even adversarially modified cache cannot cause WOTS+C key reuse, and the worst outcome is an invalid signature. Signers SHOULD verify every signature produced with a cache before releasing it. If verification fails, the signer SHOULD discard the cache and produce the signature for the same `message` and `ctx` without it. This does not reuse the WOTS+C leaf: neither the leaf nor its WOTS+C signature depends on the cache, so only the authentication path changes.
 
-- Caches may be backed up and restored. They can be stored in the mutable storage, and may be exported and imported safely.
-- A stale, corrupted, or even adversarially modified cache cannot cause WOTS key reuse, because the signing leaf is selected only by the state counter and the tree structure. The worst outcome is an invalid signature.
+The rules defined in [On Managing State](#on-managing-state) do not apply to caches: a cache may be backed up and restored, kept in mutable storage, and exported and imported. How a restored cache can be used depends on what it is derived from:
+
+- The Stateless Cache and the UXMSS Cache are derived only from the secret key. A restored copy is usable as it is, and a lost one can be regenerated from scratch at any time.
+- The BXMSS Cache is also derived from the position of the next leaf, which the BDS state records as `leaf_index`. 
+
+A BDS state behind the counter, such as one restored from a backup, can only be used after it is brought forward to the counter (see [The BXMSS Cache](docs/CACHE_MANAGEMENT.md#the-bxmss-cache)). A BDS state ahead of the counter indicates that the counter went backwards: correct state is not available, and the signer MUST refuse stateful signing.
 
 The three constructions, their algorithms, and their exact storage requirements are specified in [docs/CACHE_MANAGEMENT.md](docs/CACHE_MANAGEMENT.md), together with the operational rules for using them. Their reference implementation is exercised over its entire signing budget by [`impl/test.py`](impl/test.py).
 

@@ -245,7 +245,7 @@ def bds_state_init(
       with `tree_depth - bds_k` even.
   - Output:
     - a BDS state: a dictionary with the fields
-      - `state_ctr`: the state counter whose authentication path `auth` currently holds.
+      - `leaf_index`: the index of the next WOTS+C leaf, whose authentication path `auth` holds.
       - `bds_k`: the parameter `bds_k`.
       - `auth`: the current authentication path, one node per layer, from the leaf's sibling upwards.
       - `keep`: nodes remembered to compute upcoming left authentication nodes, keyed by layer.
@@ -286,20 +286,25 @@ def bds_state_init(
     for node_index in range(3, 2**(tree_depth - j), 2):
       retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, True, tree_depth, ADRS)
 
-  return {'state_ctr': 0, 'bds_k': bds_k, 'auth': auth, 'keep': {}, 'retain': retain, 'treehash': treehash}
+  return {'leaf_index': 0, 'bds_k': bds_k, 'auth': auth, 'keep': {}, 'retain': retain, 'treehash': treehash}
 
-def bds_auth_path(bds_state: dict) -> list[Bytes[16]]:
+def bds_auth_path(bds_state: dict, leaf_index: UInt64) -> list[Bytes[16]]:
   """
   The BDS authentication path read function. Returns the Merkle authentication path of the
-  WOTS+C leaf at index `state_ctr` of the BDS state, for use with `fxmss_sign_from_auth_path`.
+  WOTS+C leaf at `leaf_index`, for use with `fxmss_sign_from_auth_path`. The caller selects
+  the leaf from the state counter with `shrincs_sf_leaf_select`, and a BDS state positioned
+  at any other leaf is refused.
 
   - Inputs:
     - `bds_state`: a BDS state from `bds_state_init`.
+    - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf in the FXMSS layer.
   - Output:
     - a list of `tree_depth` 16-byte authentication path nodes, from the leaf's sibling upwards.
 
   This function is only used in the stateful path, and only by the signer.
   """
+  # The state may only confirm the leaf selected from the state counter.
+  assert bds_state['leaf_index'] == leaf_index
   return list(bds_state['auth'])
 
 def bds_treehash_update(
@@ -376,9 +381,9 @@ def bds_state_update(
   """
   leaf_layer = FXMSS_HEIGHT - tree_depth
   bds_k = bds_state['bds_k']
-  s = bds_state['state_ctr']
+  s = bds_state['leaf_index']
 
-  bds_state['state_ctr'] = s + 1
+  bds_state['leaf_index'] = s + 1
   if s + 1 >= 2**tree_depth:
     return # the stateful signing budget is exhausted; there is no next leaf
 

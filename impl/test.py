@@ -1,3 +1,4 @@
+from copy import deepcopy
 from random import randbytes
 from typing import get_args, get_type_hints
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
@@ -25,6 +26,14 @@ def top_tree_adrs() -> bytearray:
   ADRS = bytearray(22)
   ADRS[0] = SPHX_LAYER_COUNT - 1
   return ADRS
+
+def rejects(function, *args) -> bool:
+  """Returns whether `function` refuses `args` by failing an assertion."""
+  try:
+    function(*args)
+  except AssertionError:
+    return True
+  return False
 
 def test_annotations():
   for chain_iterator in (wots_tw_chain_iter, wots_c_chain_iter):
@@ -122,10 +131,10 @@ def test_bds():
     # Walk the entire signing budget. Every signature is validated with the normal verifier against the root
     max_nodes = bds_node_count(bds_state)
     for state_ctr in range(2**tree_depth):
-      assert bds_state['state_ctr'] == state_ctr
       leaf_index, leaf_height = shrincs_sf_leaf_select(sf_structure, state_ctr)
       digest = randbytes(32)
-      sig_bds = fxmss_sign_from_auth_path(digest, sk_seed, leaf_index, leaf_height, pk_seed, True, tree_depth, bds_auth_path(bds_state))
+      auth_path = bds_auth_path(bds_state, leaf_index)
+      sig_bds = fxmss_sign_from_auth_path(digest, sk_seed, leaf_index, leaf_height, pk_seed, True, tree_depth, auth_path)
       assert fxmss_pubkey_from_sig(leaf_index, leaf_height, sig_bds, digest, pk_seed) == sf_root
       if tree_depth <= 6:
         assert sig_bds == fxmss_sign(digest, sk_seed, leaf_index, leaf_height, pk_seed, True, tree_depth)
@@ -138,9 +147,50 @@ def test_bds():
     assert max_nodes <= bound, (tree_depth, bds_k, max_nodes, bound)
   print('verified BXMSS BDS traversal equivalence')
 
+def test_bds_recovery():
+  tree_depth, bds_k = 4, 2
+  sf_structure = bytes([FXMSS_SHAPE_BALANCED, tree_depth])
+  seed = randbytes(48)
+  sk_seed, pk_seed = seed[0:16], seed[32:48]
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, True, tree_depth, bytearray(22))
+
+  # Back up the BDS state, then issue five stateful signatures.
+  bds_state = bds_state_init(sk_seed, pk_seed, tree_depth, bds_k)
+  backup = deepcopy(bds_state)
+  state_ctr = 5
+  for _ in range(state_ctr):
+    bds_state_update(bds_state, sk_seed, pk_seed, tree_depth)
+  leaf_index, leaf_height = shrincs_sf_leaf_select(sf_structure, state_ctr)
+  digest = randbytes(32)
+
+  # The restored backup is behind the state counter, so it is refused until it is brought forward, one update per missing position.
+  assert rejects(bds_auth_path, backup, leaf_index)
+  for _ in range(state_ctr):
+    bds_state_update(backup, sk_seed, pk_seed, tree_depth)
+  assert backup == bds_state
+  auth_path = bds_auth_path(backup, leaf_index)
+  sig = fxmss_sign_from_auth_path(digest, sk_seed, leaf_index, leaf_height, pk_seed, True, tree_depth, auth_path)
+  assert fxmss_pubkey_from_sig(leaf_index, leaf_height, sig, digest, pk_seed) == sf_root
+
+  # A state ahead of the state counter means the counter went backwards: it is refused as well.
+  previous_leaf_index, _ = shrincs_sf_leaf_select(sf_structure, state_ctr - 1)
+  assert rejects(bds_auth_path, bds_state, previous_leaf_index)
+
+  # A corrupted state yields an invalid signature, which self-verification catches.
+  corrupted = deepcopy(bds_state)
+  corrupted['auth'][1] = randbytes(16)
+  auth_path = bds_auth_path(corrupted, leaf_index)
+  sig_corrupted = fxmss_sign_from_auth_path(digest, sk_seed, leaf_index, leaf_height, pk_seed, True, tree_depth, auth_path)
+  assert fxmss_pubkey_from_sig(leaf_index, leaf_height, sig_corrupted, digest, pk_seed) != sf_root
+  sig_naive = fxmss_sign(digest, sk_seed, leaf_index, leaf_height, pk_seed, True, tree_depth)
+  assert sig_naive == sig
+  assert sig_corrupted[:-16 * tree_depth] == sig_naive[:-16 * tree_depth]
+  print('verified BDS state recovery')
+
 if __name__ == "__main__":
   test_annotations()
   test_shrincs()
   test_xmss_leaf_cache()
   test_uxmss_cache()
   test_bds()
+  test_bds_recovery()
