@@ -39,7 +39,7 @@ STATEFUL = [
     ("SF_WOTS_C_HASH",  16, [("zero padding", 4, "pad"), ("chain index", 4, "active"), ("hash index", 4, "active")]),
     ("SF_WOTS_C_PK",    17, [("zero padding", 12, "pad")]),
     ("SF_FXMSS_TREE",   18, [("zero padding", 12, "pad")]),
-    ("SF_WOTS_C_PRF",   21, [("zero padding", 4, "pad"), ("chain index", 4, "active"), ("zero padding", 4, "pad")]),
+    ("SF_WOTS_C_PRF",   21, [("structure", 2, "active"), ("zero padding", 2, "pad"), ("chain index", 4, "active"), ("zero padding", 4, "pad")]),
     ("SF_WOTS_C_GRIND", 22, [("zero padding", 12, "pad")]),
 ]
 
@@ -251,7 +251,7 @@ def build_svg(title, rows, header):
                  f'fill:{C_TEXT}">{esc(lab)}</text>')
         lx += 28 + len(lab) * 6.0 + 18
     s.append('</svg>')
-    return "\n".join(s)
+    return "\n".join(s) + "\n"
 
 
 # ---------------------------------------------------------------------------

@@ -12,14 +12,16 @@ except ImportError:
   from shrincs import * # imported as a sibling module (e.g. by test.py)
 
 
-def xmss_leaf_cache_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> list[bytes]:
+def xmss_leaf_cache_gen(
+    sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+) -> Array[Bytes[16], 2**SPHX_XMSS_HEIGHT]:
   """
   The XMSS cache generation function. Computes the WOTS-TW public keys of every leaf in the XMSS tree
   at the location prefilled in `ADRS`, for reuse across signatures as a leaf cache.
 
   - Inputs:
     - `sk_seed`: a 16-byte secret.
-    - `pk_seed`: a 16-byte salt.
+    - `pk_seed`: a 16-byte public seed.
     - `ADRS`: a 22-byte address.
   - Output:
     - a list of `2**SPHX_XMSS_HEIGHT` 16-byte WOTS-TW public key hashes, ordered by leaf index.
@@ -32,7 +34,13 @@ def xmss_leaf_cache_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> list
     leaf_cache[leaf_index] = wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
   return leaf_cache
 
-def xmss_node_from_cache(leaf_cache: list[bytes], node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def xmss_node_from_cache(
+    leaf_cache: Array[Bytes[16], 2**SPHX_XMSS_HEIGHT],
+    node_index: UInt32,
+    node_height: UInt32,
+    pk_seed: Bytes[16],
+    ADRS: bytearray,
+) -> Bytes[16]:
   """
   The cached XMSS node calculation function. Similar to `xmss_node`, but reads WOTS-TW public
   keys from `leaf_cache` instead of regenerating them, and requires no secret key.
@@ -41,7 +49,7 @@ def xmss_node_from_cache(leaf_cache: list[bytes], node_index: int, node_height: 
     - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
     - `node_index`: a 32-bit unsigned integer, the index (from the left) of the node in the XMSS layer.
     - `node_height`: a 32-bit unsigned integer, the height (from the bottom) of the node in the XMSS layer.
-    - `pk_seed`: a 16-byte salt.
+    - `pk_seed`: a 16-byte public seed.
     - `ADRS`: a 22-byte address.
   - Output:
     - a 16-byte XMSS node hash.
@@ -64,7 +72,14 @@ def xmss_node_from_cache(leaf_cache: list[bytes], node_index: int, node_height: 
   ADRS[18:22] = node_index.to_bytes(4)
   return H(pk_seed, ADRS, lchild + rchild)
 
-def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes], keypair_index: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def xmss_sign_from_cache(
+    message: Bytes[16],
+    sk_seed: Bytes[16],
+    leaf_cache: Array[Bytes[16], 2**SPHX_XMSS_HEIGHT],
+    keypair_index: UInt32,
+    pk_seed: Bytes[16],
+    ADRS: bytearray,
+) -> Bytes[SPHX_XMSS_SIGNATURE_SIZE]:
   """
   XMSS signing from cache. Equivalent to `xmss_sign`, but computes the Merkle
   authentication path from `leaf_cache` instead of regenerating every WOTS-TW leaf.
@@ -74,7 +89,7 @@ def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes]
     - `sk_seed`: a 16-byte secret.
     - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
     - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
-    - `pk_seed`: a 16-byte salt.
+    - `pk_seed`: a 16-byte public seed.
     - `ADRS`: a 22-byte address.
   - Output:
     - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
@@ -92,35 +107,42 @@ def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes]
 
   return sig
 
-def uxmss_cache_gen(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> dict[tuple[int, int], bytes]:
+def uxmss_cache_gen(
+    sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8
+) -> dict[tuple[UInt64, UInt8], Bytes[16]]:
   """
   The UXMSS cache generation function. Computes the WOTS+C public keys of every leaf in a UXMSS tree.
 
   - Inputs:
     - `sk_seed`: a 16-byte secret.
-    - `pk_seed`: a 16-byte salt.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `pk_seed`: a 16-byte public seed.
+    - `tree_depth`: an 8-bit unsigned integer, the depth of the UXMSS tree.
   - Output:
-    - a dictionary mapping `(node_index, node_height)` positions to 16-byte WOTS+C public key hashes: `depth + 1` leaves in total.
+    - a dictionary mapping `(node_index, node_height)` positions to 16-byte WOTS+C public key hashes: `tree_depth + 1` leaves in total.
 
   This function is only used in the stateful path, and only by the signer.
   """
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  assert tree_shape == FXMSS_SHAPE_UNBALANCED
   assert tree_depth >= 1
 
   cache = {}
   ADRS = bytearray(22)
 
   # The deepest layer holds two WOTS+C leaves; every layer above holds one, as the right sibling of the spine.
+  # A UXMSS tree is unbalanced, hence `tree_balanced` is false.
   deepest_height = FXMSS_HEIGHT - tree_depth
-  cache[(0, deepest_height)] = fxmss_node(sk_seed, 0, deepest_height, pk_seed, sf_structure, ADRS)
+  cache[(0, deepest_height)] = fxmss_node(sk_seed, 0, deepest_height, pk_seed, False, tree_depth, ADRS)
   for node_height in range(deepest_height, FXMSS_HEIGHT):
-    cache[(1, node_height)] = fxmss_node(sk_seed, 1, node_height, pk_seed, sf_structure, ADRS)
+    cache[(1, node_height)] = fxmss_node(sk_seed, 1, node_height, pk_seed, False, tree_depth, ADRS)
 
   return cache
 
-def uxmss_auth_path(uxmss_cache: dict[tuple[int, int], bytes], leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes) -> list[bytes]:
+def uxmss_auth_path(
+    uxmss_cache: dict[tuple[UInt64, UInt8], Bytes[16]],
+    leaf_index: UInt64,
+    leaf_height: UInt8,
+    pk_seed: Bytes[16],
+    tree_depth: UInt8,
+) -> list[Bytes[16]]:
   """
   Computes the Merkle authentication path from a cache. Every path node is read from there,
   except the leaf's sibling on the spine, which is recombined from the cached leaves below it.
@@ -129,15 +151,13 @@ def uxmss_auth_path(uxmss_cache: dict[tuple[int, int], bytes], leaf_index: int, 
     - `uxmss_cache`: a leaf cache from `uxmss_cache_gen`.
     - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf in the FXMSS layer.
     - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf in the FXMSS tree.
-    - `pk_seed`: a 16-byte salt.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `pk_seed`: a 16-byte public seed.
+    - `tree_depth`: an 8-bit unsigned integer, the depth of the UXMSS tree.
   - Output:
     - a list of `FXMSS_HEIGHT - leaf_height` 16-byte authentication path nodes, ordered from the leaf's sibling upwards.
 
   This function is only used in the stateful path, and only by the signer.
   """
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  assert tree_shape == FXMSS_SHAPE_UNBALANCED
   deepest_height = FXMSS_HEIGHT - tree_depth
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
@@ -159,7 +179,16 @@ def uxmss_auth_path(uxmss_cache: dict[tuple[int, int], bytes], leaf_index: int, 
     auth_path.append(uxmss_cache[(1, leaf_height + j)])
   return auth_path
 
-def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes, auth_path: list[bytes]) -> Optional[bytes]:
+def fxmss_sign_from_auth_path(
+    message_digest: Bytes[32],
+    sk_seed: Bytes[16],
+    leaf_index: UInt64,
+    leaf_height: UInt8,
+    pk_seed: Bytes[16],
+    tree_balanced: bool,
+    tree_depth: UInt8,
+    auth_path: list[Bytes[16]],
+) -> Optional[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX]]:
   """
   FXMSS signing from a precomputed authentication path. Equivalent to `fxmss_sign`, but
   appends the given `auth_path` instead of regenerating its nodes with `fxmss_node`.
@@ -169,8 +198,10 @@ def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index:
     - `sk_seed`: a 16-byte secret.
     - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf in the FXMSS layer.
     - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf in the FXMSS tree.
-    - `pk_seed`: a 16-byte salt.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `pk_seed`: a 16-byte public seed.
+    - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+      unbalanced (UXMSS) tree.
+    - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
     - `auth_path`: a list of `FXMSS_HEIGHT - leaf_height` 16-byte authentication path nodes, ordered from the leaf's sibling upwards.
   - Output:
     - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
@@ -181,16 +212,15 @@ def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index:
   assert len(auth_path) == leaf_depth
 
   # Validate the leaf is positioned correctly for the specified tree structure.
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    assert leaf_index == 1 or leaf_depth == tree_depth
-  if tree_shape == FXMSS_SHAPE_BALANCED:
+  if tree_balanced:
     assert leaf_depth == tree_depth
+  else:
+    assert leaf_index == 1 or leaf_depth == tree_depth
 
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  ADRS[10:14] = sf_structure + zeros(2)
+  ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
   if sig is None:
     return None
@@ -198,7 +228,9 @@ def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index:
   # Append the precomputed Merkle authentication path.
   return sig + concat(auth_path)
 
-def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: int) -> dict:
+def bds_state_init(
+    sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8, bds_k: UInt8
+) -> dict:
   """
   The BDS state initialization function. Computes the starting traversal state for a BXMSS
   tree: the authentication path of leaf zero, one treehash instance per lower layer
@@ -207,9 +239,10 @@ def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: i
 
   - Inputs:
     - `sk_seed`: a 16-byte secret.
-    - `pk_seed`: a 16-byte salt.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure. Its shape byte must be `FXMSS_SHAPE_BALANCED`.
-    - `bds_k`: the memory/time trade-off parameter: `2 <= bds_k <= depth`, with `depth - bds_k` even.
+    - `pk_seed`: a 16-byte public seed.
+    - `tree_depth`: an 8-bit unsigned integer, the depth of the BXMSS tree.
+    - `bds_k`: an 8-bit unsigned integer, the memory/time trade-off parameter: `2 <= bds_k <= tree_depth`,
+      with `tree_depth - bds_k` even.
   - Output:
     - a BDS state: a dictionary with the fields
       - `state_ctr`: the state counter whose authentication path `auth` currently holds.
@@ -217,34 +250,32 @@ def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: i
       - `auth`: the current authentication path, one node per layer, from the leaf's sibling upwards.
       - `keep`: nodes remembered to compute upcoming left authentication nodes, keyed by layer.
       - `retain`: precomputed right nodes of the top layers, keyed by `(node_index, layer)`.
-      - `treehash`: one instance per layer `j < depth - bds_k`: a completed `node`, the
+      - `treehash`: one instance per layer `j < tree_depth - bds_k`: a completed `node`, the
         `next_leaf` it will consume, and a `stack` of partial subtree roots paired with their layers.
 
   This function is only used in the stateful path, and only by the signer.
 
   Layers are counted relative to the BXMSS tree: layer `j` sits at FXMSS height
-  `FXMSS_HEIGHT - depth + j`, so layer 0 holds the WOTS+C leaves and layer `depth` the root.
+  `FXMSS_HEIGHT - tree_depth + j`, so layer 0 holds the WOTS+C leaves and layer `tree_depth` the root.
   The initial state consists of nodes computed during key generation anyway, so
   implementations may fill it as a byproduct of `shrincs_keygen`.
   """
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  assert tree_shape == FXMSS_SHAPE_BALANCED
   assert 2 <= bds_k <= tree_depth
   assert (tree_depth - bds_k) % 2 == 0
 
   leaf_layer = FXMSS_HEIGHT - tree_depth
   ADRS = bytearray(22)
 
-  # The authentication path of leaf zero.
+  # The authentication path of leaf zero. A BXMSS tree is balanced, hence `tree_balanced` is true.
   auth = [b''] * tree_depth
   for j in range(tree_depth):
-    auth[j] = fxmss_node(sk_seed, 1, leaf_layer + j, pk_seed, sf_structure, ADRS)
+    auth[j] = fxmss_node(sk_seed, 1, leaf_layer + j, pk_seed, True, tree_depth, ADRS)
 
   # One treehash instance per layer below the retained layers.
   treehash = [None] * (tree_depth - bds_k)
   for j in range(tree_depth - bds_k):
     treehash[j] = {
-      'node': fxmss_node(sk_seed, 3, leaf_layer + j, pk_seed, sf_structure, ADRS),
+      'node': fxmss_node(sk_seed, 3, leaf_layer + j, pk_seed, True, tree_depth, ADRS),
       'next_leaf': None,
       'stack': [],
     }
@@ -253,11 +284,11 @@ def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: i
   retain = {}
   for j in range(tree_depth - bds_k, tree_depth - 1):
     for node_index in range(3, 2**(tree_depth - j), 2):
-      retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, sf_structure, ADRS)
+      retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, True, tree_depth, ADRS)
 
   return {'state_ctr': 0, 'bds_k': bds_k, 'auth': auth, 'keep': {}, 'retain': retain, 'treehash': treehash}
 
-def bds_auth_path(bds_state: dict) -> list[bytes]:
+def bds_auth_path(bds_state: dict) -> list[Bytes[16]]:
   """
   The BDS authentication path read function. Returns the Merkle authentication path of the
   WOTS+C leaf at index `state_ctr` of the BDS state, for use with `fxmss_sign_from_auth_path`.
@@ -265,13 +296,15 @@ def bds_auth_path(bds_state: dict) -> list[bytes]:
   - Inputs:
     - `bds_state`: a BDS state from `bds_state_init`.
   - Output:
-    - a list of `depth` 16-byte authentication path nodes, from the leaf's sibling upwards.
+    - a list of `tree_depth` 16-byte authentication path nodes, from the leaf's sibling upwards.
 
   This function is only used in the stateful path, and only by the signer.
   """
   return list(bds_state['auth'])
 
-def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
+def bds_treehash_update(
+    bds_state: dict, sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8
+) -> None:
   """
   The BDS treehash scheduling function. Performs a single treehash update: picks the active
   instance whose lowest stacked node sits on the lowest layer, consumes that instance's next
@@ -280,14 +313,13 @@ def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_stru
   - Inputs:
     - `bds_state`: a BDS state from `bds_state_init`.
     - `sk_seed`: a 16-byte secret.
-    - `pk_seed`: a 16-byte salt.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `pk_seed`: a 16-byte public seed.
+    - `tree_depth`: an 8-bit unsigned integer, the depth of the BXMSS tree.
   - Output:
     - none.
 
   This function is only used in the stateful path, and only by the signer.
   """
-  tree_depth = sf_structure[1]
   leaf_layer = FXMSS_HEIGHT - tree_depth
 
   # Pick the instance to receive this update.
@@ -306,7 +338,7 @@ def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_stru
   th = bds_state['treehash'][best]
   leaf_index = th['next_leaf']
   ADRS = bytearray(22)
-  node = fxmss_node(sk_seed, leaf_index, leaf_layer, pk_seed, sf_structure, ADRS)
+  node = fxmss_node(sk_seed, leaf_index, leaf_layer, pk_seed, True, tree_depth, ADRS)
   node_layer = 0
   while th['stack'] and th['stack'][-1][0] == node_layer:
     (_, lchild) = th['stack'].pop()
@@ -324,7 +356,9 @@ def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_stru
     th['stack'].append((node_layer, node))
     th['next_leaf'] = leaf_index + 1
 
-def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
+def bds_state_update(
+    bds_state: dict, sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8
+) -> None:
   """
   The BDS state update function. Advances the state by one leaf: computes the authentication
   path of the next leaf from the stored nodes, refreshes `keep` and restarts the consumed
@@ -333,14 +367,13 @@ def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structu
   - Inputs:
     - `bds_state`: a BDS state from `bds_state_init`.
     - `sk_seed`: a 16-byte secret.
-    - `pk_seed`: a 16-byte salt.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `pk_seed`: a 16-byte public seed.
+    - `tree_depth`: an 8-bit unsigned integer, the depth of the BXMSS tree.
   - Output:
     - none.
 
   This function is only used in the stateful path, and only by the signer.
   """
-  tree_depth = sf_structure[1]
   leaf_layer = FXMSS_HEIGHT - tree_depth
   bds_k = bds_state['bds_k']
   s = bds_state['state_ctr']
@@ -365,7 +398,7 @@ def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structu
 
   if tau == 0:
     # Leaf s is a left child: it becomes the bottom authentication node.
-    bds_state['auth'][0] = fxmss_node(sk_seed, s, leaf_layer, pk_seed, sf_structure, ADRS)
+    bds_state['auth'][0] = fxmss_node(sk_seed, s, leaf_layer, pk_seed, True, tree_depth, ADRS)
   else:
     # The left node entering the path on layer tau is the parent of the old
     # authentication node below it and the node remembered in keep.
@@ -397,4 +430,4 @@ def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structu
 
   # Distribute the round's budget of treehash updates.
   for _ in range((tree_depth - bds_k) // 2):
-    bds_treehash_update(bds_state, sk_seed, pk_seed, sf_structure)
+    bds_treehash_update(bds_state, sk_seed, pk_seed, tree_depth)

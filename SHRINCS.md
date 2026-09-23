@@ -93,15 +93,13 @@ The exact correspondence between parameters common between this document and FIP
 
 ## Performance
 
-As a hash-based signature scheme, the primary performance bottleneck in SHRINCS is in the computation of a hash function, namely SHA256.
-The faster a computer can perform SHA256 hashing, the faster it can create SHRINCS keys, issue new signatures, and/or verify signatures.
-
-In this section, we'll show the exact costs to run different SHRINCS algorithms, denominated in terms of SHA256 compressions which dominate SHRINCS runtime.
-The computations used to generate the numbers below are shown in [`impl/meta.py`](./impl/meta.py).
+SHRINCS performance during key generation, signing, and verification is dominated by hash function calls.
+The tables below therefore report SHA256 compression counts computed by [`impl/meta.py`](./impl/meta.py).
+The signing and verification counts assume a 32-byte caller-supplied message and an empty context.
+Actual runtimes depend on the implementation, including its use of SHA256 hardware acceleration.[^sha_ni_bench]
 
 ### Verification
 
-SHRINCS has very fast verification, especially with SHA256 hardware acceleration.
 In this table we show exact compression counts, and show the maximum _compressions per byte_ (C/B) needed to verify a SHRINCS stateful and stateless signature.
 
 | Signing Component | Verify Cost in SHA256 Compressions (min - max) | C/B (max) |
@@ -112,10 +110,10 @@ In this table we show exact compression counts, and show the maximum _compressio
 The variance in stateful verify compression count can be caused by signers supplying larger stateful signatures, which require additional hash invocations to verify.
 The variance in stateless compression count can be controlled by the signer with no change to signature size, and is owed to the fact that the signatures of the WOTS-TW subscheme have a non-constant verification cost which depends on a signer-controlled hash.
 
-The best known way to improve SHRINCS verification performance is to use SHA256 hardware acceleration[^sha_ni_bench] or SIMD instructions [^simd_x86].
+SHRINCS verification time can be reduced using CPU instructions designed specifically for SHA256[^sha_ni_bench] or by evaluating independent SHA256 computations in parallel with vectorized (SIMD) CPU instructions[^simd_bench].
 
-For comparison, if one benchmarks the cost of BIP-340 Schnorr signature verification compared against SHA256 hashing, one can compute the equivalent cost of Schnorr in terms of SHA256 hash compressions.
-Dividing by the signature (+pubkey) size, BIP-340 verification turns out to have a cost of around 1.3 - 2.0 software SHA256 compressions per byte.[^bip340_sha256_bench]
+For comparison, the cost of BIP-340 Schnorr verification can be expressed as an equivalent number of SHA256 compression calls by benchmarking both operations on the same system.
+One benchmark using libsecp256k1's SHA256 implementation found that BIP-340 verification, including public-key parsing, took the same time as 127 compression calls, or 1.98 equivalent compressions per byte of the 64-byte signature.[^bip340_sha256_bench]
 
 
 ### Key Generation
@@ -139,7 +137,7 @@ Note this cost includes both stateful and stateless components.
 | BXMSS; depth 16 | <!-- CONST START BXMSS_16_KEYGEN_COMPRESSIONS -->34502142<!-- CONST END BXMSS_16_KEYGEN_COMPRESSIONS --> | 2<sup>16</sup> |
 | BXMSS; depth 20 | <!-- CONST START BXMSS_20_KEYGEN_COMPRESSIONS -->547649022<!-- CONST END BXMSS_20_KEYGEN_COMPRESSIONS --> | 2<sup>20</sup> |
 
-The best known way to improve SHRINCS key-generation performance is either to use vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or to use heavy parallelism libraries such as CUDA or Vulkan[^vulkan].
+SHRINCS key-generation performance can be improved by evaluating independent SHA256 hashes in parallel using vectorized CPU instructions[^simd_bench][^sha256x8], or using CUDA or Vulkan[^vulkan].
 
 One can also improve SHRINCS key-generation performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
@@ -152,9 +150,9 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 
 | Signature Type | Average Signing Cost in SHA256 Compressions | Stateful Signature Budget |
 |-|-|-|
-| Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707254<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> | |
-| Stateful (UXMSS; depth 31) | <!-- CONST START UXMSS_31_SIGN_COMPRESSIONS_AVG -->16511<!-- CONST END UXMSS_31_SIGN_COMPRESSIONS_AVG --> | 32 |
-| Stateful (UXMSS; depth 255) | <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133327<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> | 256 |
+| Stateless | <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707229<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> | |
+| Stateful (UXMSS; depth 31) | <!-- CONST START UXMSS_31_SIGN_COMPRESSIONS_AVG -->16510<!-- CONST END UXMSS_31_SIGN_COMPRESSIONS_AVG --> | 32 |
+| Stateful (UXMSS; depth 255) | <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> | 256 |
 | Stateful (BXMSS; depth 5) | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS_AVG -->16522<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS_AVG --> | 2<sup>5</sup> |
 | Stateful (BXMSS; depth 8) | <!-- CONST START BXMSS_8_SIGN_COMPRESSIONS_AVG -->133447<!-- CONST END BXMSS_8_SIGN_COMPRESSIONS_AVG --> | 2<sup>8</sup> |
 | Stateful (BXMSS; depth 10) | <!-- CONST START BXMSS_10_SIGN_COMPRESSIONS_AVG -->534341<!-- CONST END BXMSS_10_SIGN_COMPRESSIONS_AVG --> | 2<sup>10</sup> |
@@ -162,9 +160,7 @@ SHRINCS signing performance depends on whether the signer uses the stateful or s
 | Stateful (BXMSS; depth 16) | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS_AVG -->34209599<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS_AVG --> | 2<sup>16</sup> |
 | Stateful (BXMSS; depth 20) | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS_AVG -->547356475<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS_AVG --> | 2<sup>20</sup> |
 
-<sub>\*These metrics assume a 32-byte message.</sub>
-
-One can improve SHRINCS signing performance significantly using vectorized instructions to execute multiple SHA256 hashes in parallel[^simd_bench] \(this is the method used by the SPHINCS authors[^sha256x8]\), or by using heavy compute libraries such as CUDA or Vulkan[^vulkan].
+SHRINCS signing performance can be improved by evaluating independent SHA256 hashes in parallel using vectorized CPU instructions[^simd_bench][^sha256x8], or using CUDA or Vulkan[^vulkan].
 
 To improve stateful signing performance further at the cost of memory, one can cache leaves or internal nodes in the [FXMSS](#fxmss) tree which are produced during key-generation or prior signing attempts.
 Caching reduces the fraction of the FXMSS tree which the signer must regenerate on each signing attempt, which is by far the greatest computational cost in stateful signing.
@@ -172,6 +168,16 @@ Caching can therefore result in very significant (orders of magnitude) speedups,
 
 The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching).
 One can also improve stateless SHRINCS signing performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
+
+Recommended cache constructions for both signature parts, together with the storage requirements, are specified in [docs/CACHE_MANAGEMENT.md](docs/CACHE_MANAGEMENT.md).
+With those caches in place, signing costs become:
+
+| Signature Type | Cache | Cache Size | Average Signing Cost in SHA256 Compressions |
+|-|-|-|-|
+| Stateless | [Stateless Cache](docs/CACHE_MANAGEMENT.md#the-stateless-cache) | <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes | <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS_AVG -->1415959<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS_AVG --> |
+| Stateful (UXMSS; depth 255) | [UXMSS Cache](docs/CACHE_MANAGEMENT.md#the-uxmss-cache) | <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes | <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->471<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> |
+| Stateful (BXMSS; depth 10) | [BXMSS Cache](docs/CACHE_MANAGEMENT.md#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG -->2961<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG --> |
+| Stateful (BXMSS; depth 20) | [BXMSS Cache](docs/CACHE_MANAGEMENT.md#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG -->5581<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG --> |
 
 
 ## Rationale
@@ -283,22 +289,28 @@ The stateful component would be the primary signing tool used in Bitcoin transac
 
 ### Why statefulness?
 
-SHRINCS introduces a novel paradigm to Bitcoin, which is the concept of a stateful signature algorithm.
-A stateful signature algorithm is one in which signers must keep track of how many messages they have previously signed.
-This "statefulness burden" introduces complexity into implementations, which must ensure state is managed correctly and consistently.
-See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
+Stateful signing is a significant departure from the signature schemes already used in Bitcoin.
+Although SHRINCS also supports a stateless path, its stateful path requires signers to keep track of how many times each key pair has been used for stateful signing.
+This state-management burden introduces implementation complexity, and incorrect state management can compromise security.
 
-SHRINCS signers who wish to use the stateful component must accept the risks and trade-offs of this implementation complexity in return for the efficiency gains that come with statefulness:
-Approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO -->x smaller signatures, which require approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO -->x less compute time to verify (compared to the stateless component).
-
-SHRINCS signers who cannot manage state, or implementors who do not yet have the time/energy to devote to properly writing state management, can still generate valid SHRINCS keys and sign using the stateless component.
-Generally, SHRINCS implementations should always fall back to the stateless component if there is any doubt about the accuracy of a keypair's state counter.
+Signers using the stateful component accept this implementation complexity and its associated risks in exchange for smaller signatures and a lower maximum verification cost.
+The smallest stateful signature is approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO --> times smaller than a stateless signature.
+Verification of a maximum-depth stateful signature requires <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> SHA256 compressions.
+A stateless signature requires at most <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2792<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> SHA256 compressions, approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO --> times as many.
 
 ### Isn't statefulness unsafe?
 
-If used incorrectly, a stateful signature scheme admits trivial forgeries by anyone observing signatures that reuse the same state.
-Thankfully, because of the stateless fallback component, any SHRINCS signer can follow a prescribed set of implementation-level invariants to ensure such situations never occur, while always maintaining the ability to sign in an emergency scenario (lost or corrupted state).
-See [On Managing State](#on-managing-state) for the state management rules a compliant SHRINCS implementation must enforce.
+The security of stateful signing requires that a state counter value is never reused under the same key pair.
+Reusing a state counter value under the same key pair can enable anyone who observes the resulting signatures to produce forgeries.
+Implementations can prevent such reuse by enforcing the invariants specified in [On Managing State](#on-managing-state).
+Implementations that cannot safely manage state can still generate valid SHRINCS key pairs and sign using the stateless component.
+If a key pair's state counter is lost, corrupted, or otherwise uncertain, an implementation MUST refuse stateful signing.
+The stateless fallback allows the implementation to do so while always maintaining the ability to sign with that key pair.
+
+State reuse can be detected before publication by comparing a stateful signature with earlier signatures, providing defense in depth against failures in the signer's state management.
+Each stateful signature reveals the WOTS+C leaf it uses and can be rejected if the same leaf identifier has previously been observed under the same key pair.
+This defense assumes that an honest party performs the check and has access to the earlier signature.
+It therefore does not replace the signer's state-management requirements.
 
 ### Why does the stateful path use "flexible" XMSS?
 
@@ -359,16 +371,16 @@ The additional size of stateless signatures only becomes a problem in rare non-c
 
 Low-power signers, especially early-generation hardware wallets, typically lack the fast and highly-parallel computing hardware needed for efficient key-generation and signing in a hash-based signature scheme.[^ledger-bench][^trezor-bench]
 
-Thankfully, signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133327<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
+Thankfully, signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
 Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
+With the [UXMSS Cache](docs/CACHE_MANAGEMENT.md#the-uxmss-cache) filled during key generation, each stateful signature then costs about <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->471<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> compressions (see [On Managing Caches](#on-managing-caches)).
 
-The stateless component is much harder for low-power signers to work with because its parameters are more-or-less fixed, and it requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707254<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
+The stateless component is much harder for low-power signers to work with because its parameters are more-or-less fixed, and it requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707229<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
 To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signature budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
 
 Since these hardware wallets typically have very weak processing power and require human interaction to produce a set of signatures, a signature budget of 2<sup>40</sup> is already overkill in this context, and so can safely be reduced while preserving the stateless property of SLH-DSA (assuming the key is not exported to a higher-power signing device).
 
->[!WARNING]
-> SHRINCS keys generated using hypertree pruning for the stateless component **are not compatible with SHRINCS implementations which do not support hypertree pruning.** In fact, importing a key across such incompatible implementations may result in lost funds.[^pruning]
+Implementations using hypertree pruning must reproduce the same pruning strategy when regenerating a key.
 
 
 ## Specification
@@ -415,7 +427,7 @@ We show formulas for how these are computed, using the integer operations define
 |`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
 |`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
 |`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `1 + 16 + 1 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
-|`SHRINCS_SF_SIGNATURE_SIZE_MAX`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> | `1 + 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX` | The maximum byte size of a stateful SHRINCS signature. Must stay below `SPHX_SIGNATURE_SIZE`, so that the two signature shapes remain distinguishable by length. |
+|`SHRINCS_SF_SIGNATURE_SIZE_MAX`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> | `1 + 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX` | The maximum byte size of a stateful SHRINCS signature. Must stay below `SHRINCS_SL_SIGNATURE_SIZE`, so that the two signature shapes remain distinguishable by length. |
 
 #### Stateless Constants
 
@@ -459,6 +471,37 @@ To save computational effort, `pk_seed` is padded with zero bytes to a length of
 This aligns with the SHA256 block size, so that `pk_seed` can be absorbed into the SHA256 state, and that midstate can be cached & reused.
 
 
+### Value Types
+
+A function signature states the size of each value it takes and returns, in the notation below.
+`impl/shrincs.py` declares that notation as [`typing.Annotated`](https://docs.python.org/3/library/typing.html#typing.Annotated) metadata, so that it can be checked mechanically.
+They are inert in the implementation, and the sizes they state are requirements on any implementation.
+
+- `Bytes[n]` is a byte string of exactly `n` bytes.
+  `n` may be an arithmetic expression over the constants this document defines, evaluated for the parameter set in force, as in `Bytes[2 + WOTS_C_CHAINS_SIZE]`.
+- `Bytes[a:b]` is a byte string of at least `a` and at most `b` bytes.
+  Both bounds are inclusive, unlike a Python slice.
+  Either may be omitted: `Bytes[a:]` is at least `a` bytes, and `Bytes[:b]` at most `b`.
+- A bare `bytes` is bounded only by its callers.
+- `UInt8`, `UInt16`, `UInt32` and `UInt64` are integers in the ranges `[0, 2**8)`, `[0, 2**16)`, `[0, 2**32)` and `[0, 2**64)` respectively, serialized as described in [Utilities](#utilities).
+  A bare `int` is an integer of unbounded width, and no value in this specification is negative.
+- `Array[T, n]` is a sequence of exactly `n` values of type `T`.
+  `n` may be an arithmetic expression over the constants this document defines, as it may in `Bytes[n]`.
+- `list[T]` is a sequence of values of type `T`, as many of them as the paragraph beneath the signature states.
+- `tuple[...]` is a fixed group of values of the given types, in that order, returned by the functions which produce more than one.
+  Each element is written into the field its caller gives it, so the group has no size of its own.
+- `Union[T, U]` is a value of one of the given types.
+  Where this specification returns one, its length tells the reader which.
+- `Optional[T]` is either a `T` or the absence of one.
+- `bool` is true or false, and is never serialized.
+- `bytearray` is the 22-byte address described under [ADRS](#adrs).
+  It is the one value a function modifies in place, which is why it is not given a size here.
+
+These sizes are normative.
+A value is written into a field wide enough to hold it.
+Writing one into a narrower field is an error rather than a value reduced to fit, and every field this specification writes is wide enough for every value which can reach it.
+
+
 ### Utilities
 
 We make use of the following utility helper functions in specifying SHRINCS.
@@ -474,6 +517,15 @@ We make use of the following utility helper functions in specifying SHRINCS.
 Every algorithm and every derived constant in this specification is computed with exact integer arithmetic.
 Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation.
 Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
+
+Every quantity in this specification denotes a mathematical integer, and every operation on one is exact.
+Nothing overflows, underflows, wraps, is reduced modulo a word size, saturates, or is truncated; a difference is never clamped at zero, and the only rounding is that of the two division forms above.
+If an operation would produce a result outside the range specified for that value, the operation violates the specification.
+It does not produce a different value within the range.
+
+The [value types](#value-types) above are therefore refinements, not representations.
+`UInt8` through `UInt64` assert that a value lies in `[0, 2**8)` through `[0, 2**64)`.
+They do not make it a machine word, and no arithmetic is ever performed modulo `2**bits`.
 
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 
@@ -623,7 +675,7 @@ The `sha256` hash function.
   - a 32-byte hash.
 
 ```py
-def sha256(message: bytes) -> bytes:
+def sha256(message: Bytes[:2**61 - 1]) -> Bytes[32]:
   return hashlib.sha256(bytes(message)).digest()
 ```
 <!-- DOC END sha256 -->
@@ -658,7 +710,7 @@ single 16-byte hash.
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def T_sl(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
+def T_sl(pk_seed: Bytes[16], ADRS: bytearray, M_l: Bytes[WOTS_TW_CHAINS_SIZE]) -> Bytes[16]:
   return sha256(pk_seed + zeros(48) + ADRS + M_l)[:16]
 ```
 <!-- DOC END T_sl -->
@@ -680,7 +732,7 @@ single 16-byte hash.
 This function is only used in the stateful path, and by both the signer and the verifier.
 
 ```py
-def T_sf(pk_seed: bytes, ADRS: bytearray, M_l: bytes) -> bytes:
+def T_sf(pk_seed: Bytes[16], ADRS: bytearray, M_l: Bytes[WOTS_C_CHAINS_SIZE]) -> Bytes[16]:
   return sha256(pk_seed + zeros(48) + ADRS + M_l)[:16]
 ```
 <!-- DOC END T_sf -->
@@ -702,7 +754,7 @@ The `T_k` tweaked hash function. Compresses `SPHX_FORS_COUNT` FORS tree roots in
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def T_k(pk_seed: bytes, ADRS: bytearray, M_k: bytes) -> bytes:
+def T_k(pk_seed: Bytes[16], ADRS: bytearray, M_k: Bytes[SPHX_FORS_COUNT * 16]) -> Bytes[16]:
   return sha256(pk_seed + zeros(48) + ADRS + M_k)[:16]
 ```
 <!-- DOC END T_k -->
@@ -724,7 +776,7 @@ hash chains and to hash FORS leaves.
 This function is used in both stateful and stateless paths, and by both the signer and the verifier.
 
 ```py
-def F(pk_seed: bytes, ADRS: bytearray, M_1: bytes) -> bytes:
+def F(pk_seed: Bytes[16], ADRS: bytearray, M_1: Bytes[16]) -> Bytes[16]:
   return sha256(pk_seed + zeros(48) + ADRS + M_1)[:16]
 ```
 <!-- DOC END F -->
@@ -746,7 +798,7 @@ parent, building the Merkle trees in XMSS and FORS.
 This function is used in both stateful and stateless paths, and by both the signer and the verifier.
 
 ```py
-def H(pk_seed: bytes, ADRS: bytearray, M_2: bytes) -> bytes:
+def H(pk_seed: Bytes[16], ADRS: bytearray, M_2: Bytes[32]) -> Bytes[16]:
   return sha256(pk_seed + zeros(48) + ADRS + M_2)[:16]
 ```
 <!-- DOC END H -->
@@ -769,7 +821,7 @@ constant-sum message space for WOTS+C.
 This function is only used in the stateful path, and by both the signer and the verifier.
 
 ```py
-def H_grind(pk_seed: bytes, ADRS: bytearray, digest: bytes, counter: int) -> bytes:
+def H_grind(pk_seed: Bytes[16], ADRS: bytearray, digest: Bytes[32], counter: UInt16) -> Bytes[16]:
   assert counter <= 0xFFFF
   return sha256(pk_seed + zeros(48) + ADRS[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
 ```
@@ -801,7 +853,7 @@ The `hmac_sha256` keyed hash function.
   - a 32-byte hash.
 
 ```py
-def hmac_sha256(key: bytes, message: bytes) -> bytes:
+def hmac_sha256(key: Bytes[:64], message: Bytes[:2**61 - 1 - 64]) -> Bytes[32]:
   assert len(key) <= 64
   padded_key = key + zeros(64 - len(key))
   inner = sha256(xor(padded_key, replicate(0x36, 64)) + message)
@@ -826,7 +878,7 @@ and key generation.
 This function is used in both stateful and stateless paths, but only by the signer.
 
 ```py
-def PRF(pk_seed: bytes, sk_seed: bytes, ADRS: bytearray) -> bytes:
+def PRF(pk_seed: Bytes[16], sk_seed: Bytes[16], ADRS: bytearray) -> Bytes[16]:
   return sha256(pk_seed + zeros(48) + ADRS + sk_seed)[:16]
 ```
 <!-- DOC END PRF -->
@@ -855,7 +907,7 @@ or a 16-byte random value sampled from a secure RNG (the "hedged variant" of SLH
 resistance to side-channel attacks).
 
 ```py
-def PRF_msg_sl(sk_prf: bytes, opt_rand: bytes, M: bytes) -> bytes:
+def PRF_msg_sl(sk_prf: Bytes[16], opt_rand: Bytes[16], M: bytes) -> Bytes[16]:
   return hmac_sha256(key=sk_prf, message=opt_rand + M)[:16]
 ```
 <!-- DOC END PRF_msg_sl -->
@@ -878,7 +930,7 @@ HMAC-SHA256.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def PRF_msg_sf(sk_prf: bytes, pk_seed: bytes, ADRS: bytearray, M: bytes) -> bytes:
+def PRF_msg_sf(sk_prf: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray, M: bytes) -> Bytes[16]:
   return hmac_sha256(key=sk_prf + replicate(0xFF, 48), message=pk_seed + ADRS[:9] + M)[:16]
 ```
 <!-- DOC END PRF_msg_sf -->
@@ -917,7 +969,7 @@ This function is only used in the stateless path, and by both the signer and the
 Note that `pk_seed` is not padded in this keyed hash function.
 
 ```py
-def H_msg_sl(R: bytes, pk_seed: bytes, sl_root: bytes, M: bytes) -> bytes:
+def H_msg_sl(R: Bytes[16], pk_seed: Bytes[16], sl_root: Bytes[16], M: bytes) -> Bytes[32]:
   return sha256(R + pk_seed + sha256(R + pk_seed + sl_root + M) + zeros(4))
 ```
 <!-- DOC END H_msg_sl -->
@@ -945,7 +997,9 @@ This function is only used in the stateful path, and by both the signer and the 
 Note that `pk_seed` is not padded in this tweakable hash function.
 
 ```py
-def H_msg_sf(R: bytes, pk_seed: bytes, sf_root: bytes, ADRS: bytearray, M: bytes) -> bytes:
+def H_msg_sf(
+    R: Bytes[16], pk_seed: Bytes[16], sf_root: Bytes[16], ADRS: bytearray, M: bytes
+) -> Bytes[32]:
   return sha256(R + pk_seed + sha256(R + pk_seed + sf_root + ADRS[:9] + M) + ADRS[:9])
 ```
 <!-- DOC END H_msg_sf -->
@@ -1031,9 +1085,10 @@ and chain the node belongs to.
 
 - Inputs:
   - `node`: a 16-byte hash.
-  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
-  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must
-    not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
+  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
+    `2**WOTS_TW_CHAIN_BITS`.
+  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
+    must not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
@@ -1042,7 +1097,9 @@ and chain the node belongs to.
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def wots_tw_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_tw_chain_iter(
+    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[16]:
   ADRS[9] = SL_WOTS_TW_HASH
   for j in range(start, start+steps):
     ADRS[18:22] = j.to_bytes(4)
@@ -1061,9 +1118,10 @@ and chain the node belongs to.
 
 - Inputs:
   - `node`: a 16-byte hash.
-  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain.
-  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps` must
-    not exceed `2**WOTS_C_CHAIN_BITS - 1`.
+  - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
+    `2**WOTS_C_CHAIN_BITS`.
+  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
+    must not exceed `2**WOTS_C_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
@@ -1072,7 +1130,9 @@ and chain the node belongs to.
 This function is only used in the stateful path, and by both the signer and the verifier.
 
 ```py
-def wots_c_chain_iter(node: bytes, start: int, steps: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_c_chain_iter(
+    node: Bytes[16], start: UInt32, steps: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[16]:
   ADRS[9] = SF_WOTS_C_HASH
   for j in range(start, start+steps):
     ADRS[18:22] = j.to_bytes(4)
@@ -1120,7 +1180,7 @@ The WOTS-TW message map function. Converts a 16-byte `message` into a checksumme
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def wots_tw_message_to_indexes(message: bytes) -> list[int]:
+def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAIN_COUNT]:
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
   checksum = WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)
 
@@ -1138,7 +1198,7 @@ Alternative implementation, equivalent to `wots_tw_message_to_indexes` but using
 more complex FIPS-205 algorithm.
 
 ```py
-def wots_tw_message_to_indexes_alt(message: bytes) -> list[int]:
+def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAIN_COUNT]:
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
   SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
@@ -1203,7 +1263,7 @@ keypair location prefilled in `ADRS`.
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def wots_tw_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_tw_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) -> Bytes[16]:
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
     ADRS[9] = SL_WOTS_TW_PRF
@@ -1237,7 +1297,9 @@ location prefilled in `ADRS`.
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def wots_tw_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_tw_sign(
+    message: Bytes[16], sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[WOTS_TW_CHAINS_SIZE]:
   indexes = wots_tw_message_to_indexes(message)
   signature = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
@@ -1268,7 +1330,9 @@ The WOTS-TW verification function. Recovers a WOTS-TW public key from a `signatu
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def wots_tw_pubkey_from_sig(signature: bytes, message: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_tw_pubkey_from_sig(
+    signature: Bytes[WOTS_TW_CHAINS_SIZE], message: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[16]:
   indexes = wots_tw_message_to_indexes(message)
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
@@ -1328,7 +1392,9 @@ constant-sum index set, returning the lowest such counter and its index set.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_grind_to_constant_sum(pk_seed: bytes, message_digest: bytes, ADRS: bytearray) -> Optional[tuple[int, list[int]]]:
+def wots_c_grind_to_constant_sum(
+    pk_seed: Bytes[16], message_digest: Bytes[32], ADRS: bytearray
+) -> Optional[tuple[UInt16, Array[UInt16, WOTS_C_CHAIN_COUNT]]]:
   ADRS[9] = SF_WOTS_C_GRIND
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
@@ -1364,7 +1430,9 @@ constant-sum index set it yields, or null if the counter is invalid.
 This function is only used in the stateful path, and only by the verifier.
 
 ```py
-def wots_c_map_digest(pk_seed: bytes, message_digest: bytes, ADRS: bytearray, counter: int) -> Optional[list[int]]:
+def wots_c_map_digest(
+    pk_seed: Bytes[16], message_digest: Bytes[32], ADRS: bytearray, counter: UInt16
+) -> Optional[Array[UInt16, WOTS_C_CHAIN_COUNT]]:
   ADRS[9] = SF_WOTS_C_GRIND
   hashed = H_grind(pk_seed, ADRS, message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
@@ -1392,7 +1460,7 @@ location prefilled in `ADRS`.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_pubkey_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def wots_c_pubkey_gen(sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray) -> Bytes[16]:
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
   sf_structure = ADRS[10:12]
   for i in range(WOTS_C_CHAIN_COUNT):
@@ -1429,7 +1497,9 @@ keypair location prefilled in `ADRS`.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def wots_c_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+def wots_c_sign(
+    message_digest: Bytes[32], sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+) -> Optional[Bytes[2 + WOTS_C_CHAINS_SIZE]]:
   grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, ADRS)
   if grinded is None:
     return None # practically impossible
@@ -1471,7 +1541,12 @@ The WOTS+C verification function. Recovers a WOTS+C public key from a `signature
 This function is only used in the stateful path, and only by the verifier.
 
 ```py
-def wots_c_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> Optional[bytes]:
+def wots_c_pubkey_from_sig(
+    signature: Bytes[2 + WOTS_C_CHAINS_SIZE],
+    message_digest: Bytes[32],
+    pk_seed: Bytes[16],
+    ADRS: bytearray,
+) -> Optional[Bytes[16]]:
   counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, ADRS, counter)
 
@@ -1590,7 +1665,9 @@ in the hypertree to ensure the hashes are properly tweaked.
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def xmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def xmss_node(
+    sk_seed: Bytes[16], node_index: UInt32, node_height: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[16]:
   if node_height == 0: # Bottom layer: return the WOTS-TW pubkey hash.
     ADRS[10:14] = node_index.to_bytes(4)
     return wots_tw_pubkey_gen(sk_seed, pk_seed, ADRS)
@@ -1630,7 +1707,10 @@ the location of the XMSS tree in the hypertree to ensure the hashes are properly
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def xmss_sign(message: bytes, sk_seed: bytes, keypair_index: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def xmss_sign(
+    message: Bytes[16], sk_seed: Bytes[16], keypair_index: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[SPHX_XMSS_SIGNATURE_SIZE]:
+  # Sign the message with WOTS-TW.
   ADRS[10:14] = keypair_index.to_bytes(4)
   sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
 
@@ -1663,7 +1743,13 @@ hypertree to ensure the hashes are properly tweaked.
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def xmss_pubkey_from_sig(keypair_index: int, signature: bytes, message: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def xmss_pubkey_from_sig(
+    keypair_index: UInt32,
+    signature: Bytes[SPHX_XMSS_SIGNATURE_SIZE],
+    message: Bytes[16],
+    pk_seed: Bytes[16],
+    ADRS: bytearray,
+) -> Bytes[16]:
   wots_sig = signature[0 : WOTS_TW_CHAINS_SIZE]
   xmss_auth = signature[WOTS_TW_CHAINS_SIZE : SPHX_XMSS_SIGNATURE_SIZE]
 
@@ -1723,7 +1809,13 @@ The hypertree signing function. Signs a 16-byte `message` through a hypertree of
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def hypertree_sign(message: bytes, sk_seed: bytes, pk_seed: bytes, tree_index: int, leaf_index: int) -> bytes:
+def hypertree_sign(
+    message: Bytes[16],
+    sk_seed: Bytes[16],
+    pk_seed: Bytes[16],
+    tree_index: UInt64,
+    leaf_index: UInt32,
+) -> Bytes[HYPERTREE_SIGNATURE_SIZE]:
   ADRS = bytearray(22)
 
   sig = b""
@@ -1761,7 +1853,14 @@ it against `sl_root`.
 This function is only used in the stateless path, and only by the verifier.
 
 ```py
-def hypertree_verify(message: bytes, signature: bytes, pk_seed: bytes, tree_index: int, leaf_index: int, sl_root: bytes) -> bool:
+def hypertree_verify(
+    message: Bytes[16],
+    signature: Bytes[HYPERTREE_SIGNATURE_SIZE],
+    pk_seed: Bytes[16],
+    tree_index: UInt64,
+    leaf_index: UInt32,
+    sl_root: Bytes[16],
+) -> bool:
   ADRS = bytearray(22)
 
   for j in range(SPHX_LAYER_COUNT):
@@ -1904,14 +2003,16 @@ These algorithms are used only for the stateful FXMSS sub-scheme.
 
 <!-- DOC START fxmss_node -->
 The FXMSS internal node computation function. Recursively computes the FXMSS node at the given
-`node_index` and `node_height` for the tree `sf_structure`.
+`node_index` and `node_height` for a tree of the given shape and depth.
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
   - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
   - `pk_seed`: a 16-byte public seed.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+    unbalanced (UXMSS) tree.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte FXMSS node hash.
@@ -1919,30 +2020,37 @@ The FXMSS internal node computation function. Recursively computes the FXMSS nod
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, sf_structure: bytes, ADRS: bytearray) -> bytes:
+def fxmss_node(
+    sk_seed: Bytes[16],
+    node_index: UInt64,
+    node_height: UInt8,
+    pk_seed: Bytes[16],
+    tree_balanced: bool,
+    tree_depth: UInt8,
+    ADRS: bytearray,
+) -> Bytes[16]:
   node_depth = FXMSS_HEIGHT - node_height
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
 
-  is_uxmss_leaf = tree_shape == FXMSS_SHAPE_UNBALANCED and (node_index == 1 or node_depth == tree_depth)
-  is_bxmss_leaf = tree_shape == FXMSS_SHAPE_BALANCED and node_depth == tree_depth
+  is_uxmss_leaf = not tree_balanced and (node_index == 1 or node_depth == tree_depth)
+  is_bxmss_leaf = tree_balanced and node_depth == tree_depth
 
   if is_uxmss_leaf or is_bxmss_leaf:
     ADRS[0] = node_height
     ADRS[1:9] = node_index.to_bytes(8)
-    ADRS[10:14] = sf_structure + zeros(2)
+    ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
     return wots_c_pubkey_gen(sk_seed, pk_seed, ADRS)
 
   # Catch and throw if control would enter an infinite recursive loop.
-  if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    assert node_index == 0
-  elif tree_shape == FXMSS_SHAPE_BALANCED:
+  if tree_balanced:
     assert node_depth < tree_depth
+  else:
+    assert node_index == 0
 
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
-  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, sf_structure, ADRS)
-  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, sf_structure, ADRS)
+  lchild = fxmss_node(sk_seed, lchild_index, child_height, pk_seed, tree_balanced, tree_depth, ADRS)
+  rchild = fxmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, tree_balanced, tree_depth, ADRS)
 
   # Compute and return the parent node.
   ADRS[0] = node_height
@@ -1966,27 +2074,36 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
   - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
   - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
   - `pk_seed`: a 16-byte public seed.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+    unbalanced (UXMSS) tree.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
   - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes) -> Optional[bytes]:
+def fxmss_sign(
+    message_digest: Bytes[32],
+    sk_seed: Bytes[16],
+    leaf_index: UInt64,
+    leaf_height: UInt8,
+    pk_seed: Bytes[16],
+    tree_balanced: bool,
+    tree_depth: UInt8,
+) -> Optional[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX]]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    assert leaf_index == 1 or leaf_depth == tree_depth
-  if tree_shape == FXMSS_SHAPE_BALANCED:
+  if tree_balanced:
     assert leaf_depth == tree_depth
+  else:
+    assert leaf_index == 1 or leaf_depth == tree_depth
 
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  ADRS[10:14] = sf_structure + zeros(2)
+  ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
   if sig is None:
     return None # practically impossible
@@ -1995,7 +2112,7 @@ def fxmss_sign(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_heig
   for j in range(leaf_depth):
     sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
-    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, sf_structure, ADRS)
+    sig += fxmss_node(sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth, ADRS)
 
   return sig
 ```
@@ -2026,7 +2143,13 @@ WOTS+C leaf in the tree.
 This function is only used in the stateful path, and only by the verifier.
 
 ```py
-def fxmss_pubkey_from_sig(leaf_index: int, leaf_height: int, signature: bytes, message_digest: bytes, pk_seed: bytes) -> Optional[bytes]:
+def fxmss_pubkey_from_sig(
+    leaf_index: UInt64,
+    leaf_height: UInt8,
+    signature: Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX],
+    message_digest: Bytes[32],
+    pk_seed: Bytes[16],
+) -> Optional[Bytes[16]]:
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
   leaf_depth = FXMSS_HEIGHT - leaf_height
@@ -2123,7 +2246,9 @@ Note the `node_index` of a FORS leaf or node is _indexed across the entire fores
 within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
 
 ```py
-def fors_sk_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray, node_index: int) -> bytes:
+def fors_sk_gen(
+    sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray, node_index: UInt32
+) -> Bytes[16]:
   ADRS[9] = SL_FORS_PRF
   ADRS[14:18] = zeros(4)
   ADRS[18:22] = node_index.to_bytes(4)
@@ -2156,7 +2281,9 @@ within a single tree. The index of node `l` in tree `t` at height `h` is
 `t * 2**(SPHX_FORS_HEIGHT - h) + l`.
 
 ```py
-def fors_node(sk_seed: bytes, node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def fors_node(
+    sk_seed: Bytes[16], node_index: UInt32, node_height: UInt32, pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[16]:
   if node_height == 0:
     preimage = fors_sk_gen(sk_seed, pk_seed, ADRS, node_index)
     ADRS[9] = SL_FORS_TREE
@@ -2194,7 +2321,9 @@ prefilled with the location of the FORS keypair to ensure the hashes are properl
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def fors_sign(message_digest: bytes, sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def fors_sign(
+    message_digest: Bytes[FORS_DIGEST_SIZE], sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+) -> Bytes[FORS_SIGNATURE_SIZE]:
   sig = b""
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
   for i in range(SPHX_FORS_COUNT):
@@ -2226,7 +2355,12 @@ the hashes are properly tweaked.
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def fors_pubkey_from_sig(signature: bytes, message_digest: bytes, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def fors_pubkey_from_sig(
+    signature: Bytes[FORS_SIGNATURE_SIZE],
+    message_digest: Bytes[FORS_DIGEST_SIZE],
+    pk_seed: Bytes[16],
+    ADRS: bytearray,
+) -> Bytes[16]:
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
 
   offset = 0
@@ -2297,13 +2431,17 @@ index, and FORS keypair index from `message` under `H_msg_sl`.
   - `message`: a variable-length message.
 - Outputs:
   - a `FORS_DIGEST_SIZE`-byte message digest, ready for use by FORS.
-  - a pseudorandomly selected index of a bottom-layer XMSS tree: an unsigned integer in `[0, 2**SPHX_TREE_INDEX_BITS)`.
-  - a pseudorandomly selected index of a FORS key within an XMSS tree: an unsigned integer in `[0, 2**SPHX_XMSS_HEIGHT)`.
+  - a 64-bit unsigned integer, a pseudorandomly selected index of a bottom-layer XMSS tree,
+    in `[0, 2**SPHX_TREE_INDEX_BITS)`.
+  - a 32-bit unsigned integer, a pseudorandomly selected index of a FORS key within an XMSS
+    tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
 
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def slh_dsa_digest_message(R: bytes, pk_seed: bytes, sl_root: bytes, message: bytes) -> tuple[bytes, int, int]:
+def slh_dsa_digest_message(
+    R: Bytes[16], pk_seed: Bytes[16], sl_root: Bytes[16], message: bytes
+) -> tuple[Bytes[FORS_DIGEST_SIZE], UInt64, UInt32]:
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
@@ -2348,7 +2486,15 @@ hypertree signature, all concatenated together.
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def slh_dsa_sign(message: bytes, ctx: bytes, sk_seed: bytes, sk_prf: bytes, pk_seed: bytes, sl_root: bytes, opt_rand: Optional[bytes]) -> bytes:
+def slh_dsa_sign(
+    message: bytes,
+    ctx: Bytes[:255],
+    sk_seed: Bytes[16],
+    sk_prf: Bytes[16],
+    pk_seed: Bytes[16],
+    sl_root: Bytes[16],
+    opt_rand: Optional[Bytes[16]],
+) -> Bytes[SPHX_SIGNATURE_SIZE]:
   assert len(ctx) < 256
   contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
 
@@ -2380,7 +2526,8 @@ The SLH-DSA verification function. Recovers the root-tree root from a `signature
 
 - Inputs:
   - `message`: a variable-length message.
-  - `signature`: a `SPHX_SIGNATURE_SIZE`-byte signature.
+  - `signature`: a candidate signature, of any length. Any length other than
+    `SPHX_SIGNATURE_SIZE` is not a signature, and is rejected.
   - `ctx`: a context of at most 255 bytes.
   - `pk_seed`: a 16-byte public seed.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
@@ -2390,7 +2537,13 @@ The SLH-DSA verification function. Recovers the root-tree root from a `signature
 This function is only used in the stateless path, and only by the verifier.
 
 ```py
-def slh_dsa_verify(message: bytes, signature: bytes, ctx: bytes, pk_seed: bytes, sl_root: bytes) -> bool:
+def slh_dsa_verify(
+    message: bytes,
+    signature: bytes,
+    ctx: Bytes[:255],
+    pk_seed: Bytes[16],
+    sl_root: Bytes[16],
+) -> bool:
   assert len(ctx) < 256
   contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
 
@@ -2457,7 +2610,7 @@ This mirrors the interface of SLH-DSA[^slhdsa], and in fact the stateless signin
 
 #### On Managing State
 
-A SHRINCS secret key is not complete without its accompanying state.
+A SHRINCS secret key needs its accompanying state to use the high-efficiency stateful signing component.
 Every SHRINCS key has a fixed number of stateful signature slots which allow the signer to use compact WOTS+C signatures via the FXMSS (stateful) signing path.
 As previously discussed in [the section on WOTS](#wots-schemes), reusing a one-time signature keypair within FXMSS to sign distinct messages will break the security of the scheme and permit forgeries.
 To avoid using the same WOTS+C keypair more than once, signers using FXMSS must track a single integer, called the _state counter._
@@ -2518,7 +2671,9 @@ and the stateful tree `sf_structure`.
 
 - Inputs:
   - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
-  - `sf_structure`: a 2-byte identifier describing the shape and depth of the stateful FXMSS tree.
+  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
+    must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
+    depths for each shape in [Tree Shapes](#tree-shapes).
 - Outputs:
   - an 82-byte SHRINCS secret key.
   - a 48-byte SHRINCS public key.
@@ -2526,14 +2681,17 @@ and the stateful tree `sf_structure`.
 This function is used only during key generation.
 
 > [!WARNING]
-> The `sf_structure` argument must come from a trusted source or else be validated.
-> If an adversary can control `sf_structure`, they may cause key-generation to fail, or hang
-> consuming compute resources by making the implementation generate a very large BXMSS tree.
+> The `sf_structure` argument, consisting of a shape byte followed by a depth byte `d`, must come
+> from a trusted source or else be validated. If an adversary can control it, they may cause
+> key-generation to fail, or hang consuming compute resources. Computing the root of a balanced tree
+> of depth `d` requires `2**d` WOTS+C public-key generations, so implementations should reject a
+> depth they cannot afford to compute.
 
 ```py
-def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
+def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
   assert len(seed) == 48
   assert len(sf_structure) == 2
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
@@ -2542,7 +2700,8 @@ def shrincs_keygen(seed: bytes, sf_structure: bytes) -> tuple[bytes, bytes]:
   ADRS = bytearray(22)
   ADRS[0] = SPHX_LAYER_COUNT - 1
   sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, ADRS)
-  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, sf_structure, bytearray(22))
+  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1], bytearray(22))
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root
@@ -2572,7 +2731,9 @@ key signs only on the stateless path.
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def shrincs_sf_leaf_select(sf_structure: bytes, state_ctr: Optional[int]) -> Optional[tuple[int, int]]:
+def shrincs_sf_leaf_select(
+    sf_structure: Bytes[2], state_ctr: Optional[UInt64]
+) -> Optional[tuple[UInt64, UInt8]]:
   if state_ctr is None:
     return None
 
@@ -2621,6 +2782,13 @@ falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` wi
 
 This function is used only by the signer.
 
+> [!WARNING]
+> The two-byte FXMSS tree structure encoded in `shrincs_seckey`, consisting of a shape byte followed
+> by a depth byte `d`, must come from a trusted source or else be validated. If an adversary can
+> control it, they may cause signing to fail, or hang consuming compute resources. Computing the
+> authentication path for a balanced tree of depth `d` from scratch requires `(2**d) - 1` WOTS+C
+> public-key generations, so implementations should reject a depth they cannot afford to compute.
+
 > [!CAUTION]
 > Using the same key to sign different `(message, ctx)` pairs with the same `state_ctr` is
 > a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
@@ -2628,7 +2796,15 @@ This function is used only by the signer.
 > rollback-resistant storage medium before the signature is returned to the caller.
 
 ```py
-def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: Optional[int], opt_rand: Optional[bytes]) -> Optional[bytes]:
+def shrincs_sign(
+    message: Bytes[:2**61 - 384],
+    ctx: Bytes[:255],
+    shrincs_seckey: Bytes[82],
+    state_ctr: Optional[UInt64],
+    opt_rand: Optional[Bytes[16]],
+) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
+                    Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
+  assert len(shrincs_seckey) == 82
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
@@ -2658,7 +2834,8 @@ def shrincs_sign(message: bytes, ctx: bytes, shrincs_seckey: bytes, state_ctr: O
 
   # Bind the stateful signature to the stateless keypair.
   message_digest = H_msg_sf(R, pk_seed, sf_root, ADRS, bound_message)
-  fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, sf_structure)
+  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
+  fxmss_signature = fxmss_sign(message_digest, sk_seed, leaf_index, leaf_height, pk_seed, tree_balanced, sf_structure[1])
   if fxmss_signature is None:
     return None # practically impossible
 
@@ -2693,7 +2870,10 @@ in memory-constrained environments.
 
 - Inputs:
   - `message`: a message of at most `2**61 - 384` bytes.
-  - `signature`: a candidate SHRINCS signature, of any length.
+  - `signature`: a candidate signature, of any length. The stateless path accepts exactly
+    `SHRINCS_SL_SIGNATURE_SIZE` bytes. Stateful signature lengths range from
+    `SHRINCS_SF_SIGNATURE_SIZE_MIN` to `SHRINCS_SF_SIGNATURE_SIZE_MAX`, and the indicator byte
+    determines the exact accepted length. Every other length is rejected.
   - `ctx`: a context of at most 255 bytes.
   - `shrincs_pubkey`: a 48-byte SHRINCS public key.
 - Output:
@@ -2702,7 +2882,12 @@ in memory-constrained environments.
 This function is used only by the verifier.
 
 ```py
-def shrincs_verify(message: bytes, signature: bytes, ctx: bytes, shrincs_pubkey: bytes) -> bool:
+def shrincs_verify(
+    message: Bytes[:2**61 - 384], signature: bytes, ctx: Bytes[:255], shrincs_pubkey: Bytes[48]
+) -> bool:
+  if len(shrincs_pubkey) != 48:
+    return False
+
   pk_seed = shrincs_pubkey[0:16]
   sl_root = shrincs_pubkey[16:32]
   sf_root = shrincs_pubkey[32:48]
@@ -2813,14 +2998,14 @@ This document and the SHRINCS reference code are licensed under either the CC0-1
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
 [^xmss]: https://www.rfc-editor.org/rfc/rfc8391.html
 [^bds]: https://doi.org/10.1007/978-3-540-88403-3_5 - "Merkle Tree Traversal Revisited" by Buchmann, Dahmen, and Schneider.
-[^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
+[^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single outer SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
 [^hmac]: https://datatracker.ietf.org/doc/html/rfc2104
 [^simd_x86]: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
 [^simd_arm]: https://arm-software.github.io/acle/neon_intrinsics/advsimd.html
 [^sha_ni]: https://en.wikipedia.org/wiki/SHA_instruction_set
 [^sha_ni_bench]: https://conduition.io/code/fast-slh-dsa/#Hardware-Acceleration
 [^simd_bench]: https://conduition.io/code/fast-slh-dsa/#Vectorized-Hashing
-[^sha256x8]: https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c
+[^sha256x8]: The [`sphincs/sphincsplus`](https://github.com/sphincs/sphincsplus/tree/7ec789ace6874d875f4bb84cb61b81155398167e) reference-code repository includes a [vectorized SHA256 implementation](https://github.com/sphincs/sphincsplus/blob/7ec789ace6874d875f4bb84cb61b81155398167e/sha2-avx2/sha256avx.c).
 [^vulkan]: For comparison, a 2025 benchmark of a [Vulkan implementation of SLH-DSA-SHA2-128s](https://conduition.io/code/fast-slh-dsa/#Vulkan-for-SLH-DSA) reports a signing time of 2.67 ms on a commodity RTX 3060 Ti GPU.
 [^pruning]: https://conduition.io/cryptography/hypertree-pruning/
 [^sl_param_tool]: https://blockstreamresearch.github.io/SPHINCS-Parameters/site/stateless.html

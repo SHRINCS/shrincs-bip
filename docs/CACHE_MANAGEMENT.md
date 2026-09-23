@@ -2,12 +2,12 @@
 
 This document specifies three optional cache constructions for components of the SHRINCS signature. Caching is only a signer-side technique to speed-up the signature generation, it doesn't affect the verification functions.
 
-| Signature Type | Cache | Cache Size | Signing Cost in SHA256 Compressions |
+| Signature Type | Cache | Cache Size | Average Signing Cost in SHA256 Compressions |
 |-|-|-|-|
-| Stateless | [Stateless Cache](#the-stateless-cache) | <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes | <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS -->1414132<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS --> |
-| Stateful (UXMSS; depth 255) | [UXMSS Cache](#the-uxmss-cache) | <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes | <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->417<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> (average) |
-| Stateful (BXMSS; depth 10) | [BXMSS Cache](#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS -->2907<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS --> (average) |
-| Stateful (BXMSS; depth 20) | [BXMSS Cache](#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS -->5527<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS --> (average) |
+| Stateless | [Stateless Cache](#the-stateless-cache) | <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes | <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS_AVG -->1415959<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS_AVG --> |
+| Stateful (UXMSS; depth 255) | [UXMSS Cache](#the-uxmss-cache) | <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes | <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->471<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> |
+| Stateful (BXMSS; depth 10) | [BXMSS Cache](#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG -->2961<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG --> |
+| Stateful (BXMSS; depth 20) | [BXMSS Cache](#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG -->5581<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG --> |
 
 The pseudocode below is generated from the reference implementation by [`pydoc_insert.py`](../pydoc_insert.py), like the specification itself, so code and documentation cannot drift apart.
 
@@ -17,7 +17,7 @@ Every stateless signature contains a top-layer tree signature. A cold signer reg
 
 The stateless cache stores the WOTS-TW public keys of the top-layer tree: `2**SPHX_XMSS_HEIGHT` hashes of 16 bytes each, or <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes in total. The cache is filled once by `xmss_leaf_cache_gen`.
 
-To use the cache, the signer substitutes `xmss_sign_from_cache` for `xmss_sign` at the top layer of `hypertree_sign` (that is, when `j == SPHX_LAYER_COUNT - 1`). The internal Merkle nodes above the cached leaves are recomputed on demand by `xmss_node_from_cache`. This reduces the cost of signing the top layer from <!-- CONST START XMSS_SIGN_COMPRESSIONS -->291839<!-- CONST END XMSS_SIGN_COMPRESSIONS --> to at most <!-- CONST START STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS -->1017<!-- CONST END STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS --> compressions, and the total cost of a stateless signature from <!-- CONST START STATELESS_SIGN_COMPRESSIONS -->1704954<!-- CONST END STATELESS_SIGN_COMPRESSIONS --> to <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS -->1414132<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS --> compressions - a speedup of <!-- CONST START STATELESS_SIGN_CACHED_SPEED_RATIO -->1.21<!-- CONST END STATELESS_SIGN_CACHED_SPEED_RATIO -->x.
+To use the cache, the signer substitutes `xmss_sign_from_cache` for `xmss_sign` at the top layer of `hypertree_sign` (that is, when `j == SPHX_LAYER_COUNT - 1`). The internal Merkle nodes above the cached leaves are recomputed on demand by `xmss_node_from_cache`. This reduces the cost of signing the top layer from <!-- CONST START STATELESS_XMSS_SIGN_COMPRESSIONS_AVG -->292065<!-- CONST END STATELESS_XMSS_SIGN_COMPRESSIONS_AVG --> to <!-- CONST START STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS_AVG -->795<!-- CONST END STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS_AVG --> compressions on average, and the total cost of a stateless signature from <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707229<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> to <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS_AVG -->1415959<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS_AVG --> compressions - a speedup of <!-- CONST START STATELESS_SIGN_CACHED_SPEED_RATIO -->1.21<!-- CONST END STATELESS_SIGN_CACHED_SPEED_RATIO -->x.
 
 ### `xmss_leaf_cache_gen(...)`
 
@@ -27,7 +27,7 @@ at the location prefilled in `ADRS`, for reuse across signatures as a leaf cache
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a list of `2**SPHX_XMSS_HEIGHT` 16-byte WOTS-TW public key hashes, ordered by leaf index.
@@ -35,7 +35,9 @@ at the location prefilled in `ADRS`, for reuse across signatures as a leaf cache
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def xmss_leaf_cache_gen(sk_seed: bytes, pk_seed: bytes, ADRS: bytearray) -> list[bytes]:
+def xmss_leaf_cache_gen(
+    sk_seed: Bytes[16], pk_seed: Bytes[16], ADRS: bytearray
+) -> Array[Bytes[16], 2**SPHX_XMSS_HEIGHT]:
   leaf_cache = [b''] * 2**SPHX_XMSS_HEIGHT
   for leaf_index in range(2**SPHX_XMSS_HEIGHT):
     ADRS[10:14] = leaf_index.to_bytes(4)
@@ -54,7 +56,7 @@ keys from `leaf_cache` instead of regenerating them, and requires no secret key.
   - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
   - `node_index`: a 32-bit unsigned integer, the index (from the left) of the node in the XMSS layer.
   - `node_height`: a 32-bit unsigned integer, the height (from the bottom) of the node in the XMSS layer.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a 16-byte XMSS node hash.
@@ -62,7 +64,13 @@ keys from `leaf_cache` instead of regenerating them, and requires no secret key.
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def xmss_node_from_cache(leaf_cache: list[bytes], node_index: int, node_height: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def xmss_node_from_cache(
+    leaf_cache: Array[Bytes[16], 2**SPHX_XMSS_HEIGHT],
+    node_index: UInt32,
+    node_height: UInt32,
+    pk_seed: Bytes[16],
+    ADRS: bytearray,
+) -> Bytes[16]:
   if node_height == 0: # Bottom layer: read the WOTS-TW pubkey hash from the cache.
     return leaf_cache[node_index]
 
@@ -92,7 +100,7 @@ authentication path from `leaf_cache` instead of regenerating every WOTS-TW leaf
   - `sk_seed`: a 16-byte secret.
   - `leaf_cache`: the WOTS-TW public keys of the tree, from `xmss_leaf_cache_gen`.
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
-  - `pk_seed`: a 16-byte salt.
+  - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a 22-byte address.
 - Output:
   - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
@@ -100,7 +108,15 @@ authentication path from `leaf_cache` instead of regenerating every WOTS-TW leaf
 This function is only used in the stateless path, and only by the signer.
 
 ```py
-def xmss_sign_from_cache(message: bytes, sk_seed: bytes, leaf_cache: list[bytes], keypair_index: int, pk_seed: bytes, ADRS: bytearray) -> bytes:
+def xmss_sign_from_cache(
+    message: Bytes[16],
+    sk_seed: Bytes[16],
+    leaf_cache: Array[Bytes[16], 2**SPHX_XMSS_HEIGHT],
+    keypair_index: UInt32,
+    pk_seed: Bytes[16],
+    ADRS: bytearray,
+) -> Bytes[SPHX_XMSS_SIGNATURE_SIZE]:
+  # Sign the message with WOTS-TW.
   ADRS[10:14] = keypair_index.to_bytes(4)
   sig = wots_tw_sign(message, sk_seed, pk_seed, ADRS)
 
@@ -119,7 +135,7 @@ A UXMSS tree of depth `d` requires calculating `2*d + 1` nodes in total: one WOT
 
 The UXMSS cache stores the `d + 1` leaf public keys: <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes at the recommended maximum depth `d = FXMSS_HEIGHT`, or <!-- CONST START UXMSS_31_CACHE_SIZE -->512<!-- CONST END UXMSS_31_CACHE_SIZE --> bytes at depth 31. The cache is filled once by `uxmss_cache_gen`.
 
-To sign, `uxmss_auth_path` computes the authentication path from the cache and `fxmss_sign_from_auth_path` assembles the signature. At depth 255 this costs between <!-- CONST START UXMSS_SIGN_CACHED_COMPRESSIONS_MIN -->291<!-- CONST END UXMSS_SIGN_CACHED_COMPRESSIONS_MIN --> and <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX -->545<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX --> SHA256 compressions per signature (<!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->417<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> on average) instead of <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133146<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> - roughly <!-- CONST START UXMSS_255_SIGN_CACHED_SPEED_RATIO -->319<!-- CONST END UXMSS_255_SIGN_CACHED_SPEED_RATIO -->x faster.
+To sign, `uxmss_auth_path` computes the authentication path from the cache and `fxmss_sign_from_auth_path` assembles the signature. At depth 255 this costs between <!-- CONST START UXMSS_SIGN_CACHED_COMPRESSIONS_MIN -->345<!-- CONST END UXMSS_SIGN_CACHED_COMPRESSIONS_MIN --> and <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX -->599<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX --> SHA256 compressions per signature (<!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->471<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> on average) instead of <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> - roughly <!-- CONST START UXMSS_255_SIGN_CACHED_SPEED_RATIO -->283<!-- CONST END UXMSS_255_SIGN_CACHED_SPEED_RATIO -->x faster.
 
 ### `uxmss_cache_gen(...)`
 
@@ -128,27 +144,28 @@ The UXMSS cache generation function. Computes the WOTS+C public keys of every le
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `pk_seed`: a 16-byte public seed.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the UXMSS tree.
 - Output:
-  - a dictionary mapping `(node_index, node_height)` positions to 16-byte WOTS+C public key hashes: `depth + 1` leaves in total.
+  - a dictionary mapping `(node_index, node_height)` positions to 16-byte WOTS+C public key hashes: `tree_depth + 1` leaves in total.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def uxmss_cache_gen(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> dict[tuple[int, int], bytes]:
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  assert tree_shape == FXMSS_SHAPE_UNBALANCED
+def uxmss_cache_gen(
+    sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8
+) -> dict[tuple[UInt64, UInt8], Bytes[16]]:
   assert tree_depth >= 1
 
   cache = {}
   ADRS = bytearray(22)
 
   # The deepest layer holds two WOTS+C leaves; every layer above holds one, as the right sibling of the spine.
+  # A UXMSS tree is unbalanced, hence `tree_balanced` is false.
   deepest_height = FXMSS_HEIGHT - tree_depth
-  cache[(0, deepest_height)] = fxmss_node(sk_seed, 0, deepest_height, pk_seed, sf_structure, ADRS)
+  cache[(0, deepest_height)] = fxmss_node(sk_seed, 0, deepest_height, pk_seed, False, tree_depth, ADRS)
   for node_height in range(deepest_height, FXMSS_HEIGHT):
-    cache[(1, node_height)] = fxmss_node(sk_seed, 1, node_height, pk_seed, sf_structure, ADRS)
+    cache[(1, node_height)] = fxmss_node(sk_seed, 1, node_height, pk_seed, False, tree_depth, ADRS)
 
   return cache
 ```
@@ -164,17 +181,21 @@ except the leaf's sibling on the spine, which is recombined from the cached leav
   - `uxmss_cache`: a leaf cache from `uxmss_cache_gen`.
   - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf in the FXMSS layer.
   - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf in the FXMSS tree.
-  - `pk_seed`: a 16-byte salt.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `pk_seed`: a 16-byte public seed.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the UXMSS tree.
 - Output:
   - a list of `FXMSS_HEIGHT - leaf_height` 16-byte authentication path nodes, ordered from the leaf's sibling upwards.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def uxmss_auth_path(uxmss_cache: dict[tuple[int, int], bytes], leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes) -> list[bytes]:
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  assert tree_shape == FXMSS_SHAPE_UNBALANCED
+def uxmss_auth_path(
+    uxmss_cache: dict[tuple[UInt64, UInt8], Bytes[16]],
+    leaf_index: UInt64,
+    leaf_height: UInt8,
+    pk_seed: Bytes[16],
+    tree_depth: UInt8,
+) -> list[Bytes[16]]:
   deepest_height = FXMSS_HEIGHT - tree_depth
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
@@ -209,8 +230,10 @@ appends the given `auth_path` instead of regenerating its nodes with `fxmss_node
   - `sk_seed`: a 16-byte secret.
   - `leaf_index`: a 64-bit unsigned integer, the index of the signing leaf in the FXMSS layer.
   - `leaf_height`: an 8-bit unsigned integer, the height of the signing leaf in the FXMSS tree.
-  - `pk_seed`: a 16-byte salt.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `pk_seed`: a 16-byte public seed.
+  - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
+    unbalanced (UXMSS) tree.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
   - `auth_path`: a list of `FXMSS_HEIGHT - leaf_height` 16-byte authentication path nodes, ordered from the leaf's sibling upwards.
 - Output:
   - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
@@ -218,21 +241,29 @@ appends the given `auth_path` instead of regenerating its nodes with `fxmss_node
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def fxmss_sign_from_auth_path(message_digest: bytes, sk_seed: bytes, leaf_index: int, leaf_height: int, pk_seed: bytes, sf_structure: bytes, auth_path: list[bytes]) -> Optional[bytes]:
+def fxmss_sign_from_auth_path(
+    message_digest: Bytes[32],
+    sk_seed: Bytes[16],
+    leaf_index: UInt64,
+    leaf_height: UInt8,
+    pk_seed: Bytes[16],
+    tree_balanced: bool,
+    tree_depth: UInt8,
+    auth_path: list[Bytes[16]],
+) -> Optional[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX]]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
   assert len(auth_path) == leaf_depth
 
   # Validate the leaf is positioned correctly for the specified tree structure.
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  if tree_shape == FXMSS_SHAPE_UNBALANCED:
-    assert leaf_index == 1 or leaf_depth == tree_depth
-  if tree_shape == FXMSS_SHAPE_BALANCED:
+  if tree_balanced:
     assert leaf_depth == tree_depth
+  else:
+    assert leaf_index == 1 or leaf_depth == tree_depth
 
   ADRS = bytearray(22)
   ADRS[0] = leaf_height
   ADRS[1:9] = leaf_index.to_bytes(8)
-  ADRS[10:14] = sf_structure + zeros(2)
+  ADRS[10:14] = bytes([tree_balanced, tree_depth]) + zeros(2)
   sig = wots_c_sign(message_digest, sk_seed, pk_seed, ADRS)
   if sig is None:
     return None
@@ -255,14 +286,14 @@ Per signature, the signer then computes at most `(d - bds_k)/2 + 1` WOTS+C leave
 
 | Stateful Structure | `bds_k` | BDS State Size | Signing Cost with BDS (avg) | Naive Signing Cost (avg) |
 |-|-|-|-|-|
-| BXMSS; depth 5 | 3 | <!-- CONST START BXMSS_5_BDS_STATE_SIZE -->224<!-- CONST END BXMSS_5_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_5_BDS_SIGN_COMPRESSIONS -->1335<!-- CONST END BXMSS_5_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS -->16468<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS --> |
-| BXMSS; depth 8 | 2 | <!-- CONST START BXMSS_8_BDS_STATE_SIZE -->384<!-- CONST END BXMSS_8_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_8_BDS_SIGN_COMPRESSIONS -->2383<!-- CONST END BXMSS_8_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_8_SIGN_COMPRESSIONS -->133393<!-- CONST END BXMSS_8_SIGN_COMPRESSIONS --> |
-| BXMSS; depth 10 | 2 | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS -->2907<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_10_SIGN_COMPRESSIONS -->534287<!-- CONST END BXMSS_10_SIGN_COMPRESSIONS --> |
-| BXMSS; depth 12 | 2 | <!-- CONST START BXMSS_12_BDS_STATE_SIZE -->608<!-- CONST END BXMSS_12_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_12_BDS_SIGN_COMPRESSIONS -->3431<!-- CONST END BXMSS_12_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_12_SIGN_COMPRESSIONS -->2137869<!-- CONST END BXMSS_12_SIGN_COMPRESSIONS --> |
-| BXMSS; depth 16 | 2 | <!-- CONST START BXMSS_16_BDS_STATE_SIZE -->832<!-- CONST END BXMSS_16_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_16_BDS_SIGN_COMPRESSIONS -->4479<!-- CONST END BXMSS_16_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS -->34209545<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS --> |
-| BXMSS; depth 20 | 2 | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS -->5527<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS --> | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS -->547356421<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS --> |
+| BXMSS; depth 5 | 3 | <!-- CONST START BXMSS_5_BDS_STATE_SIZE -->224<!-- CONST END BXMSS_5_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_5_BDS_SIGN_COMPRESSIONS_AVG -->1389<!-- CONST END BXMSS_5_BDS_SIGN_COMPRESSIONS_AVG --> | <!-- CONST START BXMSS_5_SIGN_COMPRESSIONS_AVG -->16522<!-- CONST END BXMSS_5_SIGN_COMPRESSIONS_AVG --> |
+| BXMSS; depth 8 | 2 | <!-- CONST START BXMSS_8_BDS_STATE_SIZE -->384<!-- CONST END BXMSS_8_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_8_BDS_SIGN_COMPRESSIONS_AVG -->2437<!-- CONST END BXMSS_8_BDS_SIGN_COMPRESSIONS_AVG --> | <!-- CONST START BXMSS_8_SIGN_COMPRESSIONS_AVG -->133447<!-- CONST END BXMSS_8_SIGN_COMPRESSIONS_AVG --> |
+| BXMSS; depth 10 | 2 | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG -->2961<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG --> | <!-- CONST START BXMSS_10_SIGN_COMPRESSIONS_AVG -->534341<!-- CONST END BXMSS_10_SIGN_COMPRESSIONS_AVG --> |
+| BXMSS; depth 12 | 2 | <!-- CONST START BXMSS_12_BDS_STATE_SIZE -->608<!-- CONST END BXMSS_12_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_12_BDS_SIGN_COMPRESSIONS_AVG -->3485<!-- CONST END BXMSS_12_BDS_SIGN_COMPRESSIONS_AVG --> | <!-- CONST START BXMSS_12_SIGN_COMPRESSIONS_AVG -->2137923<!-- CONST END BXMSS_12_SIGN_COMPRESSIONS_AVG --> |
+| BXMSS; depth 16 | 2 | <!-- CONST START BXMSS_16_BDS_STATE_SIZE -->832<!-- CONST END BXMSS_16_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_16_BDS_SIGN_COMPRESSIONS_AVG -->4533<!-- CONST END BXMSS_16_BDS_SIGN_COMPRESSIONS_AVG --> | <!-- CONST START BXMSS_16_SIGN_COMPRESSIONS_AVG -->34209599<!-- CONST END BXMSS_16_SIGN_COMPRESSIONS_AVG --> |
+| BXMSS; depth 20 | 2 | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG -->5581<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG --> | <!-- CONST START BXMSS_20_SIGN_COMPRESSIONS_AVG -->547356475<!-- CONST END BXMSS_20_SIGN_COMPRESSIONS_AVG --> |
 
-At depth 20, one kilobyte of BDS state makes stateful signing roughly <!-- CONST START BXMSS_20_BDS_SIGN_SPEED_RATIO -->99033<!-- CONST END BXMSS_20_BDS_SIGN_SPEED_RATIO -->x faster.
+At depth 20, one kilobyte of BDS state makes stateful signing roughly <!-- CONST START BXMSS_20_BDS_SIGN_SPEED_RATIO -->98075<!-- CONST END BXMSS_20_BDS_SIGN_SPEED_RATIO -->x faster.
 
 The signer builds the initial state with `bds_state_init`, reads the current authentication path with `bds_auth_path`, generates the signature with `fxmss_sign_from_auth_path`, and then advances the state with `bds_state_update`. The update must run exactly once per stateful signature: the state's `state_ctr` field mirrors the keypair's state counter, and the two must always agree, as discussed in [On Managing Caches](../SHRINCS.md#on-managing-caches).
 
@@ -276,9 +307,10 @@ holding the next right node of that layer, and the retained right nodes of the t
 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure. Its shape byte must be `FXMSS_SHAPE_BALANCED`.
-  - `bds_k`: the memory/time trade-off parameter: `2 <= bds_k <= depth`, with `depth - bds_k` even.
+  - `pk_seed`: a 16-byte public seed.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the BXMSS tree.
+  - `bds_k`: an 8-bit unsigned integer, the memory/time trade-off parameter: `2 <= bds_k <= tree_depth`,
+    with `tree_depth - bds_k` even.
 - Output:
   - a BDS state: a dictionary with the fields
     - `state_ctr`: the state counter whose authentication path `auth` currently holds.
@@ -286,36 +318,36 @@ holding the next right node of that layer, and the retained right nodes of the t
     - `auth`: the current authentication path, one node per layer, from the leaf's sibling upwards.
     - `keep`: nodes remembered to compute upcoming left authentication nodes, keyed by layer.
     - `retain`: precomputed right nodes of the top layers, keyed by `(node_index, layer)`.
-    - `treehash`: one instance per layer `j < depth - bds_k`: a completed `node`, the
+    - `treehash`: one instance per layer `j < tree_depth - bds_k`: a completed `node`, the
       `next_leaf` it will consume, and a `stack` of partial subtree roots paired with their layers.
 
 This function is only used in the stateful path, and only by the signer.
 
 Layers are counted relative to the BXMSS tree: layer `j` sits at FXMSS height
-`FXMSS_HEIGHT - depth + j`, so layer 0 holds the WOTS+C leaves and layer `depth` the root.
+`FXMSS_HEIGHT - tree_depth + j`, so layer 0 holds the WOTS+C leaves and layer `tree_depth` the root.
 The initial state consists of nodes computed during key generation anyway, so
 implementations may fill it as a byproduct of `shrincs_keygen`.
 
 ```py
-def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: int) -> dict:
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
-  assert tree_shape == FXMSS_SHAPE_BALANCED
+def bds_state_init(
+    sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8, bds_k: UInt8
+) -> dict:
   assert 2 <= bds_k <= tree_depth
   assert (tree_depth - bds_k) % 2 == 0
 
   leaf_layer = FXMSS_HEIGHT - tree_depth
   ADRS = bytearray(22)
 
-  # The authentication path of leaf zero.
+  # The authentication path of leaf zero. A BXMSS tree is balanced, hence `tree_balanced` is true.
   auth = [b''] * tree_depth
   for j in range(tree_depth):
-    auth[j] = fxmss_node(sk_seed, 1, leaf_layer + j, pk_seed, sf_structure, ADRS)
+    auth[j] = fxmss_node(sk_seed, 1, leaf_layer + j, pk_seed, True, tree_depth, ADRS)
 
   # One treehash instance per layer below the retained layers.
   treehash = [None] * (tree_depth - bds_k)
   for j in range(tree_depth - bds_k):
     treehash[j] = {
-      'node': fxmss_node(sk_seed, 3, leaf_layer + j, pk_seed, sf_structure, ADRS),
+      'node': fxmss_node(sk_seed, 3, leaf_layer + j, pk_seed, True, tree_depth, ADRS),
       'next_leaf': None,
       'stack': [],
     }
@@ -324,7 +356,7 @@ def bds_state_init(sk_seed: bytes, pk_seed: bytes, sf_structure: bytes, bds_k: i
   retain = {}
   for j in range(tree_depth - bds_k, tree_depth - 1):
     for node_index in range(3, 2**(tree_depth - j), 2):
-      retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, sf_structure, ADRS)
+      retain[(node_index, j)] = fxmss_node(sk_seed, node_index, leaf_layer + j, pk_seed, True, tree_depth, ADRS)
 
   return {'state_ctr': 0, 'bds_k': bds_k, 'auth': auth, 'keep': {}, 'retain': retain, 'treehash': treehash}
 ```
@@ -339,12 +371,12 @@ WOTS+C leaf at index `state_ctr` of the BDS state, for use with `fxmss_sign_from
 - Inputs:
   - `bds_state`: a BDS state from `bds_state_init`.
 - Output:
-  - a list of `depth` 16-byte authentication path nodes, from the leaf's sibling upwards.
+  - a list of `tree_depth` 16-byte authentication path nodes, from the leaf's sibling upwards.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def bds_auth_path(bds_state: dict) -> list[bytes]:
+def bds_auth_path(bds_state: dict) -> list[Bytes[16]]:
   return list(bds_state['auth'])
 ```
 <!-- DOC END bds_auth_path -->
@@ -359,16 +391,17 @@ leaf, and merges it up the stack. An instance completes once the merged node rea
 - Inputs:
   - `bds_state`: a BDS state from `bds_state_init`.
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `pk_seed`: a 16-byte public seed.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the BXMSS tree.
 - Output:
   - none.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
-  tree_depth = sf_structure[1]
+def bds_treehash_update(
+    bds_state: dict, sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8
+) -> None:
   leaf_layer = FXMSS_HEIGHT - tree_depth
 
   # Pick the instance to receive this update.
@@ -387,7 +420,7 @@ def bds_treehash_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_stru
   th = bds_state['treehash'][best]
   leaf_index = th['next_leaf']
   ADRS = bytearray(22)
-  node = fxmss_node(sk_seed, leaf_index, leaf_layer, pk_seed, sf_structure, ADRS)
+  node = fxmss_node(sk_seed, leaf_index, leaf_layer, pk_seed, True, tree_depth, ADRS)
   node_layer = 0
   while th['stack'] and th['stack'][-1][0] == node_layer:
     (_, lchild) = th['stack'].pop()
@@ -417,16 +450,17 @@ treehash instances.
 - Inputs:
   - `bds_state`: a BDS state from `bds_state_init`.
   - `sk_seed`: a 16-byte secret.
-  - `pk_seed`: a 16-byte salt.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `pk_seed`: a 16-byte public seed.
+  - `tree_depth`: an 8-bit unsigned integer, the depth of the BXMSS tree.
 - Output:
   - none.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
-def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structure: bytes) -> None:
-  tree_depth = sf_structure[1]
+def bds_state_update(
+    bds_state: dict, sk_seed: Bytes[16], pk_seed: Bytes[16], tree_depth: UInt8
+) -> None:
   leaf_layer = FXMSS_HEIGHT - tree_depth
   bds_k = bds_state['bds_k']
   s = bds_state['state_ctr']
@@ -451,7 +485,7 @@ def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structu
 
   if tau == 0:
     # Leaf s is a left child: it becomes the bottom authentication node.
-    bds_state['auth'][0] = fxmss_node(sk_seed, s, leaf_layer, pk_seed, sf_structure, ADRS)
+    bds_state['auth'][0] = fxmss_node(sk_seed, s, leaf_layer, pk_seed, True, tree_depth, ADRS)
   else:
     # The left node entering the path on layer tau is the parent of the old
     # authentication node below it and the node remembered in keep.
@@ -483,6 +517,7 @@ def bds_state_update(bds_state: dict, sk_seed: bytes, pk_seed: bytes, sf_structu
 
   # Distribute the round's budget of treehash updates.
   for _ in range((tree_depth - bds_k) // 2):
+    bds_treehash_update(bds_state, sk_seed, pk_seed, tree_depth)
 ```
 <!-- DOC END bds_state_update -->
 
