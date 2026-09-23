@@ -11,12 +11,12 @@ This repository is the staging ground for work on the SHRINCS specification docu
 
 ## Templating
 
-The SHRINCS specification in [`SHRINCS.md`](./SHRINCS.md) includes Python reference code and documentation defined inline at [`impl/shrincs.py`](./impl/shrincs.py). We use simple templating to pull Python code and docstrings from `shrincs.py`.
+The SHRINCS specification in [`SHRINCS.md`](./SHRINCS.md) includes Python reference code and documentation defined inline at [`impl/shrincs.py`](./impl/shrincs.py), and the supplementary [`docs/CACHE_MANAGEMENT.md`](./docs/CACHE_MANAGEMENT.md) likewise pulls its code from [`impl/caches.py`](./impl/caches.py). We use simple templating to pull Python code and docstrings from these modules.
 
-If you wish to make changes to the specification of SHRINCS functions inside of a `<!-- DOC START xyz -->` ... `<!-- DOC END xyz -->` templating envelope, please make the changes directly in `shrincs.py` first, and then run the [`pydoc_insert.py` script](./pydoc_insert.py).
+If you wish to make changes to the specification of functions inside of a `<!-- DOC START xyz -->` ... `<!-- DOC END xyz -->` templating envelope, please make the changes directly in the corresponding python module first, and then run the [`pydoc_insert.py` script](./pydoc_insert.py).
 
 >[!WARNING]
-> Running the templating script will overwrite `SHRINCS.md`. Make sure you have saved and committed other important changes first!
+> Running the templating script will overwrite the templated documents. Make sure you have saved and committed other important changes first!
 
 ```sh
 ./pydoc_insert.py

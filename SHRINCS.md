@@ -169,6 +169,16 @@ Caching can therefore result in very significant (orders of magnitude) speedups,
 The stateless component also admits a small speedup if an implementation can [cache the top-level XMSS tree](https://conduition.io/code/fast-slh-dsa/#XMSS-Tree-Caching).
 One can also improve stateless SHRINCS signing performance at the cost of stateless signature budget, using hypertree pruning[^pruning].
 
+Recommended cache constructions for both signature parts, together with the storage requirements, are specified in [docs/CACHE_MANAGEMENT.md](docs/CACHE_MANAGEMENT.md).
+With those caches in place, signing costs become:
+
+| Signature Type | Cache | Cache Size | Average Signing Cost in SHA256 Compressions |
+|-|-|-|-|
+| Stateless | [Stateless Cache](docs/CACHE_MANAGEMENT.md#the-stateless-cache) | <!-- CONST START SL_LEAF_CACHE_SIZE -->8192<!-- CONST END SL_LEAF_CACHE_SIZE --> bytes | <!-- CONST START STATELESS_SIGN_CACHED_COMPRESSIONS_AVG -->1415959<!-- CONST END STATELESS_SIGN_CACHED_COMPRESSIONS_AVG --> |
+| Stateful (UXMSS; depth 255) | [UXMSS Cache](docs/CACHE_MANAGEMENT.md#the-uxmss-cache) | <!-- CONST START UXMSS_255_CACHE_SIZE -->4096<!-- CONST END UXMSS_255_CACHE_SIZE --> bytes | <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->471<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> |
+| Stateful (BXMSS; depth 10) | [BXMSS Cache](docs/CACHE_MANAGEMENT.md#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_10_BDS_STATE_SIZE -->496<!-- CONST END BXMSS_10_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG -->2961<!-- CONST END BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG --> |
+| Stateful (BXMSS; depth 20) | [BXMSS Cache](docs/CACHE_MANAGEMENT.md#the-bxmss-cache); `bds_k = 2` | <!-- CONST START BXMSS_20_BDS_STATE_SIZE -->1056<!-- CONST END BXMSS_20_BDS_STATE_SIZE --> bytes | <!-- CONST START BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG -->5581<!-- CONST END BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG --> |
+
 
 ## Rationale
 
@@ -363,6 +373,7 @@ Low-power signers, especially early-generation hardware wallets, typically lack 
 
 Thankfully, signing with the stateful component of SHRINCS is very efficient and requires about <!-- CONST START UXMSS_255_SIGN_COMPRESSIONS_AVG -->133326<!-- CONST END UXMSS_255_SIGN_COMPRESSIONS_AVG --> hash invocations per signature for UXMSS.
 Most of that work can be cached up-front during the stateful key-generation, which only requires about <!-- CONST START UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY -->133631<!-- CONST END UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY --> SHA256 compressions - and even that can be reduced by decreasing the UXMSS tree depth.
+With the [UXMSS Cache](docs/CACHE_MANAGEMENT.md#the-uxmss-cache) filled during key generation, each stateful signature then costs about <!-- CONST START UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG -->471<!-- CONST END UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG --> compressions (see [On Managing Caches](#on-managing-caches)).
 
 The stateless component is much harder for low-power signers to work with because its parameters are more-or-less fixed, and it requires about <!-- CONST START STATELESS_SIGN_COMPRESSIONS_AVG -->1707229<!-- CONST END STATELESS_SIGN_COMPRESSIONS_AVG --> SHA256 compressions to sign.
 To remedy this, hardware wallets can implement a software-level trade-off in SLH-DSA called *hypertree pruning*[^pruning] which reduces the secure signature budget of the key from 2<sup>40</sup> to some arbitrary lower bound, in exchange for significantly faster signing and key-generation.
@@ -2620,6 +2631,27 @@ Signers are highly encouraged to store state counters only in durable, persisten
 
 If correct state is not available for any reason, such as when restoring from a static backup, then a SHRINCS implementation MUST refuse to sign with the stateful path, and utilize only the stateless signing path.
 
+#### On Managing Caches
+
+Most of the computational cost of SHRINCS signing includes regenerating Merkle nodes and WOTS public keys, which do not change for the same key pair. A signer may keep a _cache_ of these values, computed during key generation and/or prior signing operations. The signer can reuse the cache for the next signature instead of recomputing values from scratch. Caching is a signer-only optimization: it has no effect on the signatures or the verification procedure.
+
+We specify three cache constructions:
+- A [**Stateless Cache**](docs/CACHE_MANAGEMENT.md#the-stateless-cache), which stores the WOTS-TW leaves of the top-layer XMSS tree in the variant of SLH-DSA.
+- A [**UXMSS Cache**](docs/CACHE_MANAGEMENT.md#the-uxmss-cache), which stores the WOTS+C public keys on every layer of a UXMSS tree.
+- The [**BXMSS Cache**](docs/CACHE_MANAGEMENT.md#the-bxmss-cache) with the usage of BDS tree traversal algorithm[^bds], which schedules the computation of upcoming authentication path nodes across signatures, so each following signature requires regenerating only a fraction of the tree.
+
+Unlike the state counter, a cache is not critical for security, as long as it never determines the signing leaf.
+Signers MUST select the stateful signing leaf only from the state counter and the tree structure, with [`shrincs_sf_leaf_select`](#shrincs_sf_leaf_select), and MUST NOT select it, or set or restore the state counter, from any value held in a cache. Under this rule, a stale, corrupted, or even adversarially modified cache cannot cause WOTS+C key reuse, and the worst outcome is an invalid signature. Signers SHOULD verify every signature produced with a cache before releasing it. If verification fails, the signer SHOULD discard the cache and produce the signature for the same `message` and `ctx` without it. This does not reuse the WOTS+C leaf: neither the leaf nor its WOTS+C signature depends on the cache, so only the authentication path changes.
+
+The rules defined in [On Managing State](#on-managing-state) do not apply to caches: a cache may be backed up and restored, kept in mutable storage, and exported and imported. How a restored cache can be used depends on what it is derived from:
+
+- The Stateless Cache and the UXMSS Cache are derived only from the secret key. A restored copy is usable as it is, and a lost one can be regenerated from scratch at any time.
+- The BXMSS Cache is also derived from the position of the next leaf, which the BDS state records as `leaf_index`. 
+
+A BDS state behind the counter, such as one restored from a backup, can only be used after it is brought forward to the counter (see [The BXMSS Cache](docs/CACHE_MANAGEMENT.md#the-bxmss-cache)). A BDS state ahead of the counter indicates that the counter went backwards: correct state is not available, and the signer MUST refuse stateful signing.
+
+The three constructions, their algorithms, and their exact storage requirements are specified in [docs/CACHE_MANAGEMENT.md](docs/CACHE_MANAGEMENT.md), together with the operational rules for using them. Their reference implementation is exercised over its entire signing budget by [`impl/test.py`](impl/test.py).
+
 #### Maximum Message Length
 
 Every message SHRINCS hashes is bounded in length, because it is ultimately absorbed by SHA-256, which accepts at most `2**61 - 1` bytes.
@@ -2970,6 +3002,7 @@ This document and the SHRINCS reference code are licensed under either the CC0-1
 [^hbsb]: The underlying construction is sketched in the appendix of "Hash-based Signature Schemes for Bitcoin", https://eprint.iacr.org/2025/2203.
 [^adrs]: The 22-byte `ADRS` format aligns with the ADRS<sup>c</sup> format in SLH-DSA and FIPS-205[^slhdsa] for SHA2 parameter sets.
 [^xmss]: https://www.rfc-editor.org/rfc/rfc8391.html
+[^bds]: https://doi.org/10.1007/978-3-540-88403-3_5 - "Merkle Tree Traversal Revisited" by Buchmann, Dahmen, and Schneider.
 [^mgf1]: https://datatracker.ietf.org/doc/html/rfc8017#appendix-B.2.1 - It is possible to restrict ourselves to a single outer SHA256 invocation to match MGF1-SHA-256, because the SHRINCS parameter set does not require outputs larger than 32 bytes.
 [^hmac]: https://datatracker.ietf.org/doc/html/rfc2104
 [^simd_x86]: https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html

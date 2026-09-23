@@ -311,3 +311,87 @@ BXMSS_20_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_comp
 STATEFUL_WOTS_CHECKSUM_MAX = WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1)
 STATEFUL_WOTS_CHECKSUM_CHAINS_HYPOTHETICAL = ceildiv(STATEFUL_WOTS_CHECKSUM_MAX.bit_length(), WOTS_C_CHAIN_BITS)
 STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT = round(100 * (16 * STATEFUL_WOTS_CHECKSUM_CHAINS_HYPOTHETICAL - 2) / SHRINCS_SF_SIGNATURE_SIZE_MIN)
+
+#  Cache management. See "On Managing Caches" in SHRINCS.md.
+
+# Stateless cache, in bytes: 16-byte (WOTS-TW public key) per leaf of the top-layer XMSS.
+SL_LEAF_CACHE_SIZE = 2**SPHX_XMSS_HEIGHT * 16
+
+# Average SHA256 compressions needed to sign with the top-layer XMSS tree, without and with the
+# leaf cache. The cache removes regenerating the other leaves, leaving WOTS-TW signing and the
+# internal nodes recomputed from the cached leaves.
+STATELESS_XMSS_SIGN_COMPRESSIONS_AVG = round(XMSS_SIGN_COMPRESSIONS_AVG)
+STATELESS_XMSS_SIGN_CACHED_COMPRESSIONS_AVG = round(
+  XMSS_SIGN_COMPRESSIONS_AVG - (2**SPHX_XMSS_HEIGHT - 1) * WOTS_TW_KEYGEN_COMPRESSIONS
+)
+
+# Average compressions needed to sign with the stateless part when the top-layer leaf cache is available.
+STATELESS_SIGN_CACHED_COMPRESSIONS_AVG = STATELESS_SIGN_COMPRESSIONS_AVG - (2**SPHX_XMSS_HEIGHT - 1) * WOTS_TW_KEYGEN_COMPRESSIONS
+
+# Speedup of stateless signing with the top-layer leaf cache.
+STATELESS_SIGN_CACHED_SPEED_RATIO = round(STATELESS_SIGN_COMPRESSIONS_AVG / STATELESS_SIGN_CACHED_COMPRESSIONS_AVG, 2)
+
+# UXMSS cache, in bytes: one 16-byte WOTS+C public key per leaf, depth + 1 leaves in total.
+def uxmss_cache_size(depth: int) -> int:
+  return (depth + 1) * 16
+
+UXMSS_31_CACHE_SIZE  = uxmss_cache_size(31)
+UXMSS_255_CACHE_SIZE = uxmss_cache_size(255)
+
+# Average SHA256 compressions needed to sign with one WOTS+C leaf, excluding all tree work: the
+# naive signing cost of a tree with no other leaves to regenerate and no merkle nodes to combine.
+FXMSS_LEAF_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(0)
+
+# SHA256 compressions needed for UXMSS signing with the cache: uxmss_sign_compressions without
+# regenerating the other leaves. Recombining the spine sibling from cached leaves costs
+# depth - k calls to H for the leaf at depth k, and none for the two deepest leaves.
+UXMSS_SIGN_CACHED_COMPRESSIONS_MIN = FXMSS_LEAF_SIGN_COMPRESSIONS_AVG
+
+def uxmss_sign_cached_compressions_max(depth: int) -> int:
+  return FXMSS_LEAF_SIGN_COMPRESSIONS_AVG + depth - 1
+
+def uxmss_sign_cached_compressions_avg(depth: int) -> int:
+  return uxmss_sign_compressions(depth) - depth * WOTS_C_KEYGEN_COMPRESSIONS
+
+UXMSS_255_SIGN_CACHED_COMPRESSIONS_MAX = uxmss_sign_cached_compressions_max(255)
+UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG = uxmss_sign_cached_compressions_avg(255)
+
+# Speedup of depth-255 UXMSS signing with the cache.
+UXMSS_255_SIGN_CACHED_SPEED_RATIO = round(UXMSS_255_SIGN_COMPRESSIONS_AVG / UXMSS_255_SIGN_CACHED_COMPRESSIONS_AVG)
+
+# BDS traversal state for a BXMSS tree, in bytes: the authentication path,
+# keep (at most depth//2 nodes), retain (2**K - K - 1 nodes), and one completed node plus
+# a stack of partial results across the depth - K treehash instances. For K < depth this
+# sum equals the closed form (3*depth + depth//2 - 3*K - 2 + 2**K).
+def bds_state_size(depth: int, bds_k: int) -> int:
+  nodes = depth + depth // 2 + (2**bds_k - bds_k - 1) + \
+          max(0, depth - bds_k) + max(0, depth - bds_k - 1)
+  return nodes * 16
+
+BXMSS_5_BDS_STATE_SIZE  = bds_state_size(5, 3)
+BXMSS_8_BDS_STATE_SIZE  = bds_state_size(8, 2)
+BXMSS_10_BDS_STATE_SIZE = bds_state_size(10, 2)
+BXMSS_12_BDS_STATE_SIZE = bds_state_size(12, 2)
+BXMSS_16_BDS_STATE_SIZE = bds_state_size(16, 2)
+BXMSS_20_BDS_STATE_SIZE = bds_state_size(20, 2)
+
+# Average SHA256 compressions for BXMSS signing with BDS traversal.
+#
+# Signing with one WOTS+C leaf +
+# (depth - K)/2 + 1 leaf computations per state update + 3*(depth - K - 1)/2 + 1 calls to H per state update
+def bds_sign_compressions(depth: int, bds_k: int) -> int:
+  return (
+    FXMSS_LEAF_SIGN_COMPRESSIONS_AVG +
+    ((depth - bds_k) // 2 + 1) * WOTS_C_KEYGEN_COMPRESSIONS +
+    (3 * max(0, depth - bds_k - 1)) // 2 + 1
+  )
+
+BXMSS_5_BDS_SIGN_COMPRESSIONS_AVG  = bds_sign_compressions(5, 3)
+BXMSS_8_BDS_SIGN_COMPRESSIONS_AVG  = bds_sign_compressions(8, 2)
+BXMSS_10_BDS_SIGN_COMPRESSIONS_AVG = bds_sign_compressions(10, 2)
+BXMSS_12_BDS_SIGN_COMPRESSIONS_AVG = bds_sign_compressions(12, 2)
+BXMSS_16_BDS_SIGN_COMPRESSIONS_AVG = bds_sign_compressions(16, 2)
+BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG = bds_sign_compressions(20, 2)
+
+# Speedup of depth-20 BXMSS signing with BDS traversal.
+BXMSS_20_BDS_SIGN_SPEED_RATIO = round(BXMSS_20_SIGN_COMPRESSIONS_AVG / BXMSS_20_BDS_SIGN_COMPRESSIONS_AVG)

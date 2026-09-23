@@ -7,81 +7,85 @@ from argparse import ArgumentParser
 import shutil
 
 """
-This script parses the shrincs.py implementation, to substitute
-docstrings and exact python code for reference functions and constants
-into SHRINCS.md. We parse markdown comments as doc/const insert directives.
+This script parses the reference implementation, to substitute docstrings
+and exact python code for reference functions and constants into the
+templated markdown documents. We parse markdown comments as doc/const
+insert directives.
 """
 
-from impl import shrincs, meta
+from impl import shrincs, meta, caches
 
-with open('impl/shrincs.py') as fh:
-  shrincs_source = fh.read()
+DOCUMENTS = [
+  {'markdown': 'SHRINCS.md', 'source': 'impl/shrincs.py'},
+  {'markdown': 'docs/CACHE_MANAGEMENT.md', 'source': 'impl/caches.py'},
+]
 
-shrincs_source_lines = shrincs_source.splitlines(keepends = True)
-shrincs_code_lines = [line.rstrip() for line in shrincs_source.split('\n')]
-shrincs_ast = ast.parse(shrincs_source)
+class SourceFile:
+  """
+  The top-level function definitions of one python source file, by name.
+  """
+  def __init__(self, path: str):
+    with open(path) as fh:
+      source = fh.read()
 
-#  Top-level function definitions, by name.
-definitions = {}
-for node in shrincs_ast.body:
-  if isinstance(node, ast.FunctionDef):
-    definitions[node.name] = node
+    self.source_lines = source.splitlines(keepends = True)
+    self.code_lines = [line.rstrip() for line in source.split('\n')]
 
-#  The first source line of a definition. A decorator is not part of the
-#  node's own extent, and the `@` may sit on a line above the expression it
-#  applies to.
-def start_line(node: ast.stmt) -> int:
-  decorators = getattr(node, 'decorator_list', [])
-  if not decorators:
-    return node.lineno - 1
-  line = min(decorator.lineno for decorator in decorators) - 1
-  while not shrincs_code_lines[line].lstrip().startswith('@'):
-    line -= 1
-  return line
+    self.definitions = {}
+    for node in ast.parse(source).body:
+      if isinstance(node, ast.FunctionDef):
+        self.definitions[node.name] = node
+
+  #  The first source line of a definition. A decorator is not part of the
+  #  node's own extent, and the `@` may sit on a line above the expression it
+  #  applies to.
+  def start_line(self, node: ast.stmt) -> int:
+    decorators = getattr(node, 'decorator_list', [])
+    if not decorators:
+      return node.lineno - 1
+    line = min(decorator.lineno for decorator in decorators) - 1
+    while not self.code_lines[line].lstrip().startswith('@'):
+      line -= 1
+    return line
 
 
 class SpecFunction:
   """
-  Data structure to document a SHRINCS specification function.
+  Data structure to document a specification function.
   """
-  def __init__(self, name: str):
-    node = definitions[name]
+  def __init__(self, source: SourceFile, name: str):
+    node = source.definitions[name]
 
     self.docstring = ast.get_docstring(node)
 
     #  The signature, then the body with any docstring elided.
     body_start = node.body[0]
-    starts_at = start_line(node)
+    starts_at = source.start_line(node)
     body_from = body_start.end_lineno if self.docstring is not None else body_start.lineno - 1
 
     #  `inspect.getblock` finds where the definition really ends, including
     #  any trailing comment, which is not a node and so has no `end_lineno`.
     #  It also keeps a comment which introduces whatever follows, so stop at
     #  the blank line which separates one from the body it would follow.
-    block_end = starts_at + len(inspect.getblock(shrincs_source_lines[starts_at:]))
+    block_end = starts_at + len(inspect.getblock(source.source_lines[starts_at:]))
     ends_at = node.end_lineno
-    while ends_at < block_end and shrincs_code_lines[ends_at].strip():
+    while ends_at < block_end and source.code_lines[ends_at].strip():
       ends_at += 1
 
-    signature = shrincs_code_lines[starts_at : body_start.lineno - 1]
-    self.codestring = '\n'.join(signature + shrincs_code_lines[body_from : ends_at])
+    signature = source.code_lines[starts_at : body_start.lineno - 1]
+    self.codestring = '\n'.join(signature + source.code_lines[body_from : ends_at])
 
 
 regex_doc_start = r"^<!-- DOC START (\w+) -->\W*$"
 regex_doc_end = r"^<!-- DOC END (\w+) -->\W*$"
 regex_const = r"<!-- CONST START (\w+) -->\S*<!-- CONST END (\w+) -->"
 
-if __name__ == "__main__":
-  parser = ArgumentParser(description="SHRINCS.md templating script.")
-  parser.add_argument("-n", "--dry-run", action="store_true",
-                     help="Produce the templated specification file in SHRINCS.new.md but do not overwrite SHRINCS.md.")
-  args = parser.parse_args()
-
-  with open('SHRINCS.md') as fh:
+def template_document(markdown_path: str, source: SourceFile) -> str:
+  with open(markdown_path) as fh:
     markdown_lines = [line for line in fh]
 
-  # with sys.stdout as out:
-  with open('SHRINCS.new.md', 'w') as out:
+  out_path = markdown_path.replace('.md', '.new.md')
+  with open(out_path, 'w') as out:
     i = 0
     while i < len(markdown_lines):
       doc_start_match = re.match(regex_doc_start, markdown_lines[i])
@@ -90,7 +94,7 @@ if __name__ == "__main__":
         definition_name = doc_start_match.group(1)
         out.write(markdown_lines[i])
 
-        spec_function = SpecFunction(definition_name)
+        spec_function = SpecFunction(source, definition_name)
         if spec_function.docstring is not None:
           out.write(spec_function.docstring + '\n\n')
         out.write("```py" + '\n')
@@ -106,7 +110,6 @@ if __name__ == "__main__":
             raise RuntimeError("failed to find closing <!-- DOC END %s --> comment" % definition_name)
 
       elif const_start_match:
-        replacements = []
         line = markdown_lines[i]
         for match in re.finditer(regex_const, markdown_lines[i]):
           matched_string = match.group(0)
@@ -123,5 +126,15 @@ if __name__ == "__main__":
 
       i += 1
 
-  if not args.dry_run:
-    shutil.move('SHRINCS.new.md', 'SHRINCS.md')
+  return out_path
+
+if __name__ == "__main__":
+  parser = ArgumentParser(description="Templating script for the specification documents.")
+  parser.add_argument("-n", "--dry-run", action="store_true",
+                     help="Produce the templated documents as *.new.md files but do not overwrite the originals.")
+  args = parser.parse_args()
+
+  for document in DOCUMENTS:
+    out_path = template_document(document['markdown'], SourceFile(document['source']))
+    if not args.dry_run:
+      shutil.move(out_path, document['markdown'])
