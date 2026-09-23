@@ -27,6 +27,26 @@ for node in shrincs_ast.body:
   if isinstance(node, ast.FunctionDef):
     definitions[node.name] = node
 
+address_type_names = [
+  'Address',
+  'WotsTwHash',
+  'WotsTwPrf',
+  'WotsTwPk',
+  'XmssTree',
+  'ForsTree',
+  'ForsRoots',
+  'ForsPrf',
+  'WotsCHash',
+  'WotsCPrf',
+  'WotsCPk',
+  'WotsCGrind',
+  'FxmssTree',
+]
+address_types = [
+  node for node in shrincs_ast.body
+  if isinstance(node, ast.ClassDef) and node.name in address_type_names
+]
+
 #  The first source line of a definition. A decorator is not part of the
 #  node's own extent, and the `@` may sit on a line above the expression it
 #  applies to.
@@ -38,6 +58,14 @@ def start_line(node: ast.stmt) -> int:
   while not shrincs_code_lines[line].lstrip().startswith('@'):
     line -= 1
   return line
+
+
+def address_types_code() -> str:
+  if [node.name for node in address_types] != address_type_names:
+    raise RuntimeError('address types are missing or out of order')
+  starts_at = start_line(address_types[0])
+  ends_at = address_types[-1].end_lineno
+  return ''.join(shrincs_source_lines[starts_at:ends_at])
 
 
 class SpecFunction:
@@ -70,6 +98,8 @@ class SpecFunction:
 regex_doc_start = r"^<!-- DOC START (\w+) -->\W*$"
 regex_doc_end = r"^<!-- DOC END (\w+) -->\W*$"
 regex_const = r"<!-- CONST START (\w+) -->\S*<!-- CONST END (\w+) -->"
+address_types_start = '<!-- ADDRESS TYPES START -->\n'
+address_types_end = '<!-- ADDRESS TYPES END -->\n'
 
 if __name__ == "__main__":
   parser = ArgumentParser(description="SHRINCS.md templating script.")
@@ -86,7 +116,19 @@ if __name__ == "__main__":
     while i < len(markdown_lines):
       doc_start_match = re.match(regex_doc_start, markdown_lines[i])
       const_start_match = re.search(regex_const, markdown_lines[i])
-      if doc_start_match:
+      if markdown_lines[i] == address_types_start:
+        out.write(markdown_lines[i])
+        out.write('```py\n')
+        out.write(address_types_code())
+        out.write('```\n')
+
+        while markdown_lines[i] != address_types_end:
+          i += 1
+          if i >= len(markdown_lines):
+            raise RuntimeError('failed to find closing ADDRESS TYPES comment')
+        out.write(markdown_lines[i])
+
+      elif doc_start_match:
         definition_name = doc_start_match.group(1)
         out.write(markdown_lines[i])
 
