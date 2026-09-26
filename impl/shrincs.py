@@ -1392,6 +1392,12 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   shrincs_pubkey = pk_seed + sl_root + sf_root
   return (shrincs_seckey, shrincs_pubkey)
 
+def shrincs_extract_pubkey(shrincs_seckey: Bytes[82]) -> Bytes[48]:
+  """
+  Extract a SHRINCS public key from a SHRINCS secret key.
+  """
+  return shrincs_seckey[32:64] + shrincs_seckey[66:82]
+
 def shrincs_sf_leaf_select(
     sf_structure: Bytes[2], state_ctr: Optional[UInt64]
 ) -> Optional[tuple[UInt64, UInt8]]:
