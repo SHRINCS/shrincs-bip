@@ -36,7 +36,7 @@ KEYGEN_TEST_VEC_INPUTS = [
 
 def generate_keygen_vectors():
   vec_path = path.join('test_vectors', 'keygen.csv')
-  with open(vec_path, 'w') as fh:
+  with open(vec_path, 'w', newline='') as fh:
     w = csv.writer(fh)
     w.writerow(['seed', 'structure', 'seckey', 'pubkey'])
     for inp in KEYGEN_TEST_VEC_INPUTS:
@@ -132,7 +132,7 @@ SIGNATURES_VALID_TEST_VEC_INPUTS = [
 
 def generate_signatures_valid_test_vectors():
   vec_path = path.join('test_vectors', 'signatures_valid.csv')
-  with open(vec_path, 'w') as fh:
+  with open(vec_path, 'w', newline='') as fh:
     w = csv.writer(fh)
     w.writerow(['seckey', 'pubkey', 'message', 'ctx', 'opt_rand', 'state_ctr', 'signature'])
     for inp in SIGNATURES_VALID_TEST_VEC_INPUTS:
