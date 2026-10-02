@@ -71,20 +71,19 @@ In the procedures below, "fail" means script execution MUST fail and terminate i
 ====OP_CHECKSIG====
 
 # Pop two elements <code>public_key</code> (top element) and <code>signature</code> (second-to-top element) from the stack.
-#* If fewer than two elements are on the stack, fail.
+#* If fewer than two elements are available on the stack, fail.
 # If <code>public_key</code> size is zero, fail.
-# Let <code>flag</code> be the first byte of <code>public_key</code>, and <code>pubkey_data</code> be the remainder.
 # If <code>signature</code> is empty, push the empty vector and continue.
-# Decrement the sigops budget by 50; fail if this budget falls below zero.
+# Let <code>flag</code> be the first byte of <code>public_key</code>, and <code>pubkey_data</code> be the remainder.
 # If <code>flag</code> is unrecognized, push <code>0x01</code> and continue.
-#* If the scheme's specified sigops cost exceeds 50, decrement the sigops budget by the difference; fail if this budget falls below zero.
+# Decrement the sigops budget by the cost associated to <code>flag</code>; fail if this budget falls below zero.
 # If <code>pubkey_data</code> is not a valid public key encoding for the scheme designated by <code>flag</code>, fail.
 # Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail. Otherwise push <code>0x01</code> and continue.
 
 ====OP_CHECKSIGVERIFY====
 
 # Execute as <code>OP_CHECKSIG</code> above.
-# Pop the `result` from the top of the stack; if `result` is false, fail. Otherwise continue.
+# Pop the <code>result</code> from the top of the stack; if <code>result</code> is false, fail. Otherwise continue.
 
 ====OP_CHECKSIGADD====
 
@@ -92,11 +91,10 @@ In the procedures below, "fail" means script execution MUST fail and terminate i
 #* If fewer than three elements are on the stack, the script MUST fail and terminate immediately.
 # If <code>pubkey</code> is empty, fail.
 # If <code>n</code> is not a valid CScriptNum of at most 4 bytes, fail.
-# Let <code>flag</code> be the first byte of <code>pubkey</code>, and <code>pubkey_data</code> be the remainder.
 # If <code>signature</code> is empty, push <code>n</code> and continue.
-# Decrement the sigops budget by 50; fail if this budget falls below zero.
+# Let <code>flag</code> be the first byte of <code>pubkey</code>, and <code>pubkey_data</code> be the remainder.
 # If <code>flag</code> is unrecognized, push <code>n + 1</code> and continue.
-# If the scheme's specified sigops cost exceeds 50, additionally decrement the sigops budget by the difference; fail if this budget falls below zero.
+# Decrement the sigops budget by the cost associated to <code>flag</code>; fail if this budget falls below zero.
 # If <code>pubkey_data</code> is not a valid public key encoding for the scheme designated by <code>flag</code>, fail.
 # Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail. Otherwise push <code>n + 1</code> and continue.
 
@@ -241,7 +239,9 @@ This preserves simple single-element signatures while preventing the DoS amplifi
 
 ===Unrecognized Flags and Forward Compatibility===
 
-Reserved (or unrecognized) scheme flags cause signature verification to succeed unconditionally. This follows the precedent of unknown public key types in BIP 342, where signature checks against public keys that are not 32 bytes succeed unconditionally so that new public key types can be introduced via soft fork. As with BIP 342, this success applies only to the individual signature check: script execution continues, all other conditions in the script remain enforced, empty signatures still yield the same result as they would for a recognized scheme (false for <code>OP_CHECKSIG</code>, script failure for <code>OP_CHECKSIGVERIFY</code>, and no counter increment for <code>OP_CHECKSIGADD</code>), and for non-empty signatures the sigops budget is still consumed.
+Reserved (or unrecognized) scheme flags cause signature verification to succeed unconditionally. This follows the precedent of unknown public key types in BIP 342, where signature checks against public keys that are not 32 bytes succeed unconditionally so that new public key types can be introduced via soft fork. As with BIP 342, this success applies only to the individual signature check: script execution continues, all other conditions in the script remain enforced, empty signatures still yield the same result as they would for a recognized scheme (false for <code>OP_CHECKSIG</code>, script failure for <code>OP_CHECKSIGVERIFY</code>, and no counter increment for <code>OP_CHECKSIGADD</code>), and for non-empty signatures the sigops budget is not charged.
+
+Unrecognized scheme bytes are strictly reserved for future use and have provisional semantics. Their current behavior, including success, verification, and sigops-budget treatment, must not be relied upon; a future BIP may redefine it. In particular, there is no cost to the sigops budget to verify keys with unrecognized prefix bytes, but once recognized those verification would then have a cost. Scripts using an unrecognized scheme byte could become invalid or behave differently after such an upgrade.
 
 Wallets MUST only generate public keys with recognized scheme flags, and users MUST verify that their wallets do so. Selecting the correct scheme flag for a keypair is straightforward and easy to validate by inspecting scripts visually.
 
