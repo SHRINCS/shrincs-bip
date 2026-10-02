@@ -1,12 +1,13 @@
 <pre>
   BIP: ?
   Layer: Consensus (soft fork)
-  Title: Tapscript Version 0xC2, Multi-Scheme Scripts
+  Title: Tapscript Version 0xc2, Multi-Scheme Scripts
   Authors: conduition <conduition@proton.me>
            Ethan Heilman <1ethan.r.heilman@gmail.com>
            Mikhail Kudinov <m.kudinov@tue.nl>
            Oleksandr Kurbatov <olkurbatov@gmail.com>
            Jonas Nick <jonas@n-ck.net>
+           notmike <notmike@notmike.io>
   Status: Draft
   Type: Specification
   License: BSD-3-Clause
@@ -19,15 +20,15 @@
 
 ===Abstract===
 
-This BIP defines tapscript leaf version 0xC2, a dialect of tapscript that enables verification of signatures from different digital signature schemes in the same script by overloading tapscript's signature verification opcodes (sigops). Public keys are prefixed in scripts with a one-byte scheme flag indicating the corresponding signature scheme and, so, the signature verification algorithm to perform for signature operations on a given key. Signature verification against a public key prefixed by a reserved (or unrecognized) flag byte succeeds unconditionally, providing an upgrade path for digital signature schemes in the future. Recommendations are offered for the specification of candidate schemes. Importantly, Tapscript leaf version 0xC2 also modifies resource limits such as the maximum stack element size (relative to Tapscript version 0xC0). A discussion of relevant trade-offs and justifications for these design choices is provided.
+This BIP defines tapscript leaf version 0xc2, a dialect of tapscript that enables scripts to verify signatures from multiple different signature schemes by overloading of tapscript's signature verification opcodes (sigops). Public keys are prefixed in scripts with a one-byte scheme flag that identifies the corresponding signature scheme and the verification algorithm to use for signature operations involving that key. Signature verification against a public key prefixed by a reserved (or unrecognized) flag byte succeeds unconditionally, providing an upgrade path for other digital signature schemes in the future. Requirements are specified for future BIPs defining new candidate schemes. Importantly, Tapscript leaf version 0xc2 also modifies resource limits (relative to Tapscript version 0xc0) such as the maximum stack element size and the sigops budget accounting mechanism. A discussion of relevant trade-offs and justifications for these design choices is provided.
 
 ==Motivation==
 
 Bitcoin's digital signatures currently rely on the computational hardness of the elliptic curve discrete logarithm problem (ECDLP) in the group of points on the secp256k1 elliptic curve. It is believed that a cryptographically-relevant quantum computer (CRQC) running Shor's algorithm could solve this type of problem in polynomial time, enabling the recovery of private keys and the forgery of signatures (including of ECDSA and Schnorr signatures used in Bitcoin). The appearance of a CRQC would be bad for bitcoin and for many other widely used cryptosystems as well. A timeline for the emergence and standardization of such machines, however, remains uncertain.
 
-Quantum threats aside, Bitcoin's signature verification is currently bound to a particular digital signature scheme. For example, tapscript leaf version 0xC0 (BIP 342) verifies all signatures using the Schnorr signature verification algorithm (BIP 340). Prior to BIP 340, Bitcoin was bound to ECDSA signatures. This coupling means that introducing new digital signature schemes — whether for post-quantum security, efficiency, or other desirable properties — has until now required either new output types, new tapscript leaf versions, and/or ad-hoc opcode redefinition.
+Quantum threats aside, Bitcoin's signature verification is currently bound to a particular digital signature scheme. For example, tapscript leaf version 0xc0 (BIP 342) verifies all signatures using the Schnorr signature verification algorithm (BIP 340). Prior to BIP 340, Bitcoin was bound to ECDSA signatures. This coupling means that introducing new digital signature schemes — whether for post-quantum security, efficiency, or other desirable properties — has until now required either new output types, new tapscript leaf versions, and/or ad-hoc opcode redefinition.
 
-Leaf version 0xC2 decouples the operation of signature verification from any particular digital signature scheme. Scripts commit to public keys that declare their scheme via a flag byte. The script interpreter uses this flag byte to determine the correct signature verification algorithm to apply to a given signature. The digital signature scheme for each flag byte is defined in a separate BIP, allowing the signature ecosystem to evolve without requiring changes to script system semantics.
+Leaf version 0xc2 decouples the operation of signature verification from any particular digital signature scheme. Scripts commit to public keys that declare their scheme via a flag byte. The script interpreter uses this flag byte to determine the correct signature verification algorithm to apply to a given signature. The digital signature scheme for each flag byte is defined in a separate BIP, allowing the signature ecosystem to evolve without requiring changes to script system semantics.
 
 Cryptographic agility is the ability to easily switch between cryptographic primitives or algorithms in a cryptosystem in order to adapt to new standards, vulnerabilities, or threats without major disruptions. Designing for this in Bitcoin scripts would provide a means for users to hedge their own security assumptions. By committing to keys from different signature schemes inside the leaves of a script tree, for example, a Bitcoin user at spend-time might enjoy their choice between the low-cost (or other usage benefits) of one leaf script versus the robust security guarantees of another. In this way users can design their own script security policies as new options develop. Such a technique could prove robust against cryptanalytic breakthroughs over the scale of decades.
 
@@ -35,21 +36,25 @@ Cryptographic agility is the ability to easily switch between cryptographic prim
 
 ===Overview===
 
-This BIP defines a new tapscript leaf version <code>0xC2</code>, in which all tapscript sigops -- the opcodes <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGADD</code>, and <code>OP_CHECKSIGVERIFY</code> -- are overloaded to support multiple digital signature schemes in the same script and/or script tree. The exact signature verification algorithm to perform is determined in scripts by the single-byte scheme prefix pre-pended to the public key. The script interpreter detects this byte during each signature operation and then performs the indicated signature verification algorithm on the given public key and a provided signature.
+This BIP defines a new tapscript leaf version <code>0xc2</code>, in which all tapscript sigops -- opcodes like <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGADD</code>, and <code>OP_CHECKSIGVERIFY</code> -- are overloaded to support multiple digital signature schemes in the same script and/or script tree. The exact signature verification algorithm to perform is determined in scripts by the single-byte scheme prefix prepended to the public key. The script interpreter detects this byte during each signature operation and then performs the indicated signature verification algorithm on the given public key and a provided signature.
 
-Any output type that supports tapscript, such as Pay-to-Taproot (P2TR/P2TRv2) or Pay-to-Merkle-Root (P2MR), MAY permit leaf version 0xC2 scripts. The activation and applicability of this leaf version within each output type is specified by that output type's own BIP.
+Any output type that supports tapscript, such as Pay-to-Taproot (P2TR/P2TRv2) or Pay-to-Merkle-Root (P2MR), MAY permit leaf version 0xc2 scripts. The activation and applicability of this leaf version within each output type is specified by that output type's own BIP.
 
-Except for the changes specified in this BIP, script validation of tapscript version 0xC2 is identical to that of tapscript version 0xC0 defined in BIP 342, excluding all rules that...
+Script validation of tapscript leaf version 0xc2 follows the rules of tapscript leaf version 0xc0 as specified in BIP 342, except for the following modifications:
 
-* require a specific Segwit version (i.e. Segwit versions 1 and 2 are supported)
-* require a specific Tapscript leaf version (i.e. 0xC0 and 0xC2 tapscript spends are supported)
-* would otherwise fail due to invalidity under BIP 341
+# '''Applicability.''' These modified script validation rules are applied to all transaction inputs spending via a tapscript script-path spend using leaf version 0xc2. They apply for any version of SegWit. This extends BIP 342 beyond just the SegWit version 1, Taproot (BIP 341) script-path spends using leaf version 0xc0, for which it was orginally specified. For script validations using the modified rules replace all references to leaf version 0xc0 in BIP 342 with 0xc2. Replace references to BIP 341 with the corresponding rules from the enclosing output type's specification BIP. The enclosing BIP defines the witness structure, including the control block, script position, and handling of any optional annex. The output must provide the tapscript and initial stack for validation uner these modified rules.
 
-'''Open question:''' 0xC2 scripts expect to be evaluated like 0xC0 (BIP 342) scripts while being *not* exactly BIP 342 compatible scripts. In particular, BIP 342 requires certain things of the transaction input (must be segwit v1 / valid by BIP 341), and of the witness (stack must contain 2+ elements after removal of the annex), and of the script itself (leaf version must be 0xC0). We retain the second condition and relaxe the first and third. There really should be clear(er) domain separation and a way to have tapscript versions 0xC0 and 0xC2 to co-exist in the same script / script tree and output type.
+# '''Signature opcode semantics.''' The rules in BIP 342's "Rules for signature opcodes" and "Signature validation" sections are replaced in their entirety by the rules in the "Signature Verification / Sigop Modifications" and "Recognized Scheme Flags" sections of this BIP.
+
+# '''Resource limits.''' The maximum stack element size is raised from 520 bytes to 6000 bytes, and the sigops budget accounting mechanism is modified. These changes are specified in the "Resource Limits" section. All other resource limits of BIP 342, such as the 1000 item stack size limit,  apply unchanged.
+
+All other rules of BIP 342 — including the decoding of tapscripts, the <code>OP_SUCCESSx</code> opcodes, disabled opcodes, consensus-enforced MINIMALIF, and the script execution rules — apply verbatim.
+
+Note that no additional domain separation between leaf versions 0xc0 and 0xc2 is required: the leaf version is committed to by the tapleaf hash, both in the output's merkle commitment and in the ''tapleaf_hash'' field of the common signature message extension. Signatures produced for a 0xc2 leaf therefore cannot be replayed against a 0xc0 leaf of the same script tree, or vice versa, and both leaf versions may safely coexist in the same script tree.
 
 ===Public Key Format===
 
-A well-formed public key in tapscript leaf version 0xC2 is a non-empty byte string interpreted as:
+A well-formed public key in tapscript leaf version 0xc2 is a non-empty byte string interpreted as:
 
 <pre>
 flag || pubkey_data
@@ -59,39 +64,43 @@ where <code>flag</code> is the first byte and <code>pubkey_data</code> is the re
 
 ===Signature Verification / Sigop Modifications===
 
-Sigop opcodes refer to the signature verification opcodes used to verify signatures in bitcoin. These opcodes,   <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, and <code>OP_CHECKSIGADD</code> are overloaded in leaf version 0xC2 as follows.
+Signature opcodes (sigops) refer to the signature verification opcodes used to verify signatures in bitcoin. These opcodes, <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, and <code>OP_CHECKSIGADD</code> are overloaded in leaf version 0xc2 as follows.
+
+In the procedures below, "fail" means script execution MUST fail and terminate immediately, rendering the spend invalid. The term "continue" means the current signature operation is complete, and script execution proceeds with the next opcode.
 
 ====OP_CHECKSIG====
 
-# Pop two elements <code>pubkey</code>, then <code>signature</code> from the stack.
-# If <code>pubkey</code> is empty, fail.
-# Let <code>flag</code> be the first byte of <code>pubkey</code>, and <code>pubkey_data</code> be the remainder.
-# If <code>signature</code> is empty, push the empty vector (failure) and terminate.
+# Pop two elements <code>public_key</code> (top element) and <code>signature</code> (second-to-top element) from the stack.
+#* If fewer than two elements are on the stack, fail.
+# If <code>public_key</code> size is zero, fail.
+# Let <code>flag</code> be the first byte of <code>public_key</code>, and <code>pubkey_data</code> be the remainder.
+# If <code>signature</code> is empty, push the empty vector and continue.
 # Decrement the sigops budget by 50; fail if this budget falls below zero.
-# If <code>flag</code> is unrecognized, push <code>0x01</code> (success) and terminate.
-# If the scheme's specified sigops cost exceeds 50, additionally decrement the sigops budget by the difference; fail if this budget falls below zero.
+# If <code>flag</code> is unrecognized, push <code>0x01</code> and continue.
+#* If the scheme's specified sigops cost exceeds 50, decrement the sigops budget by the difference; fail if this budget falls below zero.
 # If <code>pubkey_data</code> is not a valid public key encoding for the scheme designated by <code>flag</code>, fail.
-# Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail script execution. Otherwise push <code>0x01</code>.
+# Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail. Otherwise push <code>0x01</code> and continue.
 
 ====OP_CHECKSIGVERIFY====
 
-# Execute as <code>OP_CHECKSIG</code>, then fail if the top stack element is false.
-# Otherwise, pop the success value from the top of the stack.
+# Execute as <code>OP_CHECKSIG</code> above.
+# Pop the `result` from the top of the stack; if `result` is false, fail. Otherwise continue.
 
 ====OP_CHECKSIGADD====
 
-# Pop <code>pubkey</code>, then <code>n</code>, then <code>signature</code> from the stack.
+# Pop three elements <code>pubkey</code>, then <code>n</code>, then <code>signature</code> from the stack.
+#* If fewer than three elements are on the stack, the script MUST fail and terminate immediately.
 # If <code>pubkey</code> is empty, fail.
 # If <code>n</code> is not a valid CScriptNum of at most 4 bytes, fail.
 # Let <code>flag</code> be the first byte of <code>pubkey</code>, and <code>pubkey_data</code> be the remainder.
-# If <code>signature</code> is empty, push <code>n</code> and terminate.
+# If <code>signature</code> is empty, push <code>n</code> and continue.
 # Decrement the sigops budget by 50; fail if this budget falls below zero.
-# If <code>flag</code> is unrecognized, push <code>n + 1</code> and terminate.
+# If <code>flag</code> is unrecognized, push <code>n + 1</code> and continue.
 # If the scheme's specified sigops cost exceeds 50, additionally decrement the sigops budget by the difference; fail if this budget falls below zero.
 # If <code>pubkey_data</code> is not a valid public key encoding for the scheme designated by <code>flag</code>, fail.
-# Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail script execution. Otherwise push <code>n + 1</code>.
+# Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail. Otherwise push <code>n + 1</code> and continue.
 
-As with Tapscript version 0xC0 the sigops <code>OP_CHECKMULTISIG</code> and <code>OP_CHECKMULTISIGVERIFY</code> are disabled in Tapscript version 0xC2.
+As with Tapscript version 0xc0 the sigops <code>OP_CHECKMULTISIG</code> and <code>OP_CHECKMULTISIGVERIFY</code> are disabled in Tapscript version 0xc2. The disabled opcodes behave in the same way as <code>OP_RETURN</code>, by failing and terminating the script immediately when executed, and being ignored when found in an unexecuted branch of the script.
 
 ===Threshold and Multi-Signature Scripts===
 
@@ -107,43 +116,47 @@ One digital signature scheme flag is defined in this BIP:
 |-
 ! Flag !! Algorithm !! Specification
 |-
-| 0x02 || BIP 340 Schnorr<ref>By using <code>0x02</code> as the algorithm flag for a BIP340 pubkey, the key appears the same as it would if we took the full lifted secp256k1 curve point and encoded it with the standard compressed point encoding format.</ref>. || See BIP 340, BIP 342
+| 0x02 || BIP 340 Schnorr<ref>Compressed secp256k1 points use <code>0x02</code> for even Y and <code>0x03</code> for odd Y. Since BIP 340 public keys are 32-byte x-only keys implicitly representing the even-Y point, <code>0x02</code> is the natural prefix.</ref> || See BIP 340, BIP 342
 |}
-
-The flag value <code>0x02</code> is chosen so that a BIP 340 public key with this prefix matches the standard compressed point encoding for secp256k1 (indicating an even Y coordinate).<ref>Compressed secp256k1 points use <code>0x02</code> for even Y and <code>0x03</code> for odd Y. Since BIP 340 public keys are 32-byte x-only keys implicitly representing the even-Y point, <code>0x02</code> is the natural prefix.</ref>
 
 All other flag values (i.e. {0x00, 0x01} U {0x03, ..., 0xFC, ...}) are reserved and cause signature verification to succeed unconditionally. This is intended to provide an upgrade path for new digital signature schemes via a soft fork. Future BIPs may assign meaning to additional flags.
 
 ===Signature Message===
 
-As in tapleaf version 0xC0, a common signature message is computed as specified in BIP 342.
+As in tapscript version 0xc0, a common signature message and tapscript message extension are computed as specified in BIP 341<ref>https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#common-signature-message</ref> and BIP 342<ref>https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki#user-content-Common_Signature_Message_Extension</ref>.
+
+The ''key_version'' field of the tapscript message extension uses the constant value 0xFF. Since the scheme flag does not need to be committed via ''key_version'': it is part of the public key, which is committed to by the script (and thus by ''tapleaf_hash''), and the verification algorithm is always selected by the flag of the public key being verified against.
 
 ===Digital Signature Scheme BIP Requirements===
 
 Future BIPs defining new scheme flags MUST AT MINIMUM specify:
 
+* '''Description''' - Name and description of the signature scheme and links to the source documents.
 * '''Flag byte''' - The constant value assigned to the scheme's flag byte.
-* '''Description''' - Name and description of the signature scheme and links to source documents.
-* '''Parameters''' - List of the key parameters which describe the various aspects of the scheme (e.g. group generators, hash functions, other primitives, etc).
+* '''Parameters''' - List of the important parameters which define / constrain the scheme (e.g. group generators, orders (sizes), hash functions, other primitives and any magic numbers, etc).
 * '''Key format''' - Structure and size of all public and private keys and their components.
-* '''Valid pubkey encodings''' - The exact set of valid public key encodings for the scheme's flag. Any public key outside this set causes script failure.
-* '''Maximum sizes''' - Upper bounds on public key and signature size.
-* '''Signature format''' - Structure and size (whether fixed- or variable) of the signatures. If variable, how the verifier will determine boundaries.
+* '''Valid pubkey encodings''' - An exact description of the set of valid public key encodings for the scheme. Any public key outside this set causes script failure.
+* '''Signature format''' - Structure and size (whether fixed- or variable) of the signatures. If signatures are variably sized, how the verifier will determine boundaries.
 * '''Verification procedure''' - Complete algorithm for verification of signatures.
-* '''Sigops cost''' - The cost charged against the sigops budget (see Resource Limits). Schemes MUST specify a cost ≥ 50 (a lower cost would be a hard fork relative to the unrecognized-flag path, since old nodes charge 50 for flags they don't recognize).
-* '''Other Properties''' - Other important properties of the scheme (e.g. malleable signatures) and any required restrictions.
+* '''Sigops cost''' - Cost charged against the sigops budget for signature operations (see Resource Limits). By default a base cost of 50 is charged. Schemes MAY justify their own additional scheme-specific cost (e.g. cost proportional to worst-case verification time relative to Schnorr), or even define a cost function that computes cost dynamically from the pubkey and/or signature size.
+* '''Other Properties''' - Other important properties of the scheme (e.g. malleable signatures, aggregable, etc.) and any required restrictions.
+* '''Test Vectors''' - Valid/invalid signatures, edge-case keys, boundary encodings.
 
 ==Resource Limits==
 
-===Sigops Budget===
-
-In leaf version <code>0xC0</code> (BIP 342) the per-input sigops budget is 50 plus the total serialized size of an input's witness in bytes (including the CompactSize prefix). Each signature opcode executed on a non-empty signature decrements this budget by 50; sigops with an empty signature are free. If the cost of a sigop brings the sigops budget below zero, then the script fails immediately. Such a rule is sufficient for signature schemes with small signatures such as Schnorr.
-
-However, different algorithms have different verification costs. The particular problem case is a scheme with a small signature and an expensive verification. Recognized schemes may impose an additional per-scheme charge in addition to the base charge of 50 per non-empty signature. The ≥ 50 floor exists because old nodes charge at minimum 50 for flags they don't recognize.
-
 ===Stack Element Size===
 
-Tapscript leaf version <code>0xC2</code> relaxes the limit on stack element size from 520 bytes to 6000 bytes. Tapscript version 0xC0 limits stack elements to 520 bytes. However, some signature schemes produce much larger signatures. We also do not know that signatures will be larger or smaller into the future. Therefore, the new tapscript version <code>0xC2</code> introduced in this BIP lifts the 520-byte limit on stack element sizes to a more reasonable limit so as to offer maximum flexibility while mitigating denial-of-service risks.
+Tapscript version 0xc0 (BIP 342) limits stack elements to 520 bytes. Tapscript leaf version 0xc2 relaxes the limit on stack element size from 520 bytes to 6000 bytes. This is because some signature schemes produce much larger signatures than does Schnorr (BIP 340). We do not know whether signatures will be larger or smaller into the future. Therefore, the new tapscript version 0xc2 introduced in this BIP raises the 520-byte limit on stack element sizes so as to offer flexibility to support new signature algorithms while mitigating denial-of-service risks.
+
+This limit applies both to elements on the initial stack and to push opcodes within the script.
+
+===Sigops Budget===
+
+In leaf version 0xc0, the per-input sigops budget is 50 plus the total serialized size of an input's witness in bytes (including the CompactSize prefix). Each signature opcode executed on a non-empty signature decrements this budget by 50; sigops with an empty signature are free. If the cost of a sigop brings the sigops budget below zero, then the script fails immediately.
+
+Such a rule is sufficient for signature schemes with small signatures such as Schnorr. However, different algorithms have different verification costs. A particular problem case is a scheme with a small signature and an expensive verification.
+
+Tapscript leaf version 0xc2 retains the initial budget of 0xc0, that is 50 plus the serialized size in bytes of the witness. However, tapscript version 0xc2 requires signature scheme BIPs to define a strictly-positive cost (or cost function) that will be applied to the sigops budget for signature verifications on keys corresponding to that scheme.
 
 ==Design Rationale==
 
@@ -153,13 +166,13 @@ An alternative approach would be to redefine separate <code>OP_SUCCESSx</code> o
 
 * New signature schemes may be added over time. With scheme flags, adding a new scheme requires only defining a new flag value. With separate opcodes, each scheme needs its own set of sigop opcodes (<code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, <code>OP_CHECKSIGADD</code>), and these do not interoperate naturally in multi-signature constructions.
 
-* Future opcodes involving signature verification, such as <code>OP_CHECKSIGFROMSTACK</code> (BIP 348), can adopt the same flag system, providing consistency across the scripting system. This overloading approach makes inter-BIP compatibility easier to engineer. If this BIP is deployed first, BIP 348 could be updated to support leaf version 0xC2 by following the scheme flag system defined here. Conversely, if BIP 348 is deployed first, this BIP could be updated to also redefine <code>OP_CHECKSIGFROMSTACK</code> in tapscript leaf version 0xC2.
+* Future opcodes involving signature verification, such as <code>OP_CHECKSIGFROMSTACK</code> (BIP 348), can adopt the same flag system, providing consistency across the scripting system. This overloading approach makes inter-BIP compatibility easier to engineer. If this BIP is deployed first, BIP 348 could be updated to support leaf version 0xc2 by following the scheme flag system defined here. Conversely, if BIP 348 is deployed first, this BIP could be updated to also redefine <code>OP_CHECKSIGFROMSTACK</code> in tapscript leaf version 0xc2.
 
 ===Why is the Scheme Flag Part of the Public Key?===
 
-The scheme flag is pre-pended to the public key rather than to the signature. This ensures the signature scheme is committed in the scriptPubKey (or tapscript). An attacker who observes a transaction cannot substitute a different scheme and so choose their signature verification function — doing so would require modifying the committed public key in the script, which is equivalent to breaking the spending condition entirely.
+The scheme flag is prepended to the public key rather than to the signature. This ensures the signature scheme is committed to in the tapscript. An attacker who observes a transaction cannot substitute a different scheme and so choose their signature verification function — doing so would require modifying the committed public key in the script, which is equivalent to breaking the spending condition entirely.
 
-If the flag were part of the signature, an attacker might for instance attempt to reinterpret a public key as being derived from another scheme, or trick a verifier into using weaker verification rules.
+If the flag were part of the signature, an attacker could control which verification algorithm is used. This would allow theft by specifying a reserved (auto-success) algorithm flag.
 
 The security argument is straightforward: to modify the signature scheme, you must be able to modify the public key that a user commits coins to. If you can modify the public key that a user commits coins to, you can already forge signatures and steal coins.
 
@@ -167,7 +180,7 @@ However, in a future state where <code>OP_CAT</code> or similar stack mutation o
 
 ===Why Raise the Limit on Maximum Stack Element Size?===
 
-Digital signature sizes vary widely. In some schemes the size is even variable. The signature size cannot always be statically determined from the public key alone. This presents a challenge when deploying such schemes on-chain because the legacy tapscript version 0xC0 restricts stack elements to a maximum size of 520 bytes which some digital signatures may overrun.
+Digital signature sizes vary widely. In some schemes the size is even variable. The signature size cannot always be statically determined from the public key alone. This presents a challenge when deploying such schemes on-chain because the legacy tapscript version 0xc0 restricts stack elements to a maximum size of 520 bytes which some digital signatures may overrun.
 
 We could solve this problem in a number of ways.
 
@@ -175,7 +188,7 @@ The simplest approach is to have signatures remain single elements regardless of
 
 Our main DoS concern with raising the stack element size limit would be that someone could construct a script which duplicates and/or hashes a very large stack element many times to consume CPU and/or memory on verifying nodes at relatively low cost. The spender only needs to pay for the script and the initial large stack element. In particular we identify three DoS attack vectors:
 
-* '''Memory exhaustion.''' Tapscript (version 0xC0) permits a stack of up to 1000 elements<ref>https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki#user-content-Resource_limits</ref>. At the current maximum stack element size of 520 bytes each, a maximum stack size is 520 KB. Allowing larger stack elements (or more of them) scales this resource requirement proportionally. If the maximum stack element size were raised to 6000 bytes the stack could theoretically grow to at most 6 MB of memory with a script like <code><big_data> OP_DUP OP_2DUP OP_3DUP OP_3DUP ...</code>. This memory consumption occurs since a naive implementation of <code>OP_DUP</code> simply duplicates raw bytes in memory.<ref>https://github.com/bitcoin/bitcoin/blob/4f348c2d730ce167d2918727aa2fdb6849182ab1/src/script/interpreter.cpp#L799</ref>
+* '''Memory exhaustion.''' Tapscript (version 0xc0) permits a stack of up to 1000 elements<ref>https://github.com/bitcoin/bips/blob/master/bip-0342.mediawiki#user-content-Resource_limits</ref>. At the current maximum stack element size of 520 bytes each, a maximum stack size is 520 KB. Allowing larger stack elements (or more of them) scales this resource requirement proportionally. If the maximum stack element size were raised to 6000 bytes the stack could theoretically grow to at most 6 MB of memory with a script like <code><big_data> OP_DUP OP_2DUP OP_3DUP OP_3DUP ...</code>. This memory consumption occurs since a naive implementation of <code>OP_DUP</code> simply duplicates raw bytes in memory.<ref>https://github.com/bitcoin/bitcoin/blob/4f348c2d730ce167d2918727aa2fdb6849182ab1/src/script/interpreter.cpp#L799</ref>
 
 * '''CPU exhaustion.''' Opcodes like <code>OP_RIPEMD160</code> are extremely slow due to a lack of hardware acceleration for the RIPEMD-160 hash function. A script that repeatedly hashes a large element could force significant computation relative to the transaction fees paid, e.g., <code><big_data> OP_DUP OP_2DUP OP_3DUP OP_RIPEMD160 OP_DROP OP_RIPEMD160 OP_DROP ...</code>. Such a script could quickly consume a lot of CPU power on the verifying node, while the spender only has to pay for the cost of the large stack element as an up-front cost. Even at modest fee rates, an attacker could pay a few dollars in transaction fees to force the entire network to run hundreds of thousands of RIPEMD-160 compressions.
 
@@ -189,7 +202,7 @@ Mitigations exist, and we evaluated three potential solutions to the above attac
 
 # '''Pointers / Copy-on-write duplication.''' Node implementations can represent stack elements with pointers or other reference types. Then <code>OP_DUP</code> becomes O(1) rather than O(n), and so duplication of stack elements is cheap. Memory growth is bounded by unique element data, not stack depth. Care must be taken to avoid shared-pointer mutation or use-after-free.
 
-Option (1) addresses both CPU and memory DoS attacks, and doesn't change the status quo from tapscript version <code>0xC0</code>. However, it would affect legitimate script authors' ability to work with some types of signatures on the stack the way they can with Schnorr / ECDSA today. It is unclear if use-cases exist for duplicating and/or hashing signatures in script.
+Option (1) addresses both CPU and memory DoS attacks, and doesn't change the status quo from tapscript version 0xc0. However, it would affect legitimate script authors' ability to work with some types of signatures on the stack the way they can with Schnorr / ECDSA today. It is unclear if use-cases exist for duplicating and/or hashing signatures in script.
 
 Options (2) and (3) are pure implementation changes, have no practical effect on script authors, and are arguably worth implementing independently of this proposal. Together, they address both CPU and memory DoS attacks. To circumvent the hash-cache mitigation, the attacker would either need to pay for the cost of distinct large inputs, or mutate an initial large stack element in script (without making it meaningfully smaller) to trigger a cache-miss, and force the verifier to recompute its hash. The former would be expensive, and the latter is not possible under the current Bitcoin scripting environment.
 
@@ -203,9 +216,7 @@ Thus, in possession of viable implementation-level mitigations (which are desira
 
 ===Why Not Allow Chunked Signatures?===
 
-Signatures which exceed the 520-byte stack element limit could be pushed as multiple stack elements of at most 520 bytes each, to be attached to the transaction witness field. These chunks would then be popped and concatenated by sigop opcodes during script evaluation <i>before</i> verifying the signature. The chunk count might be fixed per scheme, encoded in the witness, or otherwise derived from signature structure. This preserves the existing stack element size limit but it introduces complexity. There are several ways one might achieve such a chunking mechanism.
-
-For many schemes the signature size may be fixed, and in these cases the number of chunks to pop is known. Still, other schemes have variable sized signatures.
+Signatures which exceed the 520-byte stack element limit could be pushed as multiple stack elements of at most 520 bytes each, to be attached to the transaction witness field. These chunks would then be popped and concatenated by sigop opcodes during script evaluation <i>before</i> verifying the signature. This preserves the existing stack element size limit but it introduces complexity. There are several ways to achieve such a chunking mechanism. The chunk count might be fixed per scheme, encoded in the witness, or otherwise derived from transaction or witness structure.
 
 One option for variably sized signature is that sigop opcodes could parse a header from the leading 520 bytes of the signature from the top stack item, use this to determine how long the signature should be, and thus how many stack elements must be popped. This is undesirable, because (1) the script interpreter cannot treat signatures as a black box anymore, and (2) we may open the door to transaction introspection, as the script interpreter must parse and react dynamically to the internal contents of a signature, which is itself bound to the transaction. We would like to maintain a tight scope in our proposal and avoid inadvertently introducing such edge case behavior, and so we discard this option out of caution.
 
@@ -232,7 +243,7 @@ This preserves simple single-element signatures while preventing the DoS amplifi
 
 Reserved (or unrecognized) scheme flags cause signature verification to succeed unconditionally. This follows the precedent of unknown public key types in BIP 342, where signature checks against public keys that are not 32 bytes succeed unconditionally so that new public key types can be introduced via soft fork. As with BIP 342, this success applies only to the individual signature check: script execution continues, all other conditions in the script remain enforced, empty signatures still yield the same result as they would for a recognized scheme (false for <code>OP_CHECKSIG</code>, script failure for <code>OP_CHECKSIGVERIFY</code>, and no counter increment for <code>OP_CHECKSIGADD</code>), and for non-empty signatures the sigops budget is still consumed.
 
-This also creates a footgun: a wallet that accidentally uses an unrecognized flag creates an anyone-can-spend condition. Wallets MUST only generate public keys with recognized flags. The anyone-can-spend risk of misusing a reserved flag is comparable to that of including an <code>OP_SUCCESSx</code> opcode in a leaf version 0xC0 script, though narrower in scope.
+Wallets MUST only generate public keys with recognized scheme flags, and users MUST verify that their wallets do so. Selecting the correct scheme flag for a keypair is straightforward and easy to validate by inspecting scripts visually.
 
 ==Security Considerations==
 
@@ -244,7 +255,13 @@ N.B. in a potential future where stack mutation opcodes like <code>OP_CAT</code>
 
 ===Unrecognized Flag Misuse===
 
-Locking an output to just a public key prefixed with a reserved (or unrecognized) flag byte would create an anyone-can-spend output. Users MUST verify that their wallets only generate public keys with recognized scheme flags. Selecting the correct scheme flag for a keypair is straightforward and easy to validate by inspecting scripts visually. This is a user and a wallet responsibility, not a consensus issue.
+A signature operation against a public key prefixed with a reserved (or unrecognized) flag byte succeeds for any non-empty signature. Locking an output to such a public key — which may be as short as the flag byte alone — would create an anyone-can-spend output. In multi-key scripts the failure is subtler: each unrecognized-flag key effectively removes its signature check from the spending conditions, silently degrading a threshold (e.g. a 2-of-2 becomes a 1-of-1).
+
+A particular hazard is reusing a bare BIP 340 public key from a leaf version 0xc0 script without prepending the 0x02 scheme flag. The first byte of the key would then be interpreted as the flag — almost certainly an unrecognized one — recreating exactly this failure.
+
+The anyone-can-spend risk of misusing a reserved flag is comparable to that of including an <code>OP_SUCCESSx</code> opcode in a leaf version 0xc0 script, though narrower in scope.
+
+This is a user and a wallet responsibility, not a consensus issue.
 
 ===Per-Scheme Security===
 
@@ -252,9 +269,9 @@ Each digital signature scheme carries its own security assumptions and potential
 
 ==Backward Compatibility==
 
-This BIP defines a new tapscript leaf version which has new semantics for signature verification and modified verifier resource constraints. Existing script semantics in P2TR, P2WSH and other legacy address formats are unaffected. Moreover, it does not modify or encumber any other tapscript leaf versions or any particular output types. This BIP only affects scripts using leaf version 0xC2 in Tapscript-supporting output types that enable this leaf version.
+This BIP defines a new tapscript leaf version which has new semantics for signature verification and modified verifier resource constraints. Existing script semantics in P2TR, P2WSH and other legacy address formats are unaffected. Moreover, it does not modify or encumber any other tapscript leaf versions or any particular output types. This BIP only affects scripts using leaf version 0xc2 in Tapscript-supporting output types that enable this leaf version.
 
-Upgraded nodes enforce the rules of this BIP. Non-upgraded nodes treat leaf version 0xC2 as an unknown tapleaf version and, per BIP 341, accept such spends without evaluating the script. The deployment is therefore a soft fork. Non-upgraded nodes will still follow the heaviest, most-worked chain even though they do not validate 0xC2 spending conditions and gain no security from them.
+Upgraded nodes enforce the rules of this BIP. Non-upgraded nodes treat leaf version 0xc2 as an unknown tapleaf version and, per BIP 341, accept such spends without evaluating the script. The deployment is therefore a soft fork. Non-upgraded nodes will still follow the heaviest, most-worked chain even though they do not validate 0xc2 spending conditions and gain no security from them.
 
 ==Reference Implementation==
 
