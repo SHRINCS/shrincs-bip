@@ -2635,7 +2635,7 @@ def slh_dsa_digest_message(
 
   leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
 
-  tree_index = int.from_bytes(tree_index_digest) % (2**(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)))
+  tree_index = int.from_bytes(tree_index_digest) % (2**SPHX_TREE_INDEX_BITS)
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
   return (fors_digest, tree_index, leaf_index)
 ```
