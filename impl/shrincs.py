@@ -1106,10 +1106,8 @@ def fxmss_node(
   """
   node_depth = FXMSS_HEIGHT - node_height
 
-  is_uxmss_leaf = not tree_balanced and (node_index == 1 or node_depth == tree_depth)
-  is_bxmss_leaf = tree_balanced and node_depth == tree_depth
-
-  if is_uxmss_leaf or is_bxmss_leaf:
+  # Leaves are at the bottom layer or right children on the unbalanced spine.
+  if node_depth == tree_depth or (not tree_balanced and node_index == 1):
     return wots_c_pubkey_gen(
       sk_seed, pk_seed, node_height, node_index, tree_balanced, tree_depth
     )
