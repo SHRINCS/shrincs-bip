@@ -599,7 +599,7 @@ def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAI
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
     checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
-    checksum >>= WOTS_TW_CHAIN_BITS
+    checksum //= 2**WOTS_TW_CHAIN_BITS
 
   return msg_indexes + checksum_indexes
 
@@ -611,7 +611,7 @@ def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Array[UInt16, WOTS_TW_
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
   SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
-  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
+  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) * 2**SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
   checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
   return msg_indexes + checksum_indexes
@@ -962,7 +962,7 @@ def xmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(SPHX_XMSS_HEIGHT):
-    sibling_index = (keypair_index >> j) ^ 1
+    sibling_index = (keypair_index // 2**j) ^ 1
     sig += xmss_node(sk_seed, sibling_index, j, pk_seed, layer, tree_address)
 
   return sig
@@ -997,9 +997,9 @@ def xmss_pubkey_from_sig(
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, layer, tree_address, keypair_index)
 
   for k in range(SPHX_XMSS_HEIGHT):
-    parent = XmssTree(layer, tree_address, k + 1, keypair_index >> (k+1))
+    parent = XmssTree(layer, tree_address, k + 1, keypair_index // 2**(k+1))
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (keypair_index >> k) & 1 == 1:
+    if (keypair_index // 2**k) % 2 == 1:
       node = H(pk_seed, parent, sibling + node)
     else:
       node = H(pk_seed, parent, node + sibling)
@@ -1176,7 +1176,7 @@ def fxmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
-    sibling_index = (leaf_index >> j) ^ 1
+    sibling_index = (leaf_index // 2**j) ^ 1
     sibling_height = leaf_height + j
     sig += fxmss_node(
       sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
@@ -1226,9 +1226,9 @@ def fxmss_pubkey_from_sig(
     return None
 
   for k in range(leaf_depth):
-    parent = FxmssTree(leaf_height + k + 1, leaf_index >> (k+1))
+    parent = FxmssTree(leaf_height + k + 1, leaf_index // 2**(k+1))
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index >> k) & 1 == 1:
+    if (leaf_index // 2**k) % 2 == 1:
       node = H(pk_seed, parent, sibling + node)
     else:
       node = H(pk_seed, parent, node + sibling)
@@ -1349,7 +1349,7 @@ def fors_sign(
     leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, leaf_index)
     for j in range(SPHX_FORS_HEIGHT):
-      sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + ((index_set[i] >> j) ^ 1)
+      sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + ((index_set[i] // 2**j) ^ 1)
       sig += fors_node(
         sk_seed, sibling_index, j, pk_seed, layer, tree_address, keypair_index
       )
@@ -1393,13 +1393,13 @@ def fors_pubkey_from_sig(
     node = F(pk_seed, leaf, preimage)
     for j in range(SPHX_FORS_HEIGHT):
       parent = ForsTree(
-        layer, tree_address, keypair_index, j + 1, tree_index >> (j+1)
+        layer, tree_address, keypair_index, j + 1, tree_index // 2**(j+1)
       )
 
       sibling = signature[offset : offset+16]
       offset += 16
 
-      if (index_set[i] >> j) & 1 == 1:
+      if (index_set[i] // 2**j) % 2 == 1:
         node = H(pk_seed, parent, sibling + node)
       else:
         node = H(pk_seed, parent, node + sibling)
