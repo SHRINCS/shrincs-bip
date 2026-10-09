@@ -931,7 +931,6 @@ This function is only used in the stateful path, and by both the signer and the 
 
 ```py
 def H_grind(pk_seed: Bytes[16], ADRS: WotsCGrind, digest: Bytes[32], counter: UInt16) -> Bytes[16]:
-  assert counter <= 0xFFFF
   return sha256(pk_seed + zeros(48) + ADRS.to_bytes()[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
 ```
 <!-- DOC END H_grind -->
@@ -963,7 +962,6 @@ The `hmac_sha256` keyed hash function.
 
 ```py
 def hmac_sha256(key: Bytes[:64], message: Bytes[:2**61 - 1 - 64]) -> Bytes[32]:
-  assert len(key) <= 64
   padded_key = key + zeros(64 - len(key))
   inner = sha256(xor(padded_key, replicate(0x36, 64)) + message)
   return sha256(xor(padded_key, replicate(0x5C, 64)) + inner)
@@ -2681,7 +2679,6 @@ def slh_dsa_sign(
     sl_root: Bytes[16],
     opt_rand: Optional[Bytes[16]],
 ) -> Bytes[SPHX_SIGNATURE_SIZE]:
-  assert len(ctx) < 256
   contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
 
   if opt_rand is None:
@@ -2728,7 +2725,6 @@ def slh_dsa_verify(
     pk_seed: Bytes[16],
     sl_root: Bytes[16],
 ) -> bool:
-  assert len(ctx) < 256
   contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
 
   if len(signature) != SPHX_SIGNATURE_SIZE:
@@ -2855,8 +2851,6 @@ This function is used only during key generation.
 
 ```py
 def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
-  assert len(seed) == 48
-  assert len(sf_structure) == 2
   assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
 
   sk_seed = seed[0:16]
@@ -2970,7 +2964,6 @@ def shrincs_sign(
     opt_rand: Optional[Bytes[16]],
 ) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
                     Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
-  assert len(shrincs_seckey) == 82
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
@@ -2990,7 +2983,6 @@ def shrincs_sign(
 
   # Bind the stateful signature to the stateless keypair and context in the
   # same manner as the stateless component.
-  assert len(ctx) < 256
   bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
 
   R = PRF_msg_sf(sk_prf, pk_seed, leaf_height, leaf_index, bound_message)
@@ -3094,7 +3086,6 @@ def shrincs_verify(
 
     # Stateful signatures must be bound to the stateless keypair and context
     # in the same manner as the stateless component.
-    assert len(ctx) < 256
     bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
 
     message_digest = H_msg_sf(
