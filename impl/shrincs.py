@@ -1347,7 +1347,7 @@ def fors_sign(
     leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, leaf_index)
     for j in range(SPHX_FORS_HEIGHT):
-      sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + ((index_set[i] // 2**j) ^ 1)
+      sibling_index = (leaf_index // 2**j) ^ 1
       sig += fors_node(
         sk_seed, sibling_index, j, pk_seed, layer, tree_address, keypair_index
       )
@@ -1380,24 +1380,23 @@ def fors_pubkey_from_sig(
   """
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
 
-  offset = 0
   roots = b""
   for i in range(SPHX_FORS_COUNT):
-    preimage = signature[offset : offset+16]
-    offset += 16
-    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+    tree_offset = i * 16 * (SPHX_FORS_HEIGHT + 1)
+    preimage = signature[tree_offset : tree_offset+16]
+    leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
 
-    leaf = ForsTree(layer, tree_address, keypair_index, 0, tree_index)
+    leaf = ForsTree(layer, tree_address, keypair_index, 0, leaf_index)
     node = F(pk_seed, leaf, preimage)
     for j in range(SPHX_FORS_HEIGHT):
       parent = ForsTree(
-        layer, tree_address, keypair_index, j + 1, tree_index // 2**(j+1)
+        layer, tree_address, keypair_index, j + 1, leaf_index // 2**(j+1)
       )
 
-      sibling = signature[offset : offset+16]
-      offset += 16
+      sibling_offset = tree_offset + 16 * (j + 1)
+      sibling = signature[sibling_offset : sibling_offset+16]
 
-      if (index_set[i] // 2**j) % 2 == 1:
+      if (leaf_index // 2**j) % 2 == 1:
         node = H(pk_seed, parent, sibling + node)
       else:
         node = H(pk_seed, parent, node + sibling)
