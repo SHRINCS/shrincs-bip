@@ -1432,12 +1432,12 @@ def slh_dsa_digest_message(
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
-  offset = FORS_DIGEST_SIZE
+  tree_index_size = ceildiv(SPHX_TREE_INDEX_BITS, 8)
+  leaf_index_size = ceildiv(SPHX_XMSS_HEIGHT, 8)
 
-  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
-  offset += len(tree_index_digest)
+  tree_index_digest = digest[FORS_DIGEST_SIZE : FORS_DIGEST_SIZE + tree_index_size]
 
-  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
+  leaf_index_digest = digest[FORS_DIGEST_SIZE + tree_index_size : FORS_DIGEST_SIZE + tree_index_size + leaf_index_size]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**SPHX_TREE_INDEX_BITS)
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
