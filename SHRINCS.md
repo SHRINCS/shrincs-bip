@@ -1320,8 +1320,7 @@ def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAI
 
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
-    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
-    checksum //= 2**WOTS_TW_CHAIN_BITS
+    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = (checksum // 2**(WOTS_TW_CHAIN_BITS * i)) % 2**WOTS_TW_CHAIN_BITS
 
   return msg_indexes + checksum_indexes
 ```
