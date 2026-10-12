@@ -436,8 +436,10 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 | `SPHX_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> | `16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE` | The byte size of an SLH-DSA signature. |
 | `SHRINCS_SL_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> | `1 + SPHX_SIGNATURE_SIZE` | The byte size of a stateless SHRINCS signature. |
 | `SPHX_TREE_INDEX_BITS` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_TREE_INDEX_BITS -->36<!-- CONST END SPHX_TREE_INDEX_BITS --> | `SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)` | The number of bits needed to represent the index of an XMSS tree in the hypertree. |
+| `SPHX_DIGEST_TREE_INDEX_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_DIGEST_TREE_INDEX_SIZE -->5<!-- CONST END SPHX_DIGEST_TREE_INDEX_SIZE --> | `ceildiv(SPHX_TREE_INDEX_BITS, 8)` | The byte size of the tree index field extracted from the message digest. |
+| `SPHX_DIGEST_LEAF_INDEX_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_DIGEST_LEAF_INDEX_SIZE -->2<!-- CONST END SPHX_DIGEST_LEAF_INDEX_SIZE --> | `ceildiv(SPHX_XMSS_HEIGHT, 8)` | The byte size of the leaf index field extracted from the message digest. |
 | <sub>(Not named in SHRINCS)</sub> | `h` | 45 | `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT` | The total height of the SLH-DSA hypertree. |
-| <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceildiv(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT, 8) + ceildiv(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1), 8) + ceildiv(SPHX_XMSS_HEIGHT, 8)` | The byte length of the message digest. |
+| `SPHX_DIGEST_PREFIX_SIZE` | `m` | <!-- CONST START SPHX_DIGEST_PREFIX_SIZE -->24<!-- CONST END SPHX_DIGEST_PREFIX_SIZE --> | `FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE + SPHX_DIGEST_LEAF_INDEX_SIZE` | The byte size of the prefix consumed from the message digest. Each field size is rounded up separately. |
 
 
 ### Key Generation Inputs
@@ -2626,12 +2628,10 @@ def slh_dsa_digest_message(
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
-  offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
-  offset += len(tree_index_digest)
+  tree_index_digest = digest[FORS_DIGEST_SIZE : FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE]
 
-  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
+  leaf_index_digest = digest[FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE : SPHX_DIGEST_PREFIX_SIZE]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**SPHX_TREE_INDEX_BITS)
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)

@@ -89,6 +89,11 @@ SHRINCS_SF_SIGNATURE_SIZE_MAX = 1 + 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX
 FORS_DIGEST_SIZE              = ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)
 FORS_SIGNATURE_SIZE           = 16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)
 SPHX_TREE_INDEX_BITS          = SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)
+SPHX_DIGEST_TREE_INDEX_SIZE   = ceildiv(SPHX_TREE_INDEX_BITS, 8)
+SPHX_DIGEST_LEAF_INDEX_SIZE   = ceildiv(SPHX_XMSS_HEIGHT, 8)
+SPHX_DIGEST_PREFIX_SIZE       = (
+  FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE + SPHX_DIGEST_LEAF_INDEX_SIZE
+)
 SPHX_SIGNATURE_SIZE           = 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE
 SHRINCS_SL_SIGNATURE_SIZE     = 1 + SPHX_SIGNATURE_SIZE
 
@@ -1431,12 +1436,10 @@ def slh_dsa_digest_message(
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
-  offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
-  offset += len(tree_index_digest)
+  tree_index_digest = digest[FORS_DIGEST_SIZE : FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE]
 
-  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
+  leaf_index_digest = digest[FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE : SPHX_DIGEST_PREFIX_SIZE]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**SPHX_TREE_INDEX_BITS)
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
