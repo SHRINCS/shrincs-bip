@@ -1199,23 +1199,23 @@ Each scheme therefore has its own chaining function, which sets that type itself
 #### `wots_tw_chain_iter(...)`
 
 <!-- DOC START wots_tw_chain_iter -->
-The WOTS-TW hash chain iteration function. Iterates the hash chain from index `start` by `steps`
-steps, returning the node at index `start + steps`. Each step is tweaked by the address of the
+The WOTS-TW hash chain iteration function. Iterates the hash chain from index `start` to `stop`,
+returning the node at index `stop`. Each step is tweaked by the address of the
 chain, with the hash index set to that step.
 
 - Inputs:
   - `node`: a 16-byte hash.
   - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
     `2**WOTS_TW_CHAIN_BITS`.
-  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
-    must not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
+  - `stop`: a 32-bit unsigned integer, the final chain index, at least `start` and at most
+    `2**WOTS_TW_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
   - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair.
   - `chain_index`: a 32-bit unsigned integer, the index of the chain within the keypair.
 - Output:
-  - a 16-byte hash at index `start + steps`.
+  - a 16-byte hash at index `stop`.
 
 This function is only used in the stateless path, and by both the signer and the verifier.
 
@@ -1223,14 +1223,17 @@ This function is only used in the stateless path, and by both the signer and the
 def wots_tw_chain_iter(
     node: Bytes[16],
     start: UInt32,
-    steps: UInt32,
+    stop: UInt32,
     pk_seed: Bytes[16],
     layer: UInt8,
     tree_address: UInt64,
     keypair_index: UInt32,
     chain_index: UInt32,
 ) -> Bytes[16]:
-  for j in range(start, start+steps):
+  assert start <= stop <= 2**WOTS_TW_CHAIN_BITS - 1
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert chain_index < WOTS_TW_CHAIN_COUNT
+  for j in range(start, stop):
     node = F(pk_seed, WotsTwHash(layer, tree_address, keypair_index, chain_index, j), node)
   return node
 ```
@@ -1240,22 +1243,22 @@ def wots_tw_chain_iter(
 #### `wots_c_chain_iter(...)`
 
 <!-- DOC START wots_c_chain_iter -->
-The WOTS+C hash chain iteration function. Iterates the hash chain from index `start` by `steps`
-steps, returning the node at index `start + steps`. Each step is tweaked by the address of the
+The WOTS+C hash chain iteration function. Iterates the hash chain from index `start` to `stop`,
+returning the node at index `stop`. Each step is tweaked by the address of the
 chain, with the hash index set to that step.
 
 - Inputs:
   - `node`: a 16-byte hash.
   - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
     `2**WOTS_C_CHAIN_BITS`.
-  - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
-    must not exceed `2**WOTS_C_CHAIN_BITS - 1`.
+  - `stop`: a 32-bit unsigned integer, the final chain index, at least `start` and at most
+    `2**WOTS_C_CHAIN_BITS - 1`.
   - `pk_seed`: a 16-byte public seed.
   - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
   - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
   - `chain_index`: a 32-bit unsigned integer, the index of the chain within the keypair.
 - Output:
-  - a 16-byte hash at index `start + steps`.
+  - a 16-byte hash at index `stop`.
 
 This function is only used in the stateful path, and by both the signer and the verifier.
 
@@ -1263,13 +1266,16 @@ This function is only used in the stateful path, and by both the signer and the 
 def wots_c_chain_iter(
     node: Bytes[16],
     start: UInt32,
-    steps: UInt32,
+    stop: UInt32,
     pk_seed: Bytes[16],
     node_height: UInt8,
     node_index: UInt64,
     chain_index: UInt32,
 ) -> Bytes[16]:
-  for j in range(start, start+steps):
+  assert start <= stop <= 2**WOTS_C_CHAIN_BITS - 1
+  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert chain_index < WOTS_C_CHAIN_COUNT
+  for j in range(start, stop):
     node = F(pk_seed, WotsCHash(node_height, node_index, chain_index, j), node)
   return node
 ```
@@ -1484,12 +1490,12 @@ def wots_tw_pubkey_from_sig(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   indexes = wots_tw_message_to_indexes(message)
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
-    steps = 2**WOTS_TW_CHAIN_BITS - 1 - indexes[i]
     wots_pk[i] = wots_tw_chain_iter(
-      signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed,
+      signature[i*16 : (i+1)*16], indexes[i], 2**WOTS_TW_CHAIN_BITS - 1, pk_seed,
       layer, tree_address, keypair_index, i
     )
 
@@ -1720,6 +1726,8 @@ def wots_c_pubkey_from_sig(
     node_height: UInt8,
     node_index: UInt64,
 ) -> Optional[Bytes[16]]:
+  assert node_height < FXMSS_HEIGHT
+  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
   counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, node_height, node_index, counter)
 
@@ -1729,9 +1737,8 @@ def wots_c_pubkey_from_sig(
 
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
   for i in range(WOTS_C_CHAIN_COUNT):
-    steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
     wots_pk[i] = wots_c_chain_iter(
-      signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed,
+      signature[2+i*16 : 2+(i+1)*16], indexes[i], 2**WOTS_C_CHAIN_BITS - 1, pk_seed,
       node_height, node_index, i
     )
 
