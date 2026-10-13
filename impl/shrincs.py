@@ -597,7 +597,10 @@ def wots_c_chain_iter(
 
   This function is only used in the stateful path, and by both the signer and the verifier.
   """
-  assert start <= stop <= 2**WOTS_C_CHAIN_BITS - 1
+  assert start <= stop < 2**WOTS_C_CHAIN_BITS
+  assert node_index < 2**(FXMSS_HEIGHT - node_height)
+  assert chain_index < WOTS_C_CHAIN_COUNT
+
   for j in range(start, stop):
     node = F(pk_seed, WotsCHash(node_height, node_index, chain_index, j), node)
   return node
@@ -753,6 +756,8 @@ def wots_c_grind_to_constant_sum(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert node_index < 2**(FXMSS_HEIGHT - node_height)
+
   ADRS = WotsCGrind(node_height, node_index)
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
@@ -784,6 +789,8 @@ def wots_c_map_digest(
 
   This function is only used in the stateful path, and only by the verifier.
   """
+  assert node_index < 2**(FXMSS_HEIGHT - node_height)
+
   hashed = H_grind(pk_seed, WotsCGrind(node_height, node_index), message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
@@ -816,6 +823,13 @@ def wots_c_pubkey_gen(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert FXMSS_HEIGHT - node_height <= tree_depth
+  assert node_index < 2**(FXMSS_HEIGHT - node_height)
+  # Balanced leaves occur only at the bottom level.
+  assert not tree_balanced or FXMSS_HEIGHT - node_height == tree_depth <= 64
+  # Unbalanced leaves are right children or the leftmost bottom leaf.
+  assert tree_balanced or node_index == 1 or (node_index == 0 and FXMSS_HEIGHT - node_height == tree_depth)
+
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
   for i in range(WOTS_C_CHAIN_COUNT):
     sk = PRF(
@@ -855,6 +869,13 @@ def wots_c_sign(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert FXMSS_HEIGHT - tree_depth <= node_height < FXMSS_HEIGHT
+  assert node_index < 2**(FXMSS_HEIGHT - node_height)
+  # Balanced leaves occur only at the bottom level.
+  assert not tree_balanced or FXMSS_HEIGHT - node_height == tree_depth <= 64
+  # Unbalanced leaves are right children or the leftmost bottom leaf.
+  assert tree_balanced or node_index == 1 or (node_index == 0 and FXMSS_HEIGHT - node_height == tree_depth)
+
   grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, node_height, node_index)
   if grinded is None:
     return None # practically impossible
@@ -894,6 +915,9 @@ def wots_c_pubkey_from_sig(
 
   This function is only used in the stateful path, and only by the verifier.
   """
+  assert node_height < FXMSS_HEIGHT
+  assert node_index < 2**(FXMSS_HEIGHT - node_height)
+
   counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, node_height, node_index, counter)
 
