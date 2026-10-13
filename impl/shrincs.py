@@ -1111,6 +1111,15 @@ def fxmss_node(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert 255 - node_height <= tree_depth
+  assert node_index < 2**min(64, 255 - node_height)
+  assert not tree_balanced or tree_depth <= 64
+  assert tree_balanced or node_index in (0, 1)
+  if node_height == 0:
+    return wots_c_pubkey_gen(
+      sk_seed, pk_seed, node_height, node_index, tree_balanced, tree_depth
+    )
+
   node_depth = FXMSS_HEIGHT - node_height
 
   # Leaves are at the bottom layer or right children on the unbalanced spine.
@@ -1118,12 +1127,6 @@ def fxmss_node(
     return wots_c_pubkey_gen(
       sk_seed, pk_seed, node_height, node_index, tree_balanced, tree_depth
     )
-
-  # Catch and throw if control would enter an infinite recursive loop.
-  if tree_balanced:
-    assert node_depth < tree_depth
-  else:
-    assert node_index == 0
 
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
