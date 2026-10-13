@@ -2221,6 +2221,13 @@ def fxmss_node(
     tree_balanced: bool,
     tree_depth: UInt8,
 ) -> Bytes[16]:
+  assert FXMSS_HEIGHT - node_height <= tree_depth
+  assert node_index < 2**(FXMSS_HEIGHT - node_height)
+  # Balanced leaf indexes must fit in the 64-bit address field.
+  assert not tree_balanced or tree_depth <= 64
+  # Unbalanced nodes lie on the left spine or are its right children.
+  assert tree_balanced or node_index == 0 or node_index == 1
+
   node_depth = FXMSS_HEIGHT - node_height
 
   # Leaves are at the bottom layer or right children on the unbalanced spine.
@@ -2228,12 +2235,6 @@ def fxmss_node(
     return wots_c_pubkey_gen(
       sk_seed, pk_seed, node_height, node_index, tree_balanced, tree_depth
     )
-
-  # Catch and throw if control would enter an infinite recursive loop.
-  if tree_balanced:
-    assert node_depth < tree_depth
-  else:
-    assert node_index == 0
 
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
@@ -2281,13 +2282,14 @@ def fxmss_sign(
     tree_balanced: bool,
     tree_depth: UInt8,
 ) -> Optional[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX]]:
-  leaf_depth = FXMSS_HEIGHT - leaf_height
+  assert FXMSS_HEIGHT - tree_depth <= leaf_height < FXMSS_HEIGHT
+  assert leaf_index < 2**(FXMSS_HEIGHT - leaf_height)
+  # Balanced leaves occur only at the bottom level.
+  assert not tree_balanced or FXMSS_HEIGHT - leaf_height == tree_depth <= 64
+  # Unbalanced leaves are right children or the leftmost bottom leaf.
+  assert tree_balanced or leaf_index == 1 or (leaf_index == 0 and FXMSS_HEIGHT - leaf_height == tree_depth)
 
-  # Validate the leaf is positioned correctly for the specified tree structure.
-  if tree_balanced:
-    assert leaf_depth == tree_depth
-  else:
-    assert leaf_index == 1 or leaf_depth == tree_depth
+  leaf_depth = FXMSS_HEIGHT - leaf_height
 
   sig = wots_c_sign(
     message_digest, sk_seed, pk_seed, leaf_height, leaf_index, tree_balanced, tree_depth
@@ -2339,15 +2341,15 @@ def fxmss_pubkey_from_sig(
     message_digest: Bytes[32],
     pk_seed: Bytes[16],
 ) -> Optional[Bytes[16]]:
+  assert leaf_height < FXMSS_HEIGHT
+  # The leaf index names a position in the FXMSS tree.
+  assert leaf_index < 2**(FXMSS_HEIGHT - leaf_height)
+  # The authentication path has one node per level.
+  assert len(signature) == 2 + WOTS_C_CHAINS_SIZE + 16 * (FXMSS_HEIGHT - leaf_height)
+
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
   leaf_depth = FXMSS_HEIGHT - leaf_height
-
-  # Ensure the XMSS path size matches leaf_depth.
-  assert len(xmss_auth) == leaf_depth * 16
-
-  # Ensure leaf_index describes a valid position in the FXMSS tree.
-  assert leaf_index < 2 ** min(64, leaf_depth)
 
   node = wots_c_pubkey_from_sig(
     wots_sig, message_digest, pk_seed, leaf_height, leaf_index
