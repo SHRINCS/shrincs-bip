@@ -1217,15 +1217,12 @@ def fxmss_pubkey_from_sig(
 
   This function is only used in the stateful path, and only by the verifier.
   """
+  assert leaf_height < 255
+  assert leaf_index < 2**min(64, 255 - leaf_height)
+  assert len(signature) == 2 + WOTS_C_CHAINS_SIZE + 16 * (255 - leaf_height)
   wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
   xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
   leaf_depth = FXMSS_HEIGHT - leaf_height
-
-  # Ensure the XMSS path size matches leaf_depth.
-  assert len(xmss_auth) == leaf_depth * 16
-
-  # Ensure leaf_index describes a valid position in the FXMSS tree.
-  assert leaf_index < 2 ** min(64, leaf_depth)
 
   node = wots_c_pubkey_from_sig(
     wots_sig, message_digest, pk_seed, leaf_height, leaf_index
@@ -1759,41 +1756,25 @@ def shrincs_verify(
     # Stateless signatures must be bound to the stateful keypair.
     return slh_dsa_verify(sf_root + message, signature[1:], ctx, pk_seed, sl_root)
 
-  # Stateful verification path. The size bounds are the FXMSS bounds plus a variable-size header.
-  elif 0 <= indicator < FXMSS_HEIGHT:
-    # Signature must have correct length.
-    if not SHRINCS_SF_SIGNATURE_SIZE_MIN <= len(signature) <= SHRINCS_SF_SIGNATURE_SIZE_MAX:
-      return False
-
-    R = signature[1:17]
-    leaf_height = indicator
-    leaf_depth = FXMSS_HEIGHT - leaf_height
-    leaf_index_size = ceildiv(min(leaf_depth, 64), 8)
-    leaf_index = int.from_bytes(signature[17 : 17+leaf_index_size])
-
-    # Reject a leaf_index that names no position in a tree of this depth.
-    if leaf_index >= 2 ** min(64, leaf_depth):
-      return False
-
-    fxmss_signature = signature[17+leaf_index_size:]
-
-    # The FXMSS part must be a WOTS+C signature plus leaf_depth merkle nodes.
-    if len(fxmss_signature) != 2 + WOTS_C_CHAINS_SIZE + leaf_depth * 16:
-      return False
-
-    # Stateful signatures must be bound to the stateless keypair and context
-    # in the same manner as the stateless component.
-    bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
-
-    message_digest = H_msg_sf(
-      R, pk_seed, sf_root, leaf_height, leaf_index, bound_message
-    )
-    root = fxmss_pubkey_from_sig(leaf_index, leaf_height, fxmss_signature, message_digest, pk_seed)
-    if root is None:
-      return False
-
-    return root == sf_root
-
-  # Negative indicator, not a valid SHRINCS signature.
-  else:
+  leaf_height = indicator
+  leaf_depth = FXMSS_HEIGHT - leaf_height
+  leaf_index_size = ceildiv(min(leaf_depth, 64), 8)
+  if len(signature) != 17 + leaf_index_size + 2 + WOTS_C_CHAINS_SIZE + 16 * leaf_depth:
     return False
+
+  R = signature[1:17]
+  leaf_index = int.from_bytes(signature[17 : 17+leaf_index_size])
+  if leaf_index >= 2**min(64, leaf_depth):
+    return False
+
+  fxmss_signature = signature[17+leaf_index_size:]
+  bound_message = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + sl_root + message
+
+  message_digest = H_msg_sf(
+    R, pk_seed, sf_root, leaf_height, leaf_index, bound_message
+  )
+  root = fxmss_pubkey_from_sig(leaf_index, leaf_height, fxmss_signature, message_digest, pk_seed)
+  if root is None:
+    return False
+
+  return root == sf_root
