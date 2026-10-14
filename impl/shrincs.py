@@ -961,6 +961,9 @@ def xmss_node(
 
   This function is only used in the stateless path, and only by the signer.
   """
+  assert node_height <= SPHX_XMSS_HEIGHT
+  assert node_index < 2**(SPHX_XMSS_HEIGHT - node_height)
+
   if node_height == 0: # Bottom layer: return the WOTS-TW pubkey hash.
     return wots_tw_pubkey_gen(sk_seed, pk_seed, layer, tree_address, node_index)
 
@@ -999,6 +1002,8 @@ def xmss_sign(
 
   This function is only used in the stateless path, and only by the signer.
   """
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+
   # Sign the message with WOTS-TW.
   sig = wots_tw_sign(message, sk_seed, pk_seed, layer, tree_address, keypair_index)
 
@@ -1033,6 +1038,8 @@ def xmss_pubkey_from_sig(
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+
   wots_sig = signature[0 : WOTS_TW_CHAINS_SIZE]
   xmss_auth = signature[WOTS_TW_CHAINS_SIZE : SPHX_XMSS_SIGNATURE_SIZE]
 
@@ -1072,6 +1079,9 @@ def hypertree_sign(
 
   This function is only used in the stateless path, and only by the signer.
   """
+  assert tree_index < 2**SPHX_TREE_INDEX_BITS
+  assert leaf_index < 2**SPHX_XMSS_HEIGHT
+
   sig = b""
   for j in range(SPHX_LAYER_COUNT):
     layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
@@ -1106,6 +1116,9 @@ def hypertree_verify(
 
   This function is only used in the stateless path, and only by the verifier.
   """
+  assert tree_index < 2**SPHX_TREE_INDEX_BITS
+  assert leaf_index < 2**SPHX_XMSS_HEIGHT
+
   for j in range(SPHX_LAYER_COUNT):
     layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
@@ -1304,6 +1317,9 @@ def fors_sk_gen(
   Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
   within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
   """
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert node_index < SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT
+
   return PRF(pk_seed, sk_seed, ForsPrf(layer, tree_address, keypair_index, node_index))
 
 def fors_node(
@@ -1338,6 +1354,10 @@ def fors_node(
   within a single tree. The index of node `l` in tree `t` at height `h` is
   `t * 2**(SPHX_FORS_HEIGHT - h) + l`.
   """
+  assert node_height <= SPHX_FORS_HEIGHT
+  assert node_index < SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height)
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+
   if node_height == 0:
     preimage = fors_sk_gen(
       sk_seed, pk_seed, layer, tree_address, keypair_index, node_index
@@ -1381,6 +1401,8 @@ def fors_sign(
 
   This function is only used in the stateless path, and only by the signer.
   """
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+
   sig = b""
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
   for i in range(SPHX_FORS_COUNT):
@@ -1418,6 +1440,8 @@ def fors_pubkey_from_sig(
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
 
   roots = b""
