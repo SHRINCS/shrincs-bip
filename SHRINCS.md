@@ -491,6 +491,10 @@ These sizes are normative.
 A value is written into a field wide enough to hold it.
 Writing one into a narrower field is an error rather than a value reduced to fit, and every field this specification writes is wide enough for every value which can reach it.
 
+Assertions at function entry state additional input preconditions.
+Like the annotated types, these preconditions are normative.
+They express bounds and relationships between inputs, such as an index fitting a tree height or a signature length matching a leaf depth.
+Callers must ensure that they hold before invoking the function.
 
 ### Utilities
 
@@ -529,7 +533,8 @@ of `x` are parsed, and so `x` must have accordingly sufficient length.
 
 ```py
 def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
-  assert len(x) >= ceildiv(outlen * b, 8)
+  assert b > 0
+  assert 0 <= outlen * b <= len(x) * 8
 
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
