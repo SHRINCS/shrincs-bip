@@ -1423,6 +1423,7 @@ def wots_tw_pubkey_gen(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
     sk = PRF(pk_seed, sk_seed, WotsTwPrf(layer, tree_address, keypair_index, i))
@@ -1462,6 +1463,7 @@ def wots_tw_sign(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[WOTS_TW_CHAINS_SIZE]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   indexes = wots_tw_message_to_indexes(message)
   signature = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
@@ -1862,6 +1864,8 @@ def xmss_node(
     layer: UInt8,
     tree_address: UInt64,
 ) -> Bytes[16]:
+  assert node_height <= SPHX_XMSS_HEIGHT
+  assert node_index < 2**(SPHX_XMSS_HEIGHT - node_height)
   if node_height == 0: # Bottom layer: return the WOTS-TW pubkey hash.
     return wots_tw_pubkey_gen(sk_seed, pk_seed, layer, tree_address, node_index)
 
@@ -1906,6 +1910,7 @@ def xmss_sign(
     layer: UInt8,
     tree_address: UInt64,
 ) -> Bytes[SPHX_XMSS_SIGNATURE_SIZE]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   # Sign the message with WOTS-TW.
   sig = wots_tw_sign(message, sk_seed, pk_seed, layer, tree_address, keypair_index)
 
@@ -1946,6 +1951,7 @@ def xmss_pubkey_from_sig(
     layer: UInt8,
     tree_address: UInt64,
 ) -> Bytes[16]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   wots_sig = signature[0 : WOTS_TW_CHAINS_SIZE]
   xmss_auth = signature[WOTS_TW_CHAINS_SIZE : SPHX_XMSS_SIGNATURE_SIZE]
 
@@ -2007,6 +2013,8 @@ def hypertree_sign(
     tree_index: UInt64,
     leaf_index: UInt32,
 ) -> Bytes[HYPERTREE_SIGNATURE_SIZE]:
+  assert tree_index < 2**SPHX_TREE_INDEX_BITS
+  assert leaf_index < 2**SPHX_XMSS_HEIGHT
   sig = b""
   for j in range(SPHX_LAYER_COUNT - 1):
     layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
@@ -2049,6 +2057,8 @@ def hypertree_verify(
     leaf_index: UInt32,
     sl_root: Bytes[16],
 ) -> bool:
+  assert tree_index < 2**SPHX_TREE_INDEX_BITS
+  assert leaf_index < 2**SPHX_XMSS_HEIGHT
   for j in range(SPHX_LAYER_COUNT - 1):
     layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
@@ -2432,6 +2442,8 @@ def fors_sk_gen(
     keypair_index: UInt32,
     node_index: UInt32,
 ) -> Bytes[16]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert node_index < SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT
   return PRF(pk_seed, sk_seed, ForsPrf(layer, tree_address, keypair_index, node_index))
 ```
 <!-- DOC END fors_sk_gen -->
@@ -2472,6 +2484,9 @@ def fors_node(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
+  assert node_height <= SPHX_FORS_HEIGHT
+  assert node_index < SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height)
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   if node_height == 0:
     preimage = fors_sk_gen(
       sk_seed, pk_seed, layer, tree_address, keypair_index, node_index
@@ -2521,6 +2536,7 @@ def fors_sign(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[FORS_SIGNATURE_SIZE]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   sig = b""
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
   for i in range(SPHX_FORS_COUNT):
@@ -2564,6 +2580,7 @@ def fors_pubkey_from_sig(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
+  assert keypair_index < 2**SPHX_XMSS_HEIGHT
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
 
   roots = b""
