@@ -18,12 +18,17 @@ def ceildiv(a: int, b: int) -> int:
   Divides `a` by `b`, rounding the quotient up. Every call site passes a
   non-negative `a` and a positive `b`.
   """
+  assert a >= 0
+  assert b > 0
   return (a + b - 1) // b
 
 def replicate(b: int, n: int) -> bytes:
+  assert 0 <= b < 256
+  assert n >= 0
   return bytes((b for _ in range(n)))
 
 def zeros(n: int) -> bytes:
+  assert n >= 0
   return replicate(0, n)
 
 def concat(array: list[bytes]) -> bytes:
@@ -42,7 +47,9 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
   parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
   of `x` are parsed, and so `x` must have accordingly sufficient length.
   """
-  assert len(x) >= ceildiv(outlen * b, 8)
+  assert b > 0
+  assert outlen >= 0
+  assert outlen * b <= len(x) * 8
 
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
@@ -119,6 +126,9 @@ SF_WOTS_C_GRIND = 22
 #  Every quantity here is a mathematical integer and every operation on one is
 #  exact: nothing wraps, saturates, or is truncated. The annotations state where
 #  a value lies, not how it is stored.
+#
+#  Entry assertions state additional input preconditions. Callers must satisfy
+#  them, together with the input annotations, before invoking the function.
 
 class LEN:
   """
