@@ -80,6 +80,7 @@ SPHX_XMSS_HEIGHT   = 9
 SPHX_FORS_HEIGHT   = 13
 SPHX_FORS_COUNT    = 10
 FXMSS_HEIGHT       = 255
+FXMSS_INDEX_BITS   = 64
 
 #  Derived constants
 WOTS_TW_CHAIN_COUNT1          = ceildiv(128, WOTS_TW_CHAIN_BITS)
@@ -1621,6 +1622,8 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   > depth they cannot afford to compute.
   """
   assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  # Balanced leaf indexes must fit in the 64-bit address field.
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= 64
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
@@ -1663,6 +1666,10 @@ def shrincs_sf_leaf_select(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  # Balanced leaf indexes must fit in the 64-bit address field.
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= 64
+
   if state_ctr is None:
     return None
 
@@ -1682,8 +1689,7 @@ def shrincs_sf_leaf_select(
     if state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
-  # - unknown FXMSS tree shape
-  # - no more signatures left
+  # No more stateful signatures remain.
   return None
 
 def shrincs_sign(
@@ -1727,6 +1733,12 @@ def shrincs_sign(
   > which increments and saves the state counter as `state_ctr + 1` on a persistent,
   > rollback-resistant storage medium before the signature is returned to the caller.
   """
+  if shrincs_seckey[64] != FXMSS_SHAPE_UNBALANCED and shrincs_seckey[64] != FXMSS_SHAPE_BALANCED:
+    return None
+  # Balanced leaf indexes must fit in the 64-bit address field.
+  if shrincs_seckey[64] == FXMSS_SHAPE_BALANCED and shrincs_seckey[65] > FXMSS_INDEX_BITS:
+    return None
+
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]

@@ -387,6 +387,7 @@ Here follow the parameters of the stateful and stateless components.
 | `WOTS_C_CHAIN_BITS` | <!-- CONST START WOTS_C_CHAIN_BITS -->4<!-- CONST END WOTS_C_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
 | `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
 | `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+| `FXMSS_INDEX_BITS` | <!-- CONST START FXMSS_INDEX_BITS -->64<!-- CONST END FXMSS_INDEX_BITS --> | The width in bits of an FXMSS node index. |
 
 #### Stateless Parameters
 
@@ -2899,6 +2900,8 @@ This function is used only during key generation.
 ```py
 def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
   assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  # Balanced leaf indexes must fit in the 64-bit address field.
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= 64
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
@@ -2941,6 +2944,10 @@ This function is only used in the stateful path, and only by the signer.
 def shrincs_sf_leaf_select(
     sf_structure: Bytes[2], state_ctr: Optional[UInt64]
 ) -> Optional[tuple[UInt64, UInt8]]:
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  # Balanced leaf indexes must fit in the 64-bit address field.
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= 64
+
   if state_ctr is None:
     return None
 
@@ -2960,8 +2967,7 @@ def shrincs_sf_leaf_select(
     if state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
-  # - unknown FXMSS tree shape
-  # - no more signatures left
+  # No more stateful signatures remain.
   return None
 ```
 <!-- DOC END shrincs_sf_leaf_select -->
@@ -3011,6 +3017,12 @@ def shrincs_sign(
     opt_rand: Optional[Bytes[16]],
 ) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
                     Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
+  if shrincs_seckey[64] != FXMSS_SHAPE_UNBALANCED and shrincs_seckey[64] != FXMSS_SHAPE_BALANCED:
+    return None
+  # Balanced leaf indexes must fit in the 64-bit address field.
+  if shrincs_seckey[64] == FXMSS_SHAPE_BALANCED and shrincs_seckey[65] > FXMSS_INDEX_BITS:
+    return None
+
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
