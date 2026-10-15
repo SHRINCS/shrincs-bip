@@ -752,6 +752,7 @@ def wots_c_grind_to_constant_sum(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
   ADRS = WotsCGrind(node_height, node_index)
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
@@ -783,6 +784,7 @@ def wots_c_map_digest(
 
   This function is only used in the stateful path, and only by the verifier.
   """
+  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
   hashed = H_grind(pk_seed, WotsCGrind(node_height, node_index), message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
@@ -815,6 +817,12 @@ def wots_c_pubkey_gen(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert FXMSS_HEIGHT - node_height <= tree_depth
+  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert not tree_balanced or tree_depth <= 64
+  assert tree_balanced or node_index in (0, 1)
+  assert not tree_balanced or FXMSS_HEIGHT - node_height == tree_depth
+  assert tree_balanced or node_index == 1 or FXMSS_HEIGHT - node_height == tree_depth
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
   for i in range(WOTS_C_CHAIN_COUNT):
     sk = PRF(
@@ -854,6 +862,12 @@ def wots_c_sign(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert node_height < FXMSS_HEIGHT
+  assert FXMSS_HEIGHT - node_height <= tree_depth
+  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert not tree_balanced or tree_depth <= 64
+  assert not tree_balanced or FXMSS_HEIGHT - node_height == tree_depth
+  assert tree_balanced or node_index == 1 or (node_index == 0 and FXMSS_HEIGHT - node_height == tree_depth)
   grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, node_height, node_index)
   if grinded is None:
     return None # practically impossible
@@ -1188,13 +1202,13 @@ def fxmss_sign(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert leaf_height < 255
+  assert 255 - leaf_height <= tree_depth
+  assert leaf_index < 2**min(64, 255 - leaf_height)
+  assert not tree_balanced or tree_depth <= 64
+  assert not tree_balanced or 255 - leaf_height == tree_depth
+  assert tree_balanced or leaf_index == 1 or (leaf_index == 0 and 255 - leaf_height == tree_depth)
   leaf_depth = FXMSS_HEIGHT - leaf_height
-
-  # Validate the leaf is positioned correctly for the specified tree structure.
-  if tree_balanced:
-    assert leaf_depth == tree_depth
-  else:
-    assert leaf_index == 1 or leaf_depth == tree_depth
 
   sig = wots_c_sign(
     message_digest, sk_seed, pk_seed, leaf_height, leaf_index, tree_balanced, tree_depth
@@ -1593,6 +1607,7 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   > depth they cannot afford to compute.
   """
   assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= 64
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
@@ -1629,6 +1644,8 @@ def shrincs_sf_leaf_select(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert sf_structure[0] in (FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED)
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= 64
   if state_ctr is None:
     return None
 
@@ -1648,8 +1665,6 @@ def shrincs_sf_leaf_select(
     if state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
-  # - unknown FXMSS tree shape
-  # - no more signatures left
   return None
 
 def shrincs_sign(
@@ -1693,6 +1708,8 @@ def shrincs_sign(
   > which increments and saves the state counter as `state_ctr + 1` on a persistent,
   > rollback-resistant storage medium before the signature is returned to the caller.
   """
+  assert shrincs_seckey[64] in (FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED)
+  assert shrincs_seckey[64] != FXMSS_SHAPE_BALANCED or shrincs_seckey[65] <= 64
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
