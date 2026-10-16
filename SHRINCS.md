@@ -330,7 +330,7 @@ Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox 
 
 ### Does FXMSS have a big enough signature budget?
 
-FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->, but leaf indexing uses 64-bit unsigned integers, so in theory one could generate a BXMSS tree of at most depth 64 containing 2<sup>64</sup> WOTS+C leaves.
+FXMSS admits trees of depth at most <!-- CONST START FXMSS_ROOT_HEIGHT -->255<!-- CONST END FXMSS_ROOT_HEIGHT -->, but leaf indexing uses 64-bit unsigned integers, so in theory one could generate a BXMSS tree of at most depth 64 containing 2<sup>64</sup> WOTS+C leaves.
 However, this is impractical because FXMSS is a single-tree design XMSS-variant.
 A single-tree design puts a fundamental limit on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
 This is because all WOTS+C keys in FXMSS must be arranged into a single merkle tree, whose root must be known before the SHRINCS public key can be fully computed.
@@ -385,8 +385,7 @@ Here follow the parameters of the stateful and stateless components.
 | Parameter | Value | Description |
 |:-:|:-:|:--|
 | `WOTS_C_CHAIN_BITS` | <!-- CONST START WOTS_C_CHAIN_BITS -->4<!-- CONST END WOTS_C_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
-| `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
-| `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+| `FXMSS_ROOT_HEIGHT` | <!-- CONST START FXMSS_ROOT_HEIGHT -->255<!-- CONST END FXMSS_ROOT_HEIGHT --> | The fixed height assigned to the FXMSS root. A node's depth is its distance below this height. |
 
 #### Stateless Parameters
 
@@ -396,10 +395,16 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 |:-:|:-:|:-:|:--|
 | — | `n` | 16 | The byte length of the hash outputs, i.e. the security parameter. It is not a named parameter in SHRINCS: every tweakable hash function truncates its output to 16 bytes. |
 | `WOTS_TW_CHAIN_BITS` | `lg_w` | <!-- CONST START WOTS_TW_CHAIN_BITS -->4<!-- CONST END WOTS_TW_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
-| `SPHX_LAYER_COUNT` | `d` | <!-- CONST START SPHX_LAYER_COUNT -->5<!-- CONST END SPHX_LAYER_COUNT --> | The number of XMSS layers in the SLH-DSA hypertree. |
-| `SPHX_XMSS_HEIGHT` | `h'` | <!-- CONST START SPHX_XMSS_HEIGHT -->9<!-- CONST END SPHX_XMSS_HEIGHT --> | The height of each XMSS layer within the SLH-DSA hypertree. |
-| `SPHX_FORS_HEIGHT` | `a` | <!-- CONST START SPHX_FORS_HEIGHT -->13<!-- CONST END SPHX_FORS_HEIGHT --> | The height of each FORS tree used in the SLH-DSA signature. |
-| `SPHX_FORS_COUNT` | `k` | <!-- CONST START SPHX_FORS_COUNT -->10<!-- CONST END SPHX_FORS_COUNT --> | The number of FORS trees used in the SLH-DSA signature. |
+| `XMSS_HEIGHT` | `h'` | <!-- CONST START XMSS_HEIGHT -->9<!-- CONST END XMSS_HEIGHT --> | The height of each XMSS layer within the SLH-DSA hypertree. |
+| `HYPERTREE_LAYER_COUNT` | `d` | <!-- CONST START HYPERTREE_LAYER_COUNT -->5<!-- CONST END HYPERTREE_LAYER_COUNT --> | The number of XMSS layers in the SLH-DSA hypertree. |
+| `FORS_HEIGHT` | `a` | <!-- CONST START FORS_HEIGHT -->13<!-- CONST END FORS_HEIGHT --> | The height of each FORS tree used in the SLH-DSA signature. |
+| `FORS_TREE_COUNT` | `k` | <!-- CONST START FORS_TREE_COUNT -->10<!-- CONST END FORS_TREE_COUNT --> | The number of FORS trees used in the SLH-DSA signature. |
+
+#### Signature Format
+
+| Constant | Value | Description |
+|:-:|:-:|:--|
+| `SHRINCS_STATELESS_INDICATOR` | <!-- CONST START SHRINCS_STATELESS_INDICATOR -->255<!-- CONST END SHRINCS_STATELESS_INDICATOR --> | The indicator byte selecting a stateless SHRINCS signature. |
 
 
 ### Derived Constants
@@ -411,12 +416,12 @@ We show formulas for how these are computed, using the integer operations define
 
 | Constant | Value | Formula | Description |
 |:-:|:-:|:-:|:-:|
+| `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | `ceildiv(128, WOTS_C_CHAIN_BITS)` | The number of Winternitz chains. |
 | `WOTS_C_CHAINS_SIZE` | <!-- CONST START WOTS_C_CHAINS_SIZE -->512<!-- CONST END WOTS_C_CHAINS_SIZE --> | `WOTS_C_CHAIN_COUNT * 16` | The byte size of a full set of concatenated WOTS chain hashes. |
 | `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)` | The most likely sum for Winternitz hash chain indexes. |
-|`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
-|`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
-|`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `1 + 16 + 1 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
-|`SHRINCS_SF_SIGNATURE_SIZE_MAX`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> | `1 + 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX` | The maximum byte size of a stateful SHRINCS signature. Must stay below `SHRINCS_SL_SIGNATURE_SIZE`, so that the two signature shapes remain distinguishable by length. |
+| `WOTS_C_SIGNATURE_SIZE` | <!-- CONST START WOTS_C_SIGNATURE_SIZE -->514<!-- CONST END WOTS_C_SIGNATURE_SIZE --> | `2 + WOTS_C_CHAINS_SIZE` | The byte size of a WOTS+C signature, including its grinding counter. |
+| `FXMSS_SIGNATURE_SIZE_MIN` | <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `WOTS_C_SIGNATURE_SIZE + 16` | The minimum byte size of an FXMSS signature. |
+| `FXMSS_SIGNATURE_SIZE_MAX` | <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `WOTS_C_SIGNATURE_SIZE + 16 * FXMSS_ROOT_HEIGHT` | The maximum byte size of an FXMSS signature. |
 
 #### Stateless Constants
 
@@ -424,20 +429,29 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 | Constant | FIPS-205 | Value | Formula | Description |
 |:-:|:-:|:-:|:-:|:-:|
-| `WOTS_TW_CHAIN_COUNT1` | `len1` | <!-- CONST START WOTS_TW_CHAIN_COUNT1 -->32<!-- CONST END WOTS_TW_CHAIN_COUNT1 --> | `ceildiv(128, WOTS_TW_CHAIN_BITS)` | The number of Winternitz message chains per WOTS key. |
-| `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | <!-- CONST START WOTS_TW_CHECKSUM_MAX -->480<!-- CONST END WOTS_TW_CHECKSUM_MAX --> | `WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)` | The maximum possible sum of Winternitz hash chain indexes. |
-| `WOTS_TW_CHAIN_COUNT2` | `len2` | <!-- CONST START WOTS_TW_CHAIN_COUNT2 -->3<!-- CONST END WOTS_TW_CHAIN_COUNT2 --> | `ceildiv(WOTS_TW_CHECKSUM_MAX.bit_length(), WOTS_TW_CHAIN_BITS)` | The number of Winternitz checksum chains per WOTS key. |
-| `WOTS_TW_CHAIN_COUNT` | `len` | <!-- CONST START WOTS_TW_CHAIN_COUNT -->35<!-- CONST END WOTS_TW_CHAIN_COUNT --> | `WOTS_TW_CHAIN_COUNT1 + WOTS_TW_CHAIN_COUNT2` | The overall number of Winternitz chains per WOTS key. |
+| `WOTS_TW_MESSAGE_CHAIN_COUNT` | `len1` | <!-- CONST START WOTS_TW_MESSAGE_CHAIN_COUNT -->32<!-- CONST END WOTS_TW_MESSAGE_CHAIN_COUNT --> | `ceildiv(128, WOTS_TW_CHAIN_BITS)` | The number of Winternitz message chains per WOTS key. |
+| `WOTS_TW_CHECKSUM_MAX` | `max_checksum` | <!-- CONST START WOTS_TW_CHECKSUM_MAX -->480<!-- CONST END WOTS_TW_CHECKSUM_MAX --> | `WOTS_TW_MESSAGE_CHAIN_COUNT * (2**WOTS_TW_CHAIN_BITS - 1)` | The maximum possible sum of Winternitz hash chain indexes. |
+| `WOTS_TW_CHECKSUM_CHAIN_COUNT` | `len2` | <!-- CONST START WOTS_TW_CHECKSUM_CHAIN_COUNT -->3<!-- CONST END WOTS_TW_CHECKSUM_CHAIN_COUNT --> | `ceildiv(WOTS_TW_CHECKSUM_MAX.bit_length(), WOTS_TW_CHAIN_BITS)` | The number of Winternitz checksum chains per WOTS key. |
+| `WOTS_TW_CHAIN_COUNT` | `len` | <!-- CONST START WOTS_TW_CHAIN_COUNT -->35<!-- CONST END WOTS_TW_CHAIN_COUNT --> | `WOTS_TW_MESSAGE_CHAIN_COUNT + WOTS_TW_CHECKSUM_CHAIN_COUNT` | The overall number of Winternitz chains per WOTS key. |
 | `WOTS_TW_CHAINS_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START WOTS_TW_CHAINS_SIZE -->560<!-- CONST END WOTS_TW_CHAINS_SIZE --> | `WOTS_TW_CHAIN_COUNT * 16` | The byte size of a full set of concatenated WOTS chain hashes.  |
-| `SPHX_XMSS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_XMSS_SIGNATURE_SIZE -->704<!-- CONST END SPHX_XMSS_SIGNATURE_SIZE --> | `WOTS_TW_CHAINS_SIZE + 16 * SPHX_XMSS_HEIGHT` | The byte size of a serialized XMSS signature.  |
-| `HYPERTREE_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START HYPERTREE_SIGNATURE_SIZE -->3520<!-- CONST END HYPERTREE_SIGNATURE_SIZE --> | `SPHX_LAYER_COUNT * SPHX_XMSS_SIGNATURE_SIZE` | The byte size of a hypertree signature. |
-| `FORS_DIGEST_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
-| `FORS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_SIGNATURE_SIZE -->2240<!-- CONST END FORS_SIGNATURE_SIZE --> | `16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)` | The byte size of a FORS signature. |
-| `SPHX_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_SIGNATURE_SIZE -->5776<!-- CONST END SPHX_SIGNATURE_SIZE --> | `16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE` | The byte size of an SLH-DSA signature. |
-| `SHRINCS_SL_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> | `1 + SPHX_SIGNATURE_SIZE` | The byte size of a stateless SHRINCS signature. |
-| `SPHX_TREE_INDEX_BITS` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SPHX_TREE_INDEX_BITS -->36<!-- CONST END SPHX_TREE_INDEX_BITS --> | `SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)` | The number of bits needed to represent the index of an XMSS tree in the hypertree. |
-| <sub>(Not named in SHRINCS)</sub> | `h` | 45 | `SPHX_LAYER_COUNT * SPHX_XMSS_HEIGHT` | The total height of the SLH-DSA hypertree. |
-| <sub>(Not named in SHRINCS)</sub> | `m` | 24 | `ceildiv(SPHX_FORS_HEIGHT * SPHX_FORS_COUNT, 8) + ceildiv(SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1), 8) + ceildiv(SPHX_XMSS_HEIGHT, 8)` | The byte length of the message digest. |
+| `XMSS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START XMSS_SIGNATURE_SIZE -->704<!-- CONST END XMSS_SIGNATURE_SIZE --> | `WOTS_TW_CHAINS_SIZE + 16 * XMSS_HEIGHT` | The byte size of a serialized XMSS signature.  |
+| `HYPERTREE_TREE_INDEX_BITS` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START HYPERTREE_TREE_INDEX_BITS -->36<!-- CONST END HYPERTREE_TREE_INDEX_BITS --> | `XMSS_HEIGHT * (HYPERTREE_LAYER_COUNT - 1)` | The number of bits needed to represent the index of an XMSS tree in the hypertree. |
+| `HYPERTREE_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START HYPERTREE_SIGNATURE_SIZE -->3520<!-- CONST END HYPERTREE_SIGNATURE_SIZE --> | `HYPERTREE_LAYER_COUNT * XMSS_SIGNATURE_SIZE` | The byte size of a hypertree signature. |
+| `FORS_DIGEST_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_DIGEST_SIZE -->17<!-- CONST END FORS_DIGEST_SIZE --> | `ceildiv(FORS_TREE_COUNT * FORS_HEIGHT, 8)` | The byte size of a FORS message digest. Contains enough bits to select a random index for each FORS tree. |
+| `FORS_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START FORS_SIGNATURE_SIZE -->2240<!-- CONST END FORS_SIGNATURE_SIZE --> | `16 * FORS_TREE_COUNT * (FORS_HEIGHT + 1)` | The byte size of a FORS signature. |
+| `SLH_DSA_DIGEST_TREE_INDEX_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SLH_DSA_DIGEST_TREE_INDEX_SIZE -->5<!-- CONST END SLH_DSA_DIGEST_TREE_INDEX_SIZE --> | `ceildiv(HYPERTREE_TREE_INDEX_BITS, 8)` | The byte size of the tree index field extracted from the message digest. |
+| `SLH_DSA_DIGEST_LEAF_INDEX_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SLH_DSA_DIGEST_LEAF_INDEX_SIZE -->2<!-- CONST END SLH_DSA_DIGEST_LEAF_INDEX_SIZE --> | `ceildiv(XMSS_HEIGHT, 8)` | The byte size of the leaf index field extracted from the message digest. |
+| `SLH_DSA_DIGEST_PREFIX_SIZE` | `m` | <!-- CONST START SLH_DSA_DIGEST_PREFIX_SIZE -->24<!-- CONST END SLH_DSA_DIGEST_PREFIX_SIZE --> | `FORS_DIGEST_SIZE + SLH_DSA_DIGEST_TREE_INDEX_SIZE + SLH_DSA_DIGEST_LEAF_INDEX_SIZE` | The byte size of the prefix consumed from the message digest. Each field size is rounded up separately. |
+| `SLH_DSA_SIGNATURE_SIZE` | <sub>(Not named in FIPS-205)</sub> | <!-- CONST START SLH_DSA_SIGNATURE_SIZE -->5776<!-- CONST END SLH_DSA_SIGNATURE_SIZE --> | `16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE` | The byte size of an SLH-DSA signature. |
+| <sub>(Not named in SHRINCS)</sub> | `h` | 45 | `HYPERTREE_LAYER_COUNT * XMSS_HEIGHT` | The total height of the SLH-DSA hypertree. |
+
+#### SHRINCS Constants
+
+| Constant | Value | Formula | Description |
+|:-:|:-:|:-:|:-:|
+| `SHRINCS_SF_SIGNATURE_SIZE_MIN` | <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `1 + 16 + 1 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature, including the indicator, randomizer, leaf index and FXMSS signature. |
+| `SHRINCS_SF_SIGNATURE_SIZE_MAX` | <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MAX -->4619<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MAX --> | `1 + 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX` | The maximum byte size of a stateful SHRINCS signature. Must stay below `SHRINCS_SL_SIGNATURE_SIZE`. |
+| `SHRINCS_SL_SIGNATURE_SIZE` | <!-- CONST START SHRINCS_SL_SIGNATURE_SIZE -->5777<!-- CONST END SHRINCS_SL_SIGNATURE_SIZE --> | `1 + SLH_DSA_SIGNATURE_SIZE` | The byte size of a stateless SHRINCS signature. |
 
 
 ### Key Generation Inputs
@@ -467,7 +481,7 @@ A function signature states the size of each value it takes and returns, in the 
 They are inert in the implementation, and the sizes they state are requirements on any implementation.
 
 - `Bytes[n]` is a byte string of exactly `n` bytes.
-  `n` may be an arithmetic expression over the constants this document defines, evaluated for the parameter set in force, as in `Bytes[2 + WOTS_C_CHAINS_SIZE]`.
+  `n` may be an arithmetic expression over the constants this document defines, evaluated for the parameter set in force, as in `Bytes[WOTS_C_SIGNATURE_SIZE + 16]`.
 - `Bytes[a:b]` is a byte string of at least `a` and at most `b` bytes.
   Both bounds are inclusive, unlike a Python slice.
   Either may be omitted: `Bytes[a:]` is at least `a` bytes, and `Bytes[:b]` at most `b`.
@@ -598,9 +612,9 @@ This location is called an _address_ and we encode it into a 22-byte array, ofte
 
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
-| `layer` | 1 byte | Specifies the layer in the SLH-DSA hypertree. The topmost layer is at layer `SPHX_LAYER_COUNT - 1`. |
+| `layer` | 1 byte | Specifies the layer in the SLH-DSA hypertree. The topmost layer is at layer `HYPERTREE_LAYER_COUNT - 1`. |
 | `tree_address` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the index of an XMSS tree within a layer of the SLH-DSA hypertree. |
-| `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
+| `type` | 1 byte | A context-dependent tag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
 
@@ -608,9 +622,9 @@ This location is called an _address_ and we encode it into a 22-byte array, ofte
 
 | `ADRS` Field | Size | Purpose |
 |:-:|:-:|:-:|
-| `node_height` | 1 byte | Specifies the height of a node or leaf in the FXMSS tree. The root node is at height `FXMSS_HEIGHT`. |
+| `node_height` | 1 byte | Specifies the height of a node or leaf in the FXMSS tree. The root node is at height `FXMSS_ROOT_HEIGHT`. |
 | `node_index` | 8 bytes | A 64-bit integer serialized with big-endian encoding. Specifies the node index (from the left) within a layer of the FXMSS tree. |
-| `type` | 1 byte | A context-dependent flag which gives meaning to the remaining 12 bytes. |
+| `type` | 1 byte | A context-dependent tag which gives meaning to the remaining 12 bytes. |
 | `payload` | 12 bytes | <br> Usage depends on the `type` field. <br> <br> |
 
 
@@ -635,7 +649,7 @@ This location is called an _address_ and we encode it into a 22-byte array, ofte
 #### ADRS Payloads
 
 Each `ADRS` type gives different contextual meaning to the 12 bytes of the ADRS `payload` field.
-The following table describes how they are used under each ADRS type flag.
+The following table describes how they are used under each ADRS type tag.
 
 | Stateless `ADRS` Type | Payload Format | &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Stateful `ADRS` Type | Payload Format |
 |:-:|-|:-:|:-:|-|
@@ -861,20 +875,20 @@ def T_sf(pk_seed: Bytes[16], ADRS: WotsCPk, M_l: Bytes[WOTS_C_CHAINS_SIZE]) -> B
 ##### `T_k(...)`
 
 <!-- DOC START T_k -->
-The `T_k` tweaked hash function. Compresses `SPHX_FORS_COUNT` FORS tree roots into a single
+The `T_k` tweaked hash function. Compresses `FORS_TREE_COUNT` FORS tree roots into a single
 16-byte hash.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
   - `ADRS`: a `ForsRoots` address.
-  - `M_k`: a `SPHX_FORS_COUNT * 16`-byte concatenation of FORS tree roots.
+  - `M_k`: a `FORS_TREE_COUNT * 16`-byte concatenation of FORS tree roots.
 - Output:
   - a 16-byte hash.
 
 This function is only used in the stateless path, and by both the signer and the verifier.
 
 ```py
-def T_k(pk_seed: Bytes[16], ADRS: ForsRoots, M_k: Bytes[SPHX_FORS_COUNT * 16]) -> Bytes[16]:
+def T_k(pk_seed: Bytes[16], ADRS: ForsRoots, M_k: Bytes[FORS_TREE_COUNT * 16]) -> Bytes[16]:
   return sha256(pk_seed + zeros(48) + ADRS.to_bytes() + M_k)[:16]
 ```
 <!-- DOC END T_k -->
@@ -1242,7 +1256,7 @@ def wots_tw_chain_iter(
     chain_index: UInt32,
 ) -> Bytes[16]:
   assert start <= stop <= 2**WOTS_TW_CHAIN_BITS - 1
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert keypair_index < 2**XMSS_HEIGHT
   assert chain_index < WOTS_TW_CHAIN_COUNT
   for j in range(start, stop):
     node = F(pk_seed, WotsTwHash(layer, tree_address, keypair_index, chain_index, j), node)
@@ -1284,7 +1298,7 @@ def wots_c_chain_iter(
     chain_index: UInt32,
 ) -> Bytes[16]:
   assert start <= stop <= 2**WOTS_C_CHAIN_BITS - 1
-  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert node_index < 2**min(64, FXMSS_ROOT_HEIGHT - node_height)
   assert chain_index < WOTS_C_CHAIN_COUNT
   for j in range(start, stop):
     node = F(pk_seed, WotsCHash(node_height, node_index, chain_index, j), node)
@@ -1296,14 +1310,14 @@ def wots_c_chain_iter(
 ### WOTS-TW
 
 WOTS-TW is the classic variant of Winternitz one-time signatures[^merkle] which uses a checksum to prevent forgeries.
-In WOTS-TW, a 128-bit message is mapped directly into an array of `WOTS_TW_CHAIN_COUNT1` hash chain indexes, and the checksum is simply the negation of the sum of those indexes.
-This checksum is then encoded into `WOTS_TW_CHAIN_COUNT2` hash chain indexes which are appended to the message indexes before signing and verification.
+In WOTS-TW, a 128-bit message is mapped directly into an array of `WOTS_TW_MESSAGE_CHAIN_COUNT` hash chain indexes, and the checksum is simply the negation of the sum of those indexes.
+This checksum is then encoded into `WOTS_TW_CHECKSUM_CHAIN_COUNT` hash chain indexes which are appended to the message indexes before signing and verification.
 
-This process starts by breaking a 128-bit message into `WOTS_TW_CHAIN_COUNT1` integers of `WOTS_TW_CHAIN_BITS` bits each in the range `[0, 2**WOTS_TW_CHAIN_BITS)`.
+This process starts by breaking a 128-bit message into `WOTS_TW_MESSAGE_CHAIN_COUNT` integers of `WOTS_TW_CHAIN_BITS` bits each in the range `[0, 2**WOTS_TW_CHAIN_BITS)`.
 The maximum possible sum of those indexes would be if every index was equal to `2**WOTS_TW_CHAIN_BITS - 1`, so the maximum sum is
 
 ```py
-WOTS_TW_CHECKSUM_MAX = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1)
+WOTS_TW_CHECKSUM_MAX = WOTS_TW_MESSAGE_CHAIN_COUNT * (2**WOTS_TW_CHAIN_BITS - 1)
 ```
 
 This constant is also defined explicitly in the earlier [table of derived constants](#derived-constants).
@@ -1314,7 +1328,7 @@ Given an array of `msg_indexes`, the checksum can be computed by:
 checksum = WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)
 ```
 
-This checksum is then converted into `WOTS_TW_CHAIN_COUNT2` integers of `WOTS_TW_CHAIN_BITS` bits each, which are appended to the original `msg_indexes`.
+This checksum is then converted into `WOTS_TW_CHECKSUM_CHAIN_COUNT` integers of `WOTS_TW_CHAIN_BITS` bits each, which are appended to the original `msg_indexes`.
 
 
 #### `wots_tw_message_to_indexes(...)`
@@ -1332,13 +1346,13 @@ This function is only used in the stateless path, and by both the signer and the
 
 ```py
 def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAIN_COUNT]:
-  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
+  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_MESSAGE_CHAIN_COUNT)
   checksum = WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)
 
-  checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
+  checksum_indexes = [0] * WOTS_TW_CHECKSUM_CHAIN_COUNT
   checksum_base = 2**WOTS_TW_CHAIN_BITS
-  for i in range(WOTS_TW_CHAIN_COUNT2):
-    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = (checksum // checksum_base**i) % checksum_base
+  for i in range(WOTS_TW_CHECKSUM_CHAIN_COUNT):
+    checksum_indexes[WOTS_TW_CHECKSUM_CHAIN_COUNT - 1 - i] = (checksum // checksum_base**i) % checksum_base
 
   return msg_indexes + checksum_indexes
 ```
@@ -1350,12 +1364,12 @@ more complex FIPS-205 algorithm.
 
 ```py
 def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAIN_COUNT]:
-  SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
-  SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
-  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
-  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) * 2**SPHX_WOTS_CHECKSUM_SHIFT
-  checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
-  checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
+  checksum_padding_bits = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHECKSUM_CHAIN_COUNT) % 8) % 8
+  checksum_size = ceildiv(WOTS_TW_CHECKSUM_CHAIN_COUNT * WOTS_TW_CHAIN_BITS, 8)
+  msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_MESSAGE_CHAIN_COUNT)
+  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) * 2**checksum_padding_bits
+  checksum_bytes = checksum.to_bytes(checksum_size)
+  checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHECKSUM_CHAIN_COUNT)
   return msg_indexes + checksum_indexes
 ```
 <!-- DOC END wots_tw_message_to_indexes_alt -->
@@ -1423,7 +1437,7 @@ def wots_tw_pubkey_gen(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert keypair_index < 2**XMSS_HEIGHT
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
     sk = PRF(pk_seed, sk_seed, WotsTwPrf(layer, tree_address, keypair_index, i))
@@ -1463,7 +1477,7 @@ def wots_tw_sign(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[WOTS_TW_CHAINS_SIZE]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert keypair_index < 2**XMSS_HEIGHT
   indexes = wots_tw_message_to_indexes(message)
   signature = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
@@ -1503,7 +1517,7 @@ def wots_tw_pubkey_from_sig(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert keypair_index < 2**XMSS_HEIGHT
   indexes = wots_tw_message_to_indexes(message)
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
@@ -1565,7 +1579,7 @@ This function is only used in the stateful path, and only by the signer.
 def wots_c_grind_to_constant_sum(
     pk_seed: Bytes[16], message_digest: Bytes[32], node_height: UInt8, node_index: UInt64
 ) -> Optional[tuple[UInt16, Array[UInt16, WOTS_C_CHAIN_COUNT]]]:
-  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert node_index < 2**min(64, FXMSS_ROOT_HEIGHT - node_height)
   ADRS = WotsCGrind(node_height, node_index)
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
@@ -1609,7 +1623,7 @@ def wots_c_map_digest(
     node_index: UInt64,
     counter: UInt16,
 ) -> Optional[Array[UInt16, WOTS_C_CHAIN_COUNT]]:
-  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert node_index < 2**min(64, FXMSS_ROOT_HEIGHT - node_height)
   hashed = H_grind(pk_seed, WotsCGrind(node_height, node_index), message_digest, counter)
   indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
   if sum(indexes) == WOTS_C_CONSTANT_SUM:
@@ -1648,12 +1662,12 @@ def wots_c_pubkey_gen(
     tree_balanced: bool,
     tree_depth: UInt8,
 ) -> Bytes[16]:
-  assert FXMSS_HEIGHT - node_height <= tree_depth
-  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert FXMSS_ROOT_HEIGHT - node_height <= tree_depth
+  assert node_index < 2**min(64, FXMSS_ROOT_HEIGHT - node_height)
   assert not tree_balanced or tree_depth <= 64
   assert tree_balanced or node_index in (0, 1)
-  assert not tree_balanced or FXMSS_HEIGHT - node_height == tree_depth
-  assert tree_balanced or node_index == 1 or FXMSS_HEIGHT - node_height == tree_depth
+  assert not tree_balanced or FXMSS_ROOT_HEIGHT - node_height == tree_depth
+  assert tree_balanced or node_index == 1 or FXMSS_ROOT_HEIGHT - node_height == tree_depth
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
   for i in range(WOTS_C_CHAIN_COUNT):
     sk = PRF(
@@ -1685,7 +1699,7 @@ leaf at `node_height` and `node_index` in the FXMSS tree.
     unbalanced (UXMSS) tree.
   - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
-  - a `2 + WOTS_C_CHAINS_SIZE`-byte signature, or null.
+  - a `WOTS_C_SIGNATURE_SIZE`-byte signature, or null.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -1698,13 +1712,13 @@ def wots_c_sign(
     node_index: UInt64,
     tree_balanced: bool,
     tree_depth: UInt8,
-) -> Optional[Bytes[2 + WOTS_C_CHAINS_SIZE]]:
-  assert node_height < FXMSS_HEIGHT
-  assert FXMSS_HEIGHT - node_height <= tree_depth
-  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+) -> Optional[Bytes[WOTS_C_SIGNATURE_SIZE]]:
+  assert node_height < FXMSS_ROOT_HEIGHT
+  assert FXMSS_ROOT_HEIGHT - node_height <= tree_depth
+  assert node_index < 2**min(64, FXMSS_ROOT_HEIGHT - node_height)
   assert not tree_balanced or tree_depth <= 64
-  assert not tree_balanced or FXMSS_HEIGHT - node_height == tree_depth
-  assert tree_balanced or node_index == 1 or (node_index == 0 and FXMSS_HEIGHT - node_height == tree_depth)
+  assert not tree_balanced or FXMSS_ROOT_HEIGHT - node_height == tree_depth
+  assert tree_balanced or node_index == 1 or (node_index == 0 and FXMSS_ROOT_HEIGHT - node_height == tree_depth)
   grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, node_height, node_index)
   if grinded is None:
     return None # practically impossible
@@ -1735,7 +1749,7 @@ The WOTS+C verification function. Recovers a WOTS+C public key from a `signature
 `message_digest`.
 
 - Inputs:
-  - `signature`: a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
+  - `signature`: a `WOTS_C_SIGNATURE_SIZE`-byte signature.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte public seed.
   - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
@@ -1747,14 +1761,14 @@ This function is only used in the stateful path, and only by the verifier.
 
 ```py
 def wots_c_pubkey_from_sig(
-    signature: Bytes[2 + WOTS_C_CHAINS_SIZE],
+    signature: Bytes[WOTS_C_SIGNATURE_SIZE],
     message_digest: Bytes[32],
     pk_seed: Bytes[16],
     node_height: UInt8,
     node_index: UInt64,
 ) -> Optional[Bytes[16]]:
-  assert node_height < FXMSS_HEIGHT
-  assert node_index < 2**min(64, FXMSS_HEIGHT - node_height)
+  assert node_height < FXMSS_ROOT_HEIGHT
+  assert node_index < 2**min(64, FXMSS_ROOT_HEIGHT - node_height)
   counter = int.from_bytes(signature[0:2])
   indexes = wots_c_map_digest(pk_seed, message_digest, node_height, node_index, counter)
 
@@ -1805,10 +1819,10 @@ Their tree structures differ: XMSS (stateless path) is always a perfectly balanc
 - In the stateless component, traditional balanced XMSS is used with WOTS-TW as the leaf OTS scheme to certify child layers of the SLH-DSA hypertree, and to certify FORS public keys.
 - In the stateful component, Flexible XMSS (FXMSS) is used with WOTS+C to sign messages directly.
 
-In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `SPHX_XMSS_HEIGHT`.
+In XMSS (stateless path), merkle trees are always perfectly balanced, and always have a fixed height `XMSS_HEIGHT`.
 This matches the XMSS tree structure specified in FIPS-205.
 
-In FXMSS (stateful path), merkle trees can be balanced or unbalanced, and the WOTS+C leaf keys may be placed up to `FXMSS_HEIGHT` layers deep.
+In FXMSS (stateful path), merkle trees can be balanced or unbalanced, and the WOTS+C leaf keys may be placed up to `FXMSS_ROOT_HEIGHT` layers deep.
 This permits more flexible constructions.
 
 Notably for security, XMSS is always used as part of the SPHINCS (SLH-DSA) framework to sign trusted messages generated by the signer, while FXMSS is used as a standalone scheme and so may sign untrusted messages.
@@ -1825,20 +1839,20 @@ This means the interfaces of both XMSS and FXMSS are slightly different, and thi
 >
 > More specifically for the different merkle tree constructions of XMSS, FXMSS, and FORS:
 >
-> - In XMSS, the WOTS-TW leaves sit at height 0, and the root sits at height `SPHX_XMSS_HEIGHT`.
+> - In XMSS, the WOTS-TW leaves sit at height 0, and the root sits at height `XMSS_HEIGHT`.
 >   All leaves share a common layer.
-> - In FXMSS, the WOTS+C leaves can sit at any height, and the root always sits at height `FXMSS_HEIGHT`.
->   We often refer to a node's depth as its distance below the root: `depth = FXMSS_HEIGHT - height`.
+> - In FXMSS, the WOTS+C leaves can sit at any height, and the root always sits at height `FXMSS_ROOT_HEIGHT`.
+>   We often refer to a node's depth as its distance below the root: `depth = FXMSS_ROOT_HEIGHT - height`.
 >   Because WOTS+C leaves may be placed at different depths, there is no common leaf layer.
 >   A leaf sits at height 0 only at the maximum depth of 255.
->   In this sense `FXMSS_HEIGHT` is an "imaginary" height because no real FXMSS tree can fully explore the enormous possible space of 2<sup>256</sup> nodes.
-> - In FORS, the preimage leaves sit at height 0, and the root of each of the merkle trees in the forest is at height `SPHX_FORS_HEIGHT`.
+>   In this sense `FXMSS_ROOT_HEIGHT` is an "imaginary" height because no real FXMSS tree can fully explore the enormous possible space of 2<sup>256</sup> nodes.
+> - In FORS, the preimage leaves sit at height 0, and the root of each of the merkle trees in the forest is at height `FORS_HEIGHT`.
 >   All leaves share a common layer, but internally FORS tree node indexes count across the entire forest, and so the indexing scheme is more subtle.
->   A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `j * 2**(SPHX_FORS_HEIGHT - h) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type.
+>   A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `j * 2**(FORS_HEIGHT - h) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type.
 >   In other words, the index of a FORS node or leaf must account for all the other nodes to its left at the same height in the other FORS trees.
 >
 > When merkle nodes are combined with the hash function `H`, the coordinates written into the `ADRS` are those of the node being computed (the parent), not of its children.
-> In XMSS, the tree height field of an `SL_XMSS_TREE` address therefore only takes values 1 through `SPHX_XMSS_HEIGHT` - Leaf nodes are not addressed by tree coordinates at all, but through the WOTS-TW keypair index, which equals the leaf's index at height 0.
+> In XMSS, the tree height field of an `SL_XMSS_TREE` address therefore only takes values 1 through `XMSS_HEIGHT` - Leaf nodes are not addressed by tree coordinates at all, but through the WOTS-TW keypair index, which equals the leaf's index at height 0.
 > In FXMSS (stateful path), a WOTS+C leaf's coordinates are carried in the `node_height` and `node_index` fields of `ADRS`.
 
 Unlike a directionless merkle tree, XMSS requires explicit left/right direction in the structure of its merkle tree for security.[^xmss-directional]
@@ -1878,8 +1892,8 @@ def xmss_node(
     layer: UInt8,
     tree_address: UInt64,
 ) -> Bytes[16]:
-  assert node_height <= SPHX_XMSS_HEIGHT
-  assert node_index < 2**(SPHX_XMSS_HEIGHT - node_height)
+  assert node_height <= XMSS_HEIGHT
+  assert node_index < 2**(XMSS_HEIGHT - node_height)
   if node_height == 0: # Bottom layer: return the WOTS-TW pubkey hash.
     return wots_tw_pubkey_gen(sk_seed, pk_seed, layer, tree_address, node_index)
 
@@ -1911,7 +1925,7 @@ appends the Merkle authentication path to form an XMSS signature, in the XMSS tr
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
   - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
 - Output:
-  - a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
+  - a `XMSS_SIGNATURE_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -1923,13 +1937,13 @@ def xmss_sign(
     pk_seed: Bytes[16],
     layer: UInt8,
     tree_address: UInt64,
-) -> Bytes[SPHX_XMSS_SIGNATURE_SIZE]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+) -> Bytes[XMSS_SIGNATURE_SIZE]:
+  assert keypair_index < 2**XMSS_HEIGHT
   # Sign the message with WOTS-TW.
   sig = wots_tw_sign(message, sk_seed, pk_seed, layer, tree_address, keypair_index)
 
   # Append the Merkle authentication path.
-  for j in range(SPHX_XMSS_HEIGHT):
+  for j in range(XMSS_HEIGHT):
     sibling_index = (keypair_index // 2**j) ^ 1
     sig += xmss_node(sk_seed, sibling_index, j, pk_seed, layer, tree_address)
 
@@ -1946,7 +1960,7 @@ at leaf `keypair_index`, in the XMSS tree at `layer` and `tree_address`.
 
 - Inputs:
   - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair to sign with.
-  - `signature`: a `SPHX_XMSS_SIGNATURE_SIZE`-byte signature.
+  - `signature`: a `XMSS_SIGNATURE_SIZE`-byte signature.
   - `message`: a 16-byte message.
   - `pk_seed`: a 16-byte public seed.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
@@ -1959,19 +1973,19 @@ This function is only used in the stateless path, and by both the signer and the
 ```py
 def xmss_pubkey_from_sig(
     keypair_index: UInt32,
-    signature: Bytes[SPHX_XMSS_SIGNATURE_SIZE],
+    signature: Bytes[XMSS_SIGNATURE_SIZE],
     message: Bytes[16],
     pk_seed: Bytes[16],
     layer: UInt8,
     tree_address: UInt64,
 ) -> Bytes[16]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert keypair_index < 2**XMSS_HEIGHT
   wots_sig = signature[0 : WOTS_TW_CHAINS_SIZE]
-  xmss_auth = signature[WOTS_TW_CHAINS_SIZE : SPHX_XMSS_SIGNATURE_SIZE]
+  xmss_auth = signature[WOTS_TW_CHAINS_SIZE : XMSS_SIGNATURE_SIZE]
 
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, layer, tree_address, keypair_index)
 
-  for k in range(SPHX_XMSS_HEIGHT):
+  for k in range(XMSS_HEIGHT):
     parent = XmssTree(layer, tree_address, k + 1, keypair_index // 2**(k+1))
     sibling = xmss_auth[k*16 : (k+1)*16]
     if (keypair_index // 2**k) % 2 == 1:
@@ -1989,7 +2003,7 @@ def xmss_pubkey_from_sig(
 The SHRINCS stateless path utilizes the design strategy of a _hypertree,_ first introduced by the original SPHINCS paper[^sphincs].
 A hypertree is a tree of XMSS trees arranged into _layers_, where each OTS leaf signs the root hash of a child XMSS tree on the next layer down to certify the child tree's authenticity.
 Every child tree is thus verifiably connected to the root tree, in a similar fashion to TLS certificate chains.
-Each tree has `2**SPHX_XMSS_HEIGHT` such certified children.
+Each tree has `2**XMSS_HEIGHT` such certified children.
 
 Because each XMSS tree is generated deterministically from a seed, the signer does not need to worry about OTS key reuse when certifying child XMSS trees, and so she can avoid caching every XMSS tree in the hypertree.
 The signer can _just-in-time_ generate the XMSS trees that will be used for a specific signature, and thereafter those trees can be discarded from memory.
@@ -1997,7 +2011,7 @@ This diagram shows a simplified example with three layers of XMSS trees with hei
 
 <img src="img/hypertree.svg">
 
-A hypertree signature is simply a chain of `SPHX_LAYER_COUNT` XMSS signatures, starting from the bottom-layer which signs a given 16-byte message.
+A hypertree signature is simply a chain of `HYPERTREE_LAYER_COUNT` XMSS signatures, starting from the bottom-layer which signs a given 16-byte message.
 
 <img src="img/hypertree-signature.svg">
 
@@ -2027,17 +2041,17 @@ def hypertree_sign(
     tree_index: UInt64,
     leaf_index: UInt32,
 ) -> Bytes[HYPERTREE_SIGNATURE_SIZE]:
-  assert tree_index < 2**SPHX_TREE_INDEX_BITS
-  assert leaf_index < 2**SPHX_XMSS_HEIGHT
+  assert tree_index < 2**HYPERTREE_TREE_INDEX_BITS
+  assert leaf_index < 2**XMSS_HEIGHT
   sig = b""
-  for j in range(SPHX_LAYER_COUNT - 1):
+  for j in range(HYPERTREE_LAYER_COUNT - 1):
     layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
-    leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-    tree_index //= 2**SPHX_XMSS_HEIGHT
+    leaf_index = tree_index % (2**XMSS_HEIGHT)
+    tree_index //= 2**XMSS_HEIGHT
     sig += layer_sig
 
-  layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, SPHX_LAYER_COUNT - 1, tree_index)
+  layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, HYPERTREE_LAYER_COUNT - 1, tree_index)
   sig += layer_sig
   return sig
 ```
@@ -2071,16 +2085,16 @@ def hypertree_verify(
     leaf_index: UInt32,
     sl_root: Bytes[16],
 ) -> bool:
-  assert tree_index < 2**SPHX_TREE_INDEX_BITS
-  assert leaf_index < 2**SPHX_XMSS_HEIGHT
-  for j in range(SPHX_LAYER_COUNT - 1):
-    layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
+  assert tree_index < 2**HYPERTREE_TREE_INDEX_BITS
+  assert leaf_index < 2**XMSS_HEIGHT
+  for j in range(HYPERTREE_LAYER_COUNT - 1):
+    layer_sig = signature[j * XMSS_SIGNATURE_SIZE : (j+1) * XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
-    leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-    tree_index //= 2**SPHX_XMSS_HEIGHT
+    leaf_index = tree_index % (2**XMSS_HEIGHT)
+    tree_index //= 2**XMSS_HEIGHT
 
-  layer_sig = signature[(SPHX_LAYER_COUNT - 1) * SPHX_XMSS_SIGNATURE_SIZE : HYPERTREE_SIGNATURE_SIZE]
-  message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, SPHX_LAYER_COUNT - 1, tree_index)
+  layer_sig = signature[(HYPERTREE_LAYER_COUNT - 1) * XMSS_SIGNATURE_SIZE : HYPERTREE_SIGNATURE_SIZE]
+  message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, HYPERTREE_LAYER_COUNT - 1, tree_index)
   return message == sl_root
 ```
 <!-- DOC END hypertree_verify -->
@@ -2156,8 +2170,8 @@ However, since each WOTS+C leaf can be used only once, subsequent signatures wil
 
 Eventually, after `depth + 1` signatures, the UXMSS stateful path will be exhausted and unusable, and the last few stateful signatures will be very large.
 
-For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_HEIGHT` for UXMSS (the maximum), as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path.
-FXMSS depth cannot exceed `FXMSS_HEIGHT = 255` because the FXMSS node height number is encoded into the signature and `ADRS` as a single byte.
+For most use cases, unless compute power is very limited, we recommend setting `depth = FXMSS_ROOT_HEIGHT` for UXMSS (the maximum), as even a WOTS+C leaf at maximum depth will still produce a shorter signature than the stateless path.
+FXMSS depth cannot exceed `FXMSS_ROOT_HEIGHT = 255` because the FXMSS node height number is encoded into the signature and `ADRS` as a single byte.
 
 ##### `FXMSS_SHAPE_BALANCED`
 
@@ -2237,8 +2251,8 @@ def fxmss_node(
     tree_balanced: bool,
     tree_depth: UInt8,
 ) -> Bytes[16]:
-  assert 255 - node_height <= tree_depth
-  assert node_index < 2**min(64, 255 - node_height)
+  assert FXMSS_ROOT_HEIGHT - node_height <= tree_depth
+  assert node_index < 2**min(64, FXMSS_ROOT_HEIGHT - node_height)
   assert not tree_balanced or tree_depth <= 64
   assert tree_balanced or node_index in (0, 1)
   if node_height == 0:
@@ -2246,7 +2260,7 @@ def fxmss_node(
       sk_seed, pk_seed, node_height, node_index, tree_balanced, tree_depth
     )
 
-  node_depth = FXMSS_HEIGHT - node_height
+  node_depth = FXMSS_ROOT_HEIGHT - node_height
 
   # Leaves are at the bottom layer or right children on the unbalanced spine.
   if node_depth == tree_depth or (not tree_balanced and node_index == 1):
@@ -2286,7 +2300,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
     unbalanced (UXMSS) tree.
   - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
-  - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
+  - a `WOTS_C_SIGNATURE_SIZE + 16 * (FXMSS_ROOT_HEIGHT - leaf_height)`-byte signature, or null.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -2300,13 +2314,13 @@ def fxmss_sign(
     tree_balanced: bool,
     tree_depth: UInt8,
 ) -> Optional[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX]]:
-  assert leaf_height < 255
-  assert 255 - leaf_height <= tree_depth
-  assert leaf_index < 2**min(64, 255 - leaf_height)
+  assert leaf_height < FXMSS_ROOT_HEIGHT
+  assert FXMSS_ROOT_HEIGHT - leaf_height <= tree_depth
+  assert leaf_index < 2**min(64, FXMSS_ROOT_HEIGHT - leaf_height)
   assert not tree_balanced or tree_depth <= 64
-  assert not tree_balanced or 255 - leaf_height == tree_depth
-  assert tree_balanced or leaf_index == 1 or (leaf_index == 0 and 255 - leaf_height == tree_depth)
-  leaf_depth = FXMSS_HEIGHT - leaf_height
+  assert not tree_balanced or FXMSS_ROOT_HEIGHT - leaf_height == tree_depth
+  assert tree_balanced or leaf_index == 1 or (leaf_index == 0 and FXMSS_ROOT_HEIGHT - leaf_height == tree_depth)
+  leaf_depth = FXMSS_ROOT_HEIGHT - leaf_height
 
   sig = wots_c_sign(
     message_digest, sk_seed, pk_seed, leaf_height, leaf_index, tree_balanced, tree_depth
@@ -2341,8 +2355,8 @@ WOTS+C leaf in the tree.
   - `leaf_index`: a 64-bit unsigned integer, the left-to-right position of the WOTS+C signing leaf.
   - `leaf_height`: an 8-bit unsigned integer, the height of the WOTS+C signing leaf.
   - `signature`: a signature of length proportional to the leaf depth
-    `FXMSS_HEIGHT - leaf_height`. Specifically:
-    `len(signature) == 2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`.
+    `FXMSS_ROOT_HEIGHT - leaf_height`. Specifically:
+    `len(signature) == WOTS_C_SIGNATURE_SIZE + 16 * (FXMSS_ROOT_HEIGHT - leaf_height)`.
   - `message_digest`: a 32-byte message digest.
   - `pk_seed`: a 16-byte public seed.
 - Output:
@@ -2358,12 +2372,12 @@ def fxmss_pubkey_from_sig(
     message_digest: Bytes[32],
     pk_seed: Bytes[16],
 ) -> Optional[Bytes[16]]:
-  assert leaf_height < 255
-  assert leaf_index < 2**min(64, 255 - leaf_height)
-  assert len(signature) == 2 + WOTS_C_CHAINS_SIZE + 16 * (255 - leaf_height)
-  wots_sig = signature[0 : 2+WOTS_C_CHAINS_SIZE]
-  xmss_auth = signature[2+WOTS_C_CHAINS_SIZE : len(signature)]
-  leaf_depth = FXMSS_HEIGHT - leaf_height
+  assert leaf_height < FXMSS_ROOT_HEIGHT
+  assert leaf_index < 2**min(64, FXMSS_ROOT_HEIGHT - leaf_height)
+  assert len(signature) == WOTS_C_SIGNATURE_SIZE + 16 * (FXMSS_ROOT_HEIGHT - leaf_height)
+  wots_sig = signature[0 : WOTS_C_SIGNATURE_SIZE]
+  xmss_auth = signature[WOTS_C_SIGNATURE_SIZE : len(signature)]
+  leaf_depth = FXMSS_ROOT_HEIGHT - leaf_height
 
   node = wots_c_pubkey_from_sig(
     wots_sig, message_digest, pk_seed, leaf_height, leaf_index
@@ -2398,10 +2412,10 @@ FORS is one such FTS scheme.
 Here follows an informal description of the FORS FTS scheme as it is defined in FIPS-205.[^slhdsa]
 
 A FORS keypair consists of a _forest_ of merkle trees of a fixed size, where each leaf is a hash of a preimage derived by a PRF.
-We parameterize the number of merkle trees as `SPHX_FORS_COUNT`, and the height of each tree as `SPHX_FORS_HEIGHT`.
+We parameterize the number of merkle trees as `FORS_TREE_COUNT`, and the height of each tree as `FORS_HEIGHT`.
 The FORS public key is a hash of the merkle roots of the entire forest.
 
-When signing, a message and randomizer `R` are mapped via a hash to a set of `SPHX_FORS_COUNT` integer indexes, of `SPHX_FORS_HEIGHT` bits each.
+When signing, a message and randomizer `R` are mapped via a hash to a set of `FORS_TREE_COUNT` integer indexes, of `FORS_HEIGHT` bits each.
 Each index identifies a specific preimage from each merkle tree which the signer must reveal, along with a merkle authentication path.
 The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
 
@@ -2438,14 +2452,14 @@ at `layer` and `tree_address`.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
   - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
   - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
-  - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
+  - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, FORS_TREE_COUNT * 2**FORS_HEIGHT)`.
 - Output:
   - a 16-byte preimage.
 
 This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
+within a single tree. The index of leaf `l` in tree `t` is `t * 2**FORS_HEIGHT + l`.
 
 ```py
 def fors_sk_gen(
@@ -2456,8 +2470,8 @@ def fors_sk_gen(
     keypair_index: UInt32,
     node_index: UInt32,
 ) -> Bytes[16]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
-  assert node_index < SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT
+  assert keypair_index < 2**XMSS_HEIGHT
+  assert node_index < FORS_TREE_COUNT * 2**FORS_HEIGHT
   return PRF(pk_seed, sk_seed, ForsPrf(layer, tree_address, keypair_index, node_index))
 ```
 <!-- DOC END fors_sk_gen -->
@@ -2473,8 +2487,8 @@ The FORS internal node computation function. Recursively computes the FORS node 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
-    `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
-  - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
+    `[0, FORS_TREE_COUNT * 2**(FORS_HEIGHT - node_height))`.
+  - `node_height`: a 32-bit unsigned integer, a node height in `[0, FORS_HEIGHT]`.
   - `pk_seed`: a 16-byte public seed.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
   - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
@@ -2486,7 +2500,7 @@ This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
 within a single tree. The index of node `l` in tree `t` at height `h` is
-`t * 2**(SPHX_FORS_HEIGHT - h) + l`.
+`t * 2**(FORS_HEIGHT - h) + l`.
 
 ```py
 def fors_node(
@@ -2498,9 +2512,9 @@ def fors_node(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
-  assert node_height <= SPHX_FORS_HEIGHT
-  assert node_index < SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height)
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert node_height <= FORS_HEIGHT
+  assert node_index < FORS_TREE_COUNT * 2**(FORS_HEIGHT - node_height)
+  assert keypair_index < 2**XMSS_HEIGHT
   if node_height == 0:
     preimage = fors_sk_gen(
       sk_seed, pk_seed, layer, tree_address, keypair_index, node_index
@@ -2550,13 +2564,13 @@ def fors_sign(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[FORS_SIGNATURE_SIZE]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
+  assert keypair_index < 2**XMSS_HEIGHT
   sig = b""
-  index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
-  for i in range(SPHX_FORS_COUNT):
-    leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+  index_set = base_2b(message_digest, FORS_HEIGHT, FORS_TREE_COUNT)
+  for i in range(FORS_TREE_COUNT):
+    leaf_index = i * 2**FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, leaf_index)
-    for j in range(SPHX_FORS_HEIGHT):
+    for j in range(FORS_HEIGHT):
       sibling_index = (leaf_index // 2**j) ^ 1
       sig += fors_node(
         sk_seed, sibling_index, j, pk_seed, layer, tree_address, keypair_index
@@ -2594,18 +2608,18 @@ def fors_pubkey_from_sig(
     tree_address: UInt64,
     keypair_index: UInt32,
 ) -> Bytes[16]:
-  assert keypair_index < 2**SPHX_XMSS_HEIGHT
-  index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
+  assert keypair_index < 2**XMSS_HEIGHT
+  index_set = base_2b(message_digest, FORS_HEIGHT, FORS_TREE_COUNT)
 
   roots = b""
-  for i in range(SPHX_FORS_COUNT):
-    tree_offset = i * 16 * (SPHX_FORS_HEIGHT + 1)
+  for i in range(FORS_TREE_COUNT):
+    tree_offset = i * 16 * (FORS_HEIGHT + 1)
     preimage = signature[tree_offset : tree_offset+16]
-    leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+    leaf_index = i * 2**FORS_HEIGHT + index_set[i]
 
     leaf = ForsTree(layer, tree_address, keypair_index, 0, leaf_index)
     node = F(pk_seed, leaf, preimage)
-    for j in range(SPHX_FORS_HEIGHT):
+    for j in range(FORS_HEIGHT):
       parent = ForsTree(
         layer, tree_address, keypair_index, j + 1, leaf_index // 2**(j+1)
       )
@@ -2662,9 +2676,9 @@ index, and FORS keypair index from `message` under `H_msg_sl`.
 - Outputs:
   - a `FORS_DIGEST_SIZE`-byte message digest, ready for use by FORS.
   - a 64-bit unsigned integer, a pseudorandomly selected index of a bottom-layer XMSS tree,
-    in `[0, 2**SPHX_TREE_INDEX_BITS)`.
+    in `[0, 2**HYPERTREE_TREE_INDEX_BITS)`.
   - a 32-bit unsigned integer, a pseudorandomly selected index of a FORS key within an XMSS
-    tree, in `[0, 2**SPHX_XMSS_HEIGHT)`.
+    tree, in `[0, 2**XMSS_HEIGHT)`.
 
 This function is only used in the stateless path, and by both the signer and the verifier.
 
@@ -2675,15 +2689,13 @@ def slh_dsa_digest_message(
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
-  tree_index_size = ceildiv(SPHX_TREE_INDEX_BITS, 8)
-  leaf_index_size = ceildiv(SPHX_XMSS_HEIGHT, 8)
 
-  tree_index_digest = digest[FORS_DIGEST_SIZE : FORS_DIGEST_SIZE + tree_index_size]
+  tree_index_digest = digest[FORS_DIGEST_SIZE : FORS_DIGEST_SIZE + SLH_DSA_DIGEST_TREE_INDEX_SIZE]
 
-  leaf_index_digest = digest[FORS_DIGEST_SIZE + tree_index_size : FORS_DIGEST_SIZE + tree_index_size + leaf_index_size]
+  leaf_index_digest = digest[FORS_DIGEST_SIZE + SLH_DSA_DIGEST_TREE_INDEX_SIZE : SLH_DSA_DIGEST_PREFIX_SIZE]
 
-  tree_index = int.from_bytes(tree_index_digest) % (2**SPHX_TREE_INDEX_BITS)
-  leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
+  tree_index = int.from_bytes(tree_index_digest) % (2**HYPERTREE_TREE_INDEX_BITS)
+  leaf_index = int.from_bytes(leaf_index_digest) % (2**XMSS_HEIGHT)
   return (fors_digest, tree_index, leaf_index)
 ```
 <!-- DOC END slh_dsa_digest_message -->
@@ -2711,7 +2723,7 @@ hypertree signature, all concatenated together.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
   - `opt_rand`: optional 16-byte additional randomness.
 - Output:
-  - a `SPHX_SIGNATURE_SIZE`-byte signature.
+  - a `SLH_DSA_SIGNATURE_SIZE`-byte signature.
 
 This function is only used in the stateless path, and only by the signer.
 
@@ -2724,7 +2736,7 @@ def slh_dsa_sign(
     pk_seed: Bytes[16],
     sl_root: Bytes[16],
     opt_rand: Optional[Bytes[16]],
-) -> Bytes[SPHX_SIGNATURE_SIZE]:
+) -> Bytes[SLH_DSA_SIGNATURE_SIZE]:
   contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
 
   if opt_rand is None:
@@ -2754,7 +2766,7 @@ The SLH-DSA verification function. Recovers the root-tree root from a `signature
 - Inputs:
   - `message`: a variable-length message.
   - `signature`: a candidate signature, of any length. Any length other than
-    `SPHX_SIGNATURE_SIZE` is not a signature, and is rejected.
+    `SLH_DSA_SIGNATURE_SIZE` is not a signature, and is rejected.
   - `ctx`: a context of at most 255 bytes.
   - `pk_seed`: a 16-byte public seed.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
@@ -2773,12 +2785,12 @@ def slh_dsa_verify(
 ) -> bool:
   contextualized_msg = (0).to_bytes(1) + len(ctx).to_bytes(1) + ctx + message
 
-  if len(signature) != SPHX_SIGNATURE_SIZE:
+  if len(signature) != SLH_DSA_SIGNATURE_SIZE:
     return False
 
   R = signature[0:16]
   fors_signature = signature[16 : 16 + FORS_SIGNATURE_SIZE]
-  hypertree_signature = signature[16 + FORS_SIGNATURE_SIZE : SPHX_SIGNATURE_SIZE]
+  hypertree_signature = signature[16 + FORS_SIGNATURE_SIZE : SLH_DSA_SIGNATURE_SIZE]
 
   fors_digest, tree_index, leaf_index = slh_dsa_digest_message(R, pk_seed, sl_root, contextualized_msg)
 
@@ -2904,10 +2916,10 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   sk_prf  = seed[16:32]
   pk_seed = seed[32:48]
 
-  sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, SPHX_LAYER_COUNT - 1, 0)
+  sl_root = xmss_node(sk_seed, 0, XMSS_HEIGHT, pk_seed, HYPERTREE_LAYER_COUNT - 1, 0)
   tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
   sf_root = fxmss_node(
-    sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
+    sk_seed, 0, FXMSS_ROOT_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
   )
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
@@ -2954,13 +2966,13 @@ def shrincs_sf_leaf_select(
 
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth:
-      return (0, FXMSS_HEIGHT - tree_depth)
+      return (0, FXMSS_ROOT_HEIGHT - tree_depth)
     if state_ctr < tree_depth:
-      return (1, FXMSS_HEIGHT - 1 - state_ctr)
+      return (1, FXMSS_ROOT_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
     if state_ctr < 2**tree_depth:
-      return (state_ctr, FXMSS_HEIGHT - tree_depth)
+      return (state_ctr, FXMSS_ROOT_HEIGHT - tree_depth)
 
   return None
 ```
@@ -3025,7 +3037,7 @@ def shrincs_sign(
   # Stateless signing path.
   if leaf_position is None:
     # Bind the stateless signature to the stateful keypair.
-    return bytes([FXMSS_HEIGHT]) + slh_dsa_sign(sf_root + message, ctx, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+    return bytes([SHRINCS_STATELESS_INDICATOR]) + slh_dsa_sign(sf_root + message, ctx, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
 
   # Stateful signing path.
   leaf_index, leaf_height = leaf_position
@@ -3049,7 +3061,7 @@ def shrincs_sign(
     return None # practically impossible
 
   # Encode the leaf index with a byte size proportional to its maximum = 2**min(64, leaf_depth)
-  leaf_depth = FXMSS_HEIGHT - leaf_height
+  leaf_depth = FXMSS_ROOT_HEIGHT - leaf_height
   leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
 
   return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
@@ -3067,8 +3079,9 @@ SHRINCS signature on `message` under `shrincs_pubkey`. Signatures must be produc
 `shrincs_sign` with the same `ctx`.
 
 The first byte of `signature` is called the _indicator byte_ and it tells the verifier which signing
-component to use: Byte `b == FXMSS_HEIGHT` indicates a stateless signature, any other byte `b < FXMSS_HEIGHT`
-indicates a stateful signature using a WOTS+C leaf at height `b` (i.e. depth `FXMSS_HEIGHT - b`).
+component to use. Byte `b == SHRINCS_STATELESS_INDICATOR` indicates a stateless signature.
+Any other byte indicates a stateful signature using a WOTS+C leaf at height `b`, with depth
+`FXMSS_ROOT_HEIGHT - b`.
 
 The verifier recomputes `sl_root` on the stateless path and `sf_root` on the stateful path,
 and compares the result against the public key.
@@ -3107,14 +3120,14 @@ def shrincs_verify(
   indicator = signature[0]
 
   # Stateless verification path.
-  if indicator == FXMSS_HEIGHT:
+  if indicator == SHRINCS_STATELESS_INDICATOR:
     # Stateless signatures must be bound to the stateful keypair.
     return slh_dsa_verify(sf_root + message, signature[1:], ctx, pk_seed, sl_root)
 
   leaf_height = indicator
-  leaf_depth = FXMSS_HEIGHT - leaf_height
+  leaf_depth = FXMSS_ROOT_HEIGHT - leaf_height
   leaf_index_size = ceildiv(min(leaf_depth, 64), 8)
-  if len(signature) != 17 + leaf_index_size + 2 + WOTS_C_CHAINS_SIZE + 16 * leaf_depth:
+  if len(signature) != 17 + leaf_index_size + WOTS_C_SIGNATURE_SIZE + 16 * leaf_depth:
     return False
 
   R = signature[1:17]

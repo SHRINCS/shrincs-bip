@@ -1,8 +1,8 @@
 from random import randbytes
 from typing import get_args, get_type_hints
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
-from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
-from shrincs import LEN, UINT, SHRINCS_SL_SIGNATURE_SIZE, SPHX_SIGNATURE_SIZE
+from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_ROOT_HEIGHT
+from shrincs import LEN, UINT, SHRINCS_SL_SIGNATURE_SIZE, SLH_DSA_SIGNATURE_SIZE
 from shrincs import wots_c_chain_iter, wots_tw_chain_iter
 from shrincs import Address, WotsTwHash, WotsTwPrf, WotsTwPk, XmssTree
 from shrincs import ForsTree, ForsRoots, ForsPrf
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     get_type_hints(shrincs_sign, include_extras=True)['return'], LEN
   )
   assert any(length.size == SHRINCS_SL_SIGNATURE_SIZE for length in return_lengths)
-  assert not any(length.size == SPHX_SIGNATURE_SIZE for length in return_lengths)
+  assert not any(length.size == SLH_DSA_SIGNATURE_SIZE for length in return_lengths)
 
   verify_address_serialization()
 

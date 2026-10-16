@@ -4,11 +4,11 @@
 
   <!-- Title -->
   <text x="410" y="40" fill="#f5f5f5" font-size="24" font-weight="bold" text-anchor="middle">FIPS-205 HyperTree (HT) Signature</text>
-  <text x="410" y="66" fill="#9aa0a6" font-size="14" text-anchor="middle">SIG_HT = ( SIG_XMSS[0], SIG_XMSS[1], ..., SIG_XMSS[SPHX_LAYER_COUNT - 1] )</text>
+  <text x="410" y="66" fill="#9aa0a6" font-size="14" text-anchor="middle">SIG_HT = ( SIG_XMSS[0], SIG_XMSS[1], ..., SIG_XMSS[HYPERTREE_LAYER_COUNT - 1] )</text>
 
   <!-- ======================= Outer container: layer count ======================= -->
   <rect x="40" y="90" width="740" height="230" rx="8" fill="none" stroke="#5b6068" stroke-width="1.5"/>
-  <text x="60" y="114" fill="#c8cdd3" font-size="14" font-weight="bold">SPHX_LAYER_COUNT &#215; XMSS signatures</text>
+  <text x="60" y="114" fill="#c8cdd3" font-size="14" font-weight="bold">HYPERTREE_LAYER_COUNT &#215; XMSS signatures</text>
 
   <!-- Layer blocks -->
   <!-- block 0 -->
@@ -26,11 +26,11 @@
 
   <!-- block d-1 -->
   <rect x="490" y="130" width="270" height="70" rx="6" fill="#33475f" stroke="#4a90d9" stroke-width="1.5"/>
-  <text x="625" y="160" fill="#e8f0fa" font-size="13" font-weight="bold" text-anchor="middle">SIG_XMSS[SPHX_LAYER_COUNT - 1]</text>
-  <text x="625" y="180" fill="#9fc3ea" font-size="11" text-anchor="middle">layer SPHX_LAYER_COUNT-1 (top)</text>
+  <text x="625" y="160" fill="#e8f0fa" font-size="13" font-weight="bold" text-anchor="middle">SIG_XMSS[HYPERTREE_LAYER_COUNT - 1]</text>
+  <text x="625" y="180" fill="#9fc3ea" font-size="11" text-anchor="middle">layer HYPERTREE_LAYER_COUNT-1 (top)</text>
 
   <!-- Note under blocks -->
-  <text x="410" y="240" fill="#c8cdd3" font-size="13" text-anchor="middle">Each SIG_XMSS = 16 &#215; (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT) bytes</text>
+  <text x="410" y="240" fill="#c8cdd3" font-size="13" text-anchor="middle">Each SIG_XMSS = 16 &#215; (WOTS_TW_CHAIN_COUNT + XMSS_HEIGHT) bytes</text>
   <text x="410" y="262" fill="#9aa0a6" font-size="12" text-anchor="middle">(n = 16 bytes per hash value)</text>
 
   <!-- Zoom connector lines -->
@@ -51,13 +51,13 @@
   <!-- AUTH path part -->
   <rect x="450" y="390" width="230" height="100" rx="6" fill="#5a3d5a" stroke="#c060c0" stroke-width="1.5"/>
   <text x="565" y="418" fill="#f5e6f5" font-size="14" font-weight="bold" text-anchor="middle">Authentication path</text>
-  <text x="565" y="440" fill="#e0b6e0" font-size="12" text-anchor="middle">SPHX_XMSS_HEIGHT nodes</text>
-  <text x="565" y="472" fill="#f5e6f5" font-size="12" text-anchor="middle" font-weight="bold">16 &#215; SPHX_XMSS_HEIGHT bytes</text>
+  <text x="565" y="440" fill="#e0b6e0" font-size="12" text-anchor="middle">XMSS_HEIGHT nodes</text>
+  <text x="565" y="472" fill="#f5e6f5" font-size="12" text-anchor="middle" font-weight="bold">16 &#215; XMSS_HEIGHT bytes</text>
 
   <!-- ======================= Byte size summary ======================= -->
   <rect x="110" y="540" width="600" height="70" rx="8" fill="#1f1f22" stroke="#5b6068" stroke-width="1.5"/>
   <text x="410" y="568" fill="#ffd86b" font-size="15" font-weight="bold" text-anchor="middle">Total HT signature size</text>
   <text x="410" y="594" fill="#e8e8e8" font-size="14" text-anchor="middle">
-    SPHX_LAYER_COUNT &#215; 16 &#215; (WOTS_TW_CHAIN_COUNT + SPHX_XMSS_HEIGHT) bytes
+    HYPERTREE_LAYER_COUNT &#215; 16 &#215; (WOTS_TW_CHAIN_COUNT + XMSS_HEIGHT) bytes
   </text>
 </svg>

@@ -100,8 +100,8 @@ def check_chains_and_checksum(baseline):
   for message in (bytes(16), bytes([255]) * 16, bytes(range(16)), bytes([0xF0]) * 16):
     indexes = compare(baseline, "wots_tw_message_to_indexes", message)
     assert indexes == compare(baseline, "wots_tw_message_to_indexes_alt", message)
-    checksum = sum(15 - digit for digit in indexes[:shrincs.WOTS_TW_CHAIN_COUNT1])
-    for i in range(shrincs.WOTS_TW_CHAIN_COUNT2):
+    checksum = sum(15 - digit for digit in indexes[:shrincs.WOTS_TW_MESSAGE_CHAIN_COUNT])
+    for i in range(shrincs.WOTS_TW_CHECKSUM_CHAIN_COUNT):
       destination = shrincs.WOTS_TW_CHAIN_COUNT - 1 - i
       assert indexes[destination] == (checksum // 2**(i * shrincs.WOTS_TW_CHAIN_BITS)) % 16
 
@@ -163,19 +163,19 @@ def check_candidate_lengths(baseline, keys):
 
 def check_hypertree_boundaries(baseline):
   # Mock XMSS computations to test traversal at the full tree-index boundary.
-  for tree_index in (0, 2**shrincs.SPHX_TREE_INDEX_BITS - 1):
+  for tree_index in (0, 2**shrincs.HYPERTREE_TREE_INDEX_BITS - 1):
     results = []
     for module in (baseline, shrincs):
       events = []
 
       def sign(message, sk_seed, leaf_index, pk_seed, layer, address):
-        assert 0 <= leaf_index < 2**shrincs.SPHX_XMSS_HEIGHT
-        assert 0 <= address < 2**(shrincs.SPHX_XMSS_HEIGHT * (shrincs.SPHX_LAYER_COUNT - 1 - layer))
+        assert 0 <= leaf_index < 2**shrincs.XMSS_HEIGHT
+        assert 0 <= address < 2**(shrincs.XMSS_HEIGHT * (shrincs.HYPERTREE_LAYER_COUNT - 1 - layer))
         events.append(("sign", layer, address, leaf_index, message))
-        return bytes([layer + 1]) * shrincs.SPHX_XMSS_SIGNATURE_SIZE
+        return bytes([layer + 1]) * shrincs.XMSS_SIGNATURE_SIZE
 
       def recover(leaf_index, signature, message, pk_seed, layer, address):
-        assert len(signature) == shrincs.SPHX_XMSS_SIGNATURE_SIZE
+        assert len(signature) == shrincs.XMSS_SIGNATURE_SIZE
         events.append(("recover", layer, address, leaf_index, message))
         return bytes([layer + 1]) * 16
 
@@ -195,15 +195,15 @@ def check_forest_positions(baseline):
   digest = bytes([255]) * shrincs.FORS_DIGEST_SIZE
   signature = compare(baseline, "fors_sign", digest, SEED[:16], SEED[32:], 0, 0, 0)
   compare(baseline, "fors_pubkey_from_sig", signature, digest, SEED[32:], 0, 0, 0)
-  positions = shrincs.base_2b(digest, shrincs.SPHX_FORS_HEIGHT, shrincs.SPHX_FORS_COUNT)
+  positions = shrincs.base_2b(digest, shrincs.FORS_HEIGHT, shrincs.FORS_TREE_COUNT)
   for tree_index, position in enumerate(positions):
-    leaf_index = tree_index * 2**shrincs.SPHX_FORS_HEIGHT + position
-    tree_offset = tree_index * 16 * (shrincs.SPHX_FORS_HEIGHT + 1)
+    leaf_index = tree_index * 2**shrincs.FORS_HEIGHT + position
+    tree_offset = tree_index * 16 * (shrincs.FORS_HEIGHT + 1)
     assert signature[tree_offset:tree_offset + 16] == shrincs.fors_sk_gen(SEED[:16], SEED[32:], 0, 0, 0, leaf_index)
-    for path_index in range(shrincs.SPHX_FORS_HEIGHT):
+    for path_index in range(shrincs.FORS_HEIGHT):
       sibling_index = (leaf_index // 2**path_index) ^ 1
-      assert sibling_index < shrincs.SPHX_FORS_COUNT * 2**(shrincs.SPHX_FORS_HEIGHT - path_index)
-      assert sibling_index == tree_index * 2**(shrincs.SPHX_FORS_HEIGHT - path_index) + ((position // 2**path_index) ^ 1)
+      assert sibling_index < shrincs.FORS_TREE_COUNT * 2**(shrincs.FORS_HEIGHT - path_index)
+      assert sibling_index == tree_index * 2**(shrincs.FORS_HEIGHT - path_index) + ((position // 2**path_index) ^ 1)
       sibling_offset = tree_offset + 16 * (path_index + 1)
       assert len(signature[sibling_offset:sibling_offset + 16]) == 16
 
@@ -254,7 +254,7 @@ def check_large_depth_contracts():
 
 def check_leaf_boundaries(baseline):
   compare(baseline, "xmss_node", SEED[:16], 511, 0, SEED[32:], 255, 2**64 - 1)
-  compare(baseline, "fors_node", SEED[:16], shrincs.SPHX_FORS_COUNT * 2**shrincs.SPHX_FORS_HEIGHT - 1, 0, SEED[32:], 255, 2**64 - 1, 511)
+  compare(baseline, "fors_node", SEED[:16], shrincs.FORS_TREE_COUNT * 2**shrincs.FORS_HEIGHT - 1, 0, SEED[32:], 255, 2**64 - 1, 511)
   for index, height, balanced, depth in (
     (0, 255, True, 0),
     (0, 0, False, 255),
@@ -286,11 +286,11 @@ def check_internal_contracts():
   for index, height, balanced, depth in ((0, 255, False, 0), (0, 254, False, 3), (2, 254, False, 3), (0, 254, True, 2), (2**63, 192, True, 63)):
     expect_assertion(shrincs.fxmss_sign, DIGEST, SEED[:16], index, height, SEED[32:], balanced, depth)
   expect_assertion(shrincs.fxmss_pubkey_from_sig, 0, 254, bytes(2 + shrincs.WOTS_C_CHAINS_SIZE + 16 * 2), DIGEST, SEED[32:])
-  expect_assertion(shrincs.xmss_node, SEED[:16], 1, shrincs.SPHX_XMSS_HEIGHT, SEED[32:], 0, 0)
-  expect_assertion(shrincs.xmss_node, SEED[:16], 0, shrincs.SPHX_XMSS_HEIGHT + 1, SEED[32:], 0, 0)
-  expect_assertion(shrincs.fors_node, SEED[:16], shrincs.SPHX_FORS_COUNT, shrincs.SPHX_FORS_HEIGHT, SEED[32:], 0, 0, 0)
-  expect_assertion(shrincs.fors_sk_gen, SEED[:16], SEED[32:], 0, 0, 0, shrincs.SPHX_FORS_COUNT * 2**shrincs.SPHX_FORS_HEIGHT)
-  expect_assertion(shrincs.hypertree_sign, SEED[:16], SEED[:16], SEED[32:], 2**shrincs.SPHX_TREE_INDEX_BITS, 0)
+  expect_assertion(shrincs.xmss_node, SEED[:16], 1, shrincs.XMSS_HEIGHT, SEED[32:], 0, 0)
+  expect_assertion(shrincs.xmss_node, SEED[:16], 0, shrincs.XMSS_HEIGHT + 1, SEED[32:], 0, 0)
+  expect_assertion(shrincs.fors_node, SEED[:16], shrincs.FORS_TREE_COUNT, shrincs.FORS_HEIGHT, SEED[32:], 0, 0, 0)
+  expect_assertion(shrincs.fors_sk_gen, SEED[:16], SEED[32:], 0, 0, 0, shrincs.FORS_TREE_COUNT * 2**shrincs.FORS_HEIGHT)
+  expect_assertion(shrincs.hypertree_sign, SEED[:16], SEED[:16], SEED[32:], 2**shrincs.HYPERTREE_TREE_INDEX_BITS, 0)
   expect_assertion(shrincs.base_2b, b"", 0, 0)
   expect_assertion(shrincs.base_2b, b"", 1, -1)
   expect_assertion(shrincs.base_2b, b"", 1, 1)
