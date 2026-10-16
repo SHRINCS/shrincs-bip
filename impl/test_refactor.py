@@ -99,6 +99,7 @@ def check_chains_and_checksum(baseline):
 
   for message in (bytes(16), bytes([255]) * 16, bytes(range(16)), bytes([0xF0]) * 16):
     indexes = compare(baseline, "wots_tw_message_to_indexes", message)
+    assert indexes == compare(baseline, "wots_tw_message_to_indexes_alt", message)
     checksum = sum(15 - digit for digit in indexes[:shrincs.WOTS_TW_CHAIN_COUNT1])
     for i in range(shrincs.WOTS_TW_CHAIN_COUNT2):
       destination = shrincs.WOTS_TW_CHAIN_COUNT - 1 - i
