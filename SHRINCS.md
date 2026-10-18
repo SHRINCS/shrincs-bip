@@ -2549,11 +2549,10 @@ def fors_pubkey_from_sig(
 ) -> Bytes[16]:
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
 
-  offset = 0
   roots = b""
   for i in range(SPHX_FORS_COUNT):
-    preimage = signature[offset : offset+16]
-    offset += 16
+    tree_offset = i * 16 * (SPHX_FORS_HEIGHT + 1)
+    preimage = signature[tree_offset : tree_offset+16]
     tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
 
     leaf = ForsTree(layer, tree_address, keypair_index, 0, tree_index)
@@ -2563,8 +2562,8 @@ def fors_pubkey_from_sig(
         layer, tree_address, keypair_index, j + 1, tree_index // 2**(j+1)
       )
 
-      sibling = signature[offset : offset+16]
-      offset += 16
+      sibling_offset = tree_offset + 16 * (j + 1)
+      sibling = signature[sibling_offset : sibling_offset+16]
 
       if (index_set[i] // 2**j) % 2 == 1:
         node = H(pk_seed, parent, sibling + node)
