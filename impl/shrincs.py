@@ -89,6 +89,11 @@ SHRINCS_SF_SIGNATURE_SIZE_MAX = 1 + 16 + 8 + FXMSS_SIGNATURE_SIZE_MAX
 FORS_DIGEST_SIZE              = ceildiv(SPHX_FORS_COUNT * SPHX_FORS_HEIGHT, 8)
 FORS_SIGNATURE_SIZE           = 16 * SPHX_FORS_COUNT * (SPHX_FORS_HEIGHT + 1)
 SPHX_TREE_INDEX_BITS          = SPHX_XMSS_HEIGHT * (SPHX_LAYER_COUNT - 1)
+SPHX_DIGEST_TREE_INDEX_SIZE   = ceildiv(SPHX_TREE_INDEX_BITS, 8)
+SPHX_DIGEST_LEAF_INDEX_SIZE   = ceildiv(SPHX_XMSS_HEIGHT, 8)
+SPHX_DIGEST_PREFIX_SIZE       = (
+  FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE + SPHX_DIGEST_LEAF_INDEX_SIZE
+)
 SPHX_SIGNATURE_SIZE           = 16 + FORS_SIGNATURE_SIZE + HYPERTREE_SIGNATURE_SIZE
 SHRINCS_SL_SIGNATURE_SIZE     = 1 + SPHX_SIGNATURE_SIZE
 
@@ -516,7 +521,7 @@ def PRF_msg_sf(
 def wots_tw_chain_iter(
     node: Bytes[16],
     start: UInt32,
-    steps: UInt32,
+    stop: UInt32,
     pk_seed: Bytes[16],
     layer: UInt8,
     tree_address: UInt64,
@@ -524,60 +529,62 @@ def wots_tw_chain_iter(
     chain_index: UInt32,
 ) -> Bytes[16]:
   """
-  The WOTS-TW hash chain iteration function. Iterates the hash chain from index `start` by `steps`
-  steps, returning the node at index `start + steps`. Each step is tweaked by the address of the
+  The WOTS-TW hash chain iteration function. Iterates the hash chain from index `start` to `stop`,
+  returning the node at index `stop`. Each step is tweaked by the address of the
   chain, with the hash index set to that step.
 
   - Inputs:
     - `node`: a 16-byte hash.
     - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
       `2**WOTS_TW_CHAIN_BITS`.
-    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
-      must not exceed `2**WOTS_TW_CHAIN_BITS - 1`.
+    - `stop`: a 32-bit unsigned integer, the final chain index, at least `start` and at most
+      `2**WOTS_TW_CHAIN_BITS - 1`.
     - `pk_seed`: a 16-byte public seed.
     - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
     - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
     - `keypair_index`: a 32-bit unsigned integer, the index of the WOTS-TW keypair.
     - `chain_index`: a 32-bit unsigned integer, the index of the chain within the keypair.
   - Output:
-    - a 16-byte hash at index `start + steps`.
+    - a 16-byte hash at index `stop`.
 
   This function is only used in the stateless path, and by both the signer and the verifier.
   """
-  for j in range(start, start+steps):
+  assert start <= stop <= 2**WOTS_TW_CHAIN_BITS - 1
+  for j in range(start, stop):
     node = F(pk_seed, WotsTwHash(layer, tree_address, keypair_index, chain_index, j), node)
   return node
 
 def wots_c_chain_iter(
     node: Bytes[16],
     start: UInt32,
-    steps: UInt32,
+    stop: UInt32,
     pk_seed: Bytes[16],
     node_height: UInt8,
     node_index: UInt64,
     chain_index: UInt32,
 ) -> Bytes[16]:
   """
-  The WOTS+C hash chain iteration function. Iterates the hash chain from index `start` by `steps`
-  steps, returning the node at index `start + steps`. Each step is tweaked by the address of the
+  The WOTS+C hash chain iteration function. Iterates the hash chain from index `start` to `stop`,
+  returning the node at index `stop`. Each step is tweaked by the address of the
   chain, with the hash index set to that step.
 
   - Inputs:
     - `node`: a 16-byte hash.
     - `start`: a 32-bit unsigned integer, the index of `node` in its hash chain, less than
       `2**WOTS_C_CHAIN_BITS`.
-    - `steps`: a 32-bit unsigned integer, the number of steps to take up the chain; `start + steps`
-      must not exceed `2**WOTS_C_CHAIN_BITS - 1`.
+    - `stop`: a 32-bit unsigned integer, the final chain index, at least `start` and at most
+      `2**WOTS_C_CHAIN_BITS - 1`.
     - `pk_seed`: a 16-byte public seed.
     - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
     - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
     - `chain_index`: a 32-bit unsigned integer, the index of the chain within the keypair.
   - Output:
-    - a 16-byte hash at index `start + steps`.
+    - a 16-byte hash at index `stop`.
 
   This function is only used in the stateful path, and by both the signer and the verifier.
   """
-  for j in range(start, start+steps):
+  assert start <= stop <= 2**WOTS_C_CHAIN_BITS - 1
+  for j in range(start, stop):
     node = F(pk_seed, WotsCHash(node_height, node_index, chain_index, j), node)
   return node
 
@@ -598,8 +605,7 @@ def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAI
 
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
-    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
-    checksum //= 2**WOTS_TW_CHAIN_BITS
+    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = (checksum // 2**(WOTS_TW_CHAIN_BITS * i)) % 2**WOTS_TW_CHAIN_BITS
 
   return msg_indexes + checksum_indexes
 
@@ -707,9 +713,8 @@ def wots_tw_pubkey_from_sig(
   indexes = wots_tw_message_to_indexes(message)
   wots_pk = [b''] * WOTS_TW_CHAIN_COUNT
   for i in range(WOTS_TW_CHAIN_COUNT):
-    steps = 2**WOTS_TW_CHAIN_BITS - 1 - indexes[i]
     wots_pk[i] = wots_tw_chain_iter(
-      signature[i*16 : (i+1)*16], indexes[i], steps, pk_seed,
+      signature[i*16 : (i+1)*16], indexes[i], 2**WOTS_TW_CHAIN_BITS - 1, pk_seed,
       layer, tree_address, keypair_index, i
     )
 
@@ -884,9 +889,8 @@ def wots_c_pubkey_from_sig(
 
   wots_pk = [b''] * WOTS_C_CHAIN_COUNT
   for i in range(WOTS_C_CHAIN_COUNT):
-    steps = 2**WOTS_C_CHAIN_BITS - 1 - indexes[i]
     wots_pk[i] = wots_c_chain_iter(
-      signature[2+i*16 : 2+(i+1)*16], indexes[i], steps, pk_seed,
+      signature[2+i*16 : 2+(i+1)*16], indexes[i], 2**WOTS_C_CHAIN_BITS - 1, pk_seed,
       node_height, node_index, i
     )
 
@@ -1347,7 +1351,7 @@ def fors_sign(
     leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, leaf_index)
     for j in range(SPHX_FORS_HEIGHT):
-      sibling_index = i * 2**(SPHX_FORS_HEIGHT - j) + ((index_set[i] // 2**j) ^ 1)
+      sibling_index = (leaf_index // 2**j) ^ 1
       sig += fors_node(
         sk_seed, sibling_index, j, pk_seed, layer, tree_address, keypair_index
       )
@@ -1380,24 +1384,23 @@ def fors_pubkey_from_sig(
   """
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
 
-  offset = 0
   roots = b""
   for i in range(SPHX_FORS_COUNT):
-    preimage = signature[offset : offset+16]
-    offset += 16
-    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+    tree_offset = i * 16 * (SPHX_FORS_HEIGHT + 1)
+    preimage = signature[tree_offset : tree_offset+16]
+    leaf_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
 
-    leaf = ForsTree(layer, tree_address, keypair_index, 0, tree_index)
+    leaf = ForsTree(layer, tree_address, keypair_index, 0, leaf_index)
     node = F(pk_seed, leaf, preimage)
     for j in range(SPHX_FORS_HEIGHT):
       parent = ForsTree(
-        layer, tree_address, keypair_index, j + 1, tree_index // 2**(j+1)
+        layer, tree_address, keypair_index, j + 1, leaf_index // 2**(j+1)
       )
 
-      sibling = signature[offset : offset+16]
-      offset += 16
+      sibling_offset = tree_offset + 16 * (j + 1)
+      sibling = signature[sibling_offset : sibling_offset+16]
 
-      if (index_set[i] // 2**j) % 2 == 1:
+      if (leaf_index // 2**j) % 2 == 1:
         node = H(pk_seed, parent, sibling + node)
       else:
         node = H(pk_seed, parent, node + sibling)
@@ -1432,12 +1435,10 @@ def slh_dsa_digest_message(
   digest = H_msg_sl(R, pk_seed, sl_root, message)
 
   fors_digest = digest[:FORS_DIGEST_SIZE]
-  offset = FORS_DIGEST_SIZE
 
-  tree_index_digest = digest[offset : offset + ceildiv(SPHX_TREE_INDEX_BITS, 8)]
-  offset += len(tree_index_digest)
+  tree_index_digest = digest[FORS_DIGEST_SIZE : FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE]
 
-  leaf_index_digest = digest[offset : offset + ceildiv(SPHX_XMSS_HEIGHT, 8)]
+  leaf_index_digest = digest[FORS_DIGEST_SIZE + SPHX_DIGEST_TREE_INDEX_SIZE : SPHX_DIGEST_PREFIX_SIZE]
 
   tree_index = int.from_bytes(tree_index_digest) % (2**SPHX_TREE_INDEX_BITS)
   leaf_index = int.from_bytes(leaf_index_digest) % (2**SPHX_XMSS_HEIGHT)
