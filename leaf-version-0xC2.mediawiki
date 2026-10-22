@@ -20,7 +20,7 @@
 
 ===Abstract===
 
-This BIP defines Tapscript leaf version 0xc2, a dialect of Tapscript that enables scripts to verify signatures from an extensible collection of digital signature schemes by overloading of Tapscript's signature verification opcodes (sigops). Public keys are prefixed in scripts with a one-byte scheme flag that identifies the corresponding signature scheme and the verification algorithm to use for signature operations involving that key. Signature verification against a public key prefixed by a reserved (or unrecognized) flag byte succeeds unconditionally, providing an upgrade path for other digital signature schemes in the future. Requirements are specified for future BIPs defining new candidate schemes. Importantly, Tapscript leaf version 0xc2 also modifies resource limits (relative to Tapscript leaf version 0xc0), such as the maximum stack element size and the sigops budget accounting mechanism. A discussion of relevant trade-offs and justifications for these design choices is provided.
+This BIP defines Tapscript leaf version 0xc2, a dialect of Tapscript that enables scripts to verify signatures from an extensible collection of digital signature schemes by redefinition of Tapscript's signature verification opcodes (sigops). Public keys are prefixed in scripts with a one-byte scheme flag that identifies the corresponding signature scheme and the verification algorithm to use for signature operations involving that key. Signature verification against a public key prefixed by a reserved (or unrecognized) flag byte succeeds unconditionally, providing an upgrade path for other digital signature schemes in the future. Requirements are specified for future BIPs defining new candidate schemes. Importantly, Tapscript leaf version 0xc2 also modifies resource limits (relative to Tapscript leaf version 0xc0), such as the maximum stack element size and the sigops budget accounting mechanism. A discussion of relevant trade-offs and justifications for these design choices is provided.
 
 ==Motivation==
 
@@ -36,7 +36,7 @@ Cryptographic agility is the ability to easily switch between cryptographic prim
 
 ===Overview===
 
-This BIP defines a new Tapscript leaf version 0xc2, in which all sigops -- signature verification opcodes like <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGADD</code>, and <code>OP_CHECKSIGVERIFY</code> -- are overloaded to support multiple digital signature schemes in the same script and/or script tree. The exact signature verification algorithm to perform is determined in scripts by the single-byte scheme prefix prepended to the public key. The script interpreter detects this byte during each signature operation and then performs the indicated signature verification algorithm on the given public key and a provided signature.
+This BIP defines a new Tapscript leaf version 0xc2, in which all sigops -- signature verification opcodes like <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGADD</code>, and <code>OP_CHECKSIGVERIFY</code> -- are redefined to support multiple digital signature schemes in the same script and/or script tree. The exact signature verification algorithm to perform is determined in scripts by the single-byte scheme prefix prepended to the public key. The script interpreter detects this byte during each signature operation and then performs the indicated signature verification algorithm on the given public key and a provided signature.
 
 Any output type that supports Tapscript, such as Pay-to-Taproot (P2TR/P2TRv2) or Pay-to-Merkle-Root (P2MR), MAY permit leaf version 0xc2 scripts. The activation and applicability of this leaf version within each output type is specified by that output type's own BIP.
 
@@ -60,7 +60,7 @@ where <code>flag</code> is the first byte and <code>pubkey_data</code> is the re
 
 ===Signature Verification / Sigop Modifications===
 
-Sigops refer to the signature verification opcodes used to verify signatures in bitcoin. These opcodes, <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, and <code>OP_CHECKSIGADD</code> are overloaded in Tapscript leaf version 0xc2 as follows.
+Sigops refer to the signature verification opcodes used to verify signatures in bitcoin. These opcodes, <code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, and <code>OP_CHECKSIGADD</code> are redefined in Tapscript leaf version 0xc2 as follows.
 
 In the procedures below, "fail" means script execution MUST fail and terminate immediately, rendering the spend invalid. The term "continue" means the current signature operation is complete, and script execution proceeds with the next opcode.
 
@@ -162,7 +162,7 @@ An alternative approach would be to redefine separate <code>OP_SUCCESSx</code> o
 
 * New signature schemes may be added over time. With scheme flags, adding a new scheme requires only defining a new scheme flag's algorithms and properties. With separate opcodes, each scheme needs its own set of sigop opcodes (<code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, <code>OP_CHECKSIGADD</code>), and these do not interoperate naturally in multi-signature constructions.
 
-* Future opcodes involving signature verification, such as <code>OP_CHECKSIGFROMSTACK</code> (BIP 348), can adopt the same flag system, providing consistency across the scripting system. This overloading approach makes inter-BIP compatibility easier to engineer. If this BIP is deployed first, BIP 348 could be updated to support leaf version 0xc2 by following the scheme flag system defined here. Conversely, if BIP 348 is deployed first, this BIP could be updated to also redefine <code>OP_CHECKSIGFROMSTACK</code> in Tapscript leaf version 0xc2.
+* Future opcodes involving signature verification, such as <code>OP_CHECKSIGFROMSTACK</code> (BIP 348), can adopt the same flag system, providing consistency across the scripting system. This approach makes inter-BIP compatibility easier to engineer. If this BIP is deployed first, BIP 348 could be updated to support leaf version 0xc2 by following the scheme flag system defined here. Conversely, if BIP 348 is deployed first, this BIP could be updated to also redefine <code>OP_CHECKSIGFROMSTACK</code> in Tapscript leaf version 0xc2.
 
 ===Why is the Scheme Flag Part of the Public Key?===
 
