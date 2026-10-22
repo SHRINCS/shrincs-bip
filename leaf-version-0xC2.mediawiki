@@ -93,7 +93,7 @@ In the procedures below, "fail" means script execution MUST fail and terminate i
 # If <code>pubkey_data</code> is not a valid public key encoding for the scheme designated by <code>flag</code>, fail.
 # Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail. Otherwise push <code>n + 1</code> and continue.
 
-As with Tapscript version 0xc0 the sigops <code>OP_CHECKMULTISIG</code> and <code>OP_CHECKMULTISIGVERIFY</code> are disabled in Tapscript version 0xc2. The disabled opcodes behave in the same way as <code>OP_RETURN</code>, by failing and terminating the script immediately when executed, and being ignored when found in an unexecuted branch of the script.
+As with Tapscript version 0xc0 the sigops <code>OP_CHECKMULTISIG</code> and <code>OP_CHECKMULTISIGVERIFY</code> are disabled in Tapscript version 0xc2. The disabled opcodes behave in the same way as <code>OP_RETURN</code>: fail and terminate the script immediately when executed. They are ignored when found in an unexecuted branch of the script.
 
 ===Threshold and Multi-Signature Scripts===
 
@@ -120,7 +120,7 @@ As in Tapscript leaf version 0xc0, a common signature message and tapscript mess
 
 The ''key_version'' field of the tapscript message extension uses the constant value 0xFF for Tapscript leaf version 0xc2.
 
-Additional domain separation between Tapscript leaf versions 0xc0 and 0xc2 is not required: the leaf version is committed to by the tapleaf hash, both in the output Merkle commitment and in the ''tapleaf_hash'' field of the common signature message extension. Signatures produced for a 0xc2 leaf therefore cannot be replayed against a 0xc0 leaf of the same script tree, or vice versa, and both leaf versions may safely coexist in the same script tree. Still, another degree of domain separation is achieved by our choice of constant for the ''key_version'' field.
+Additional domain separation between Tapscript leaf versions 0xc0 and 0xc2 is not required: The leaf version is committed to by the tapleaf hash, both in the output Merkle commitment and in the ''tapleaf_hash'' field of the common signature message extension. Signatures produced for a 0xc2 leaf therefore cannot be replayed against a 0xc0 leaf of the same script tree, or vice versa, and both leaf versions may safely coexist in the same script tree. Still, another degree of domain separation is achieved by our choice of constant for the ''key_version'' field.
 
 ===Digital Signature Scheme BIP Requirements===
 
@@ -140,7 +140,7 @@ Future BIPs defining new scheme flags MUST AT MINIMUM specify:
 
 ===Stack Element Size===
 
-Tapscript version 0xc0 (BIP 342) limits stack elements to 520 bytes. Tapscript leaf version 0xc2 relaxes the limit on stack element size from 520 bytes to 6000 bytes. This is because some signature schemes produce much larger signatures than does Schnorr (BIP 340). We also do not know whether signatures will be larger or smaller into the future. Therefore, the new Tapscript version 0xc2 introduced in this BIP raises the 520-byte limit on stack element sizes so as to offer flexibility to support new signature schemes while mitigating denial-of-service risks (see "Design rationale" for discussion).
+Tapscript version 0xc0 (BIP 342) limits stack elements to 520 bytes. Tapscript leaf version 0xc2 relaxes the limit on stack element size from 520 bytes to 6000 bytes. This is because some candidate signature schemes produce much larger signatures than BIP 340. Therefore, the new Tapscript version 0xc2 introduced in this BIP raises the 520-byte limit on stack element sizes so as to offer flexibility to support new signature schemes while mitigating denial-of-service risks (see "Design rationale" for discussion).
 
 This limit applies both to elements on the initial stack and to push opcodes within the script.
 
@@ -148,9 +148,11 @@ This limit applies both to elements on the initial stack and to push opcodes wit
 
 In Tapscript leaf version 0xc0, the per-input sigops budget is 50 plus the total serialized size of an input witness in bytes (including the CompactSize prefix). Each signature opcode executed on a non-empty signature decrements this budget by 50; sigops with an empty signature are free. If the cost of a sigop brings the sigops budget below zero, then the script fails immediately.
 
-Such a rule is sufficient for signature schemes with small signatures such as Schnorr. However, different algorithms have different verification costs. A particular problem case is a scheme with a small signature and an expensive verification.
+Such a rule is sufficient for signature schemes with small signatures such as Schnorr. However, different algorithms have different verification costs.
 
 Tapscript leaf version 0xc2 retains the initial sigops budget of 0xc0, that is 50 plus the serialized size in bytes of the witness. However, version 0xc2 requires signature scheme BIPs to define a strictly-positive cost (or cost function) that will be applied to the sigops budget for signature verifications on keys corresponding to that scheme and defers to these BIPs to justify their chosen cost.
+
+This design allows new signature schemes to be added cleanly as future soft forks. If a new scheme is defined by upgraded nodes, the sigops cost they see is always greater than the sigops cost as seen by a legacy node which is unaware of the new scheme.
 
 ==Design Rationale==
 
@@ -158,17 +160,17 @@ Tapscript leaf version 0xc2 retains the initial sigops budget of 0xc0, that is 5
 
 An alternative approach would be to redefine separate <code>OP_SUCCESSx</code> opcodes for each new signature scheme. This was rejected for several reasons:
 
-* New signature schemes may be added over time. With scheme flags, adding a new scheme requires only defining a new flag value. With separate opcodes, each scheme needs its own set of sigop opcodes (<code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, <code>OP_CHECKSIGADD</code>), and these do not interoperate naturally in multi-signature constructions.
+* New signature schemes may be added over time. With scheme flags, adding a new scheme requires only defining a new scheme flag's algorithms and properties. With separate opcodes, each scheme needs its own set of sigop opcodes (<code>OP_CHECKSIG</code>, <code>OP_CHECKSIGVERIFY</code>, <code>OP_CHECKSIGADD</code>), and these do not interoperate naturally in multi-signature constructions.
 
 * Future opcodes involving signature verification, such as <code>OP_CHECKSIGFROMSTACK</code> (BIP 348), can adopt the same flag system, providing consistency across the scripting system. This overloading approach makes inter-BIP compatibility easier to engineer. If this BIP is deployed first, BIP 348 could be updated to support leaf version 0xc2 by following the scheme flag system defined here. Conversely, if BIP 348 is deployed first, this BIP could be updated to also redefine <code>OP_CHECKSIGFROMSTACK</code> in Tapscript leaf version 0xc2.
 
 ===Why is the Scheme Flag Part of the Public Key?===
 
-The scheme flag is prepended to the public key rather than to the signature. This ensures the signature scheme is committed to in the tapscript. An attacker who observes a transaction cannot substitute a different scheme and so choose their signature verification function — doing so would require modifying the committed public key in the script, which is equivalent to breaking the spending condition entirely.
+The scheme flag is prepended to the public key rather than to the signature. This ensures the signature scheme is committed to in the tapscript. An attacker who observes a transaction cannot substitute a different scheme and so choose their signature verification function — doing so would require modifying the committed public key in the script.
 
 If the flag were part of the signature, an attacker could control which verification algorithm is used. This would allow theft by specifying a reserved (auto-success) algorithm flag.
 
-The security argument is straightforward: to modify the signature scheme, you must be able to modify the public key that a user commits coins to. If you can modify the public key that a user commits coins to, you can already forge signatures and steal coins.
+The security argument is straightforward: To modify the signature scheme, you must be able to modify the public key that a user commits coins to. If you can modify the public key that a user commits coins to, you can already forge signatures and steal coins.
 
 However, in a future state where <code>OP_CAT</code> or similar stack mutation opcodes are re-enabled, poorly-written scripts could potentially be manipulated. Future developers will need to bear this risk in mind when designing protocols.
 
@@ -235,7 +237,7 @@ Wallets MUST only generate public keys with recognized scheme flags, and users M
 
 ===Unrecognized Flag Misuse===
 
-A signature operation against a public key prefixed with a reserved (or unrecognized) flag byte succeeds for any non-empty signature. Locking an output to such a public key — which may be as short as the flag byte alone — would create an anyone-can-spend output. In multisig scripts the failure is subtler: each unrecognized-flag key effectively removes its signature check from the spending conditions, silently degrading a threshold (e.g. a 2-of-2 becomes a 1-of-1).
+A signature operation against a public key prefixed with a reserved (or unrecognized) flag byte succeeds for any non-empty signature. Locking an output to such a public key — which may be as short as the flag byte alone — would create an anyone-can-spend output. In multisig scripts the failure is subtler: Each unrecognized-flag key effectively removes its signature check from the spending conditions, silently degrading a threshold (e.g. a 2-of-2 becomes a 1-of-1).
 
 A particular hazard is reusing a bare BIP 340 public key from a leaf version 0xc0 script without prepending the 0x02 scheme flag. The first byte of the key would then be interpreted as the flag — almost certainly an unrecognized one — recreating exactly this failure.
 
