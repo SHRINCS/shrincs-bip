@@ -20,7 +20,7 @@
 
 ===Abstract===
 
-This BIP defines Tapscript leaf version 0xc2, a dialect of Tapscript that enables scripts to verify signatures from different digital signature schemes by overloading of Tapscript's signature verification opcodes (sigops). Public keys are prefixed in scripts with a one-byte scheme flag that identifies the corresponding signature scheme and the verification algorithm to use for signature operations involving that key. Signature verification against a public key prefixed by a reserved (or unrecognized) flag byte succeeds unconditionally, providing an upgrade path for other digital signature schemes in the future. Requirements are specified for future BIPs defining new candidate schemes. Importantly, Tapscript leaf version 0xc2 also modifies resource limits (relative to Tapscript leaf version 0xc0), such as the maximum stack element size and the sigops budget accounting mechanism. A discussion of relevant trade-offs and justifications for these design choices is provided.
+This BIP defines Tapscript leaf version 0xc2, a dialect of Tapscript that enables scripts to verify signatures from an extensible collection of digital signature schemes by overloading of Tapscript's signature verification opcodes (sigops). Public keys are prefixed in scripts with a one-byte scheme flag that identifies the corresponding signature scheme and the verification algorithm to use for signature operations involving that key. Signature verification against a public key prefixed by a reserved (or unrecognized) flag byte succeeds unconditionally, providing an upgrade path for other digital signature schemes in the future. Requirements are specified for future BIPs defining new candidate schemes. Importantly, Tapscript leaf version 0xc2 also modifies resource limits (relative to Tapscript leaf version 0xc0), such as the maximum stack element size and the sigops budget accounting mechanism. A discussion of relevant trade-offs and justifications for these design choices is provided.
 
 ==Motivation==
 
@@ -73,7 +73,6 @@ In the procedures below, "fail" means script execution MUST fail and terminate i
 # Let <code>flag</code> be the first byte of <code>public_key</code>, and <code>pubkey_data</code> be the remainder.
 # If <code>flag</code> is unrecognized, push <code>0x01</code> and continue.
 # Decrement the sigops budget by the cost associated to <code>flag</code>; fail if this budget falls below zero.
-# If <code>pubkey_data</code> is not a valid public key encoding for the scheme designated by <code>flag</code>, fail.
 # Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail. Otherwise push <code>0x01</code> and continue.
 
 ====OP_CHECKSIGVERIFY====
@@ -131,7 +130,6 @@ Future BIPs defining new scheme flags MUST AT MINIMUM specify:
 * '''Flag byte''' - The constant value assigned to the scheme's flag byte.
 * '''Parameters''' - List of the important parameters which define / constrain the scheme (e.g. group generators, orders (sizes), hash functions, other primitives and any magic numbers, etc).
 * '''Key format''' - Structure and size of all public and private keys and their components.
-* '''Valid pubkey encodings''' - An exact description of the set of valid public key encodings for the scheme. Any public key outside this set causes script failure.
 * '''Signature format''' - Structure and size (whether fixed- or variable) of the signatures. If signatures are variably sized, how the verifier will determine boundaries.
 * '''Verification procedure''' - Complete algorithm for verification of signatures.
 * '''Sigops cost''' - Cost charged against the sigops budget for signature operations (see "Resource Limits"). Schemes MUST justify their own scheme-specific cost (e.g. cost proportional to worst-case verification time relative to Schnorr), or may even define a cost function that computes a cost dynamically from the pubkey and/or signature size.
@@ -156,7 +154,7 @@ Tapscript leaf version 0xc2 retains the initial sigops budget of 0xc0, that is 5
 
 ==Design Rationale==
 
-===Why Overload Sigops Rather Than Define New Opcodes?===
+===Why Redefine Sigops Rather Than Define New Opcodes?===
 
 An alternative approach would be to redefine separate <code>OP_SUCCESSx</code> opcodes for each new signature scheme. This was rejected for several reasons:
 
@@ -225,12 +223,6 @@ Alternatively, and perhaps more attractively, we could explicitly provide sigop 
 
 * '''Precedent.''' From a more philosophical perspective, it is generally bad practice to allow untrusted witness data to tell a verifier how to parse and verify it. A common class of vulnerability originates from this anti-pattern. Deploying chunked signatures sets a questionable precedent for subsequent new signature algorithms and other upgrades to follow the same path.
 
-===Can We Restrict Opcodes on Large Elements?===
-
-A middle path we considered: raise the stack element size limit, but forbid certain opcodes (<code>OP_DUP</code>, <code>OP_2DUP</code>, <code>OP_3DUP</code>, hash opcodes, and any future <code>OP_CAT</code>) from accepting elements larger than 520 bytes. Large elements could only be pushed and consumed by signature opcodes.
-
-This preserves simple single-element signatures while preventing the DoS amplification that unrestricted large elements enable. Such a restriction is conservative. If use cases emerge for hashing or duplicating large elements, they can likely be enabled with appropriate resource accounting. It is unclear whether such use cases exist today. It is also worth mentioning that if hashing large chunks of data turns out to be a problem, the input size limits of hashing and duplicating opcodes could be reduced by a soft fork.
-
 ===Unrecognized Flags and Forward Compatibility===
 
 Reserved (or unrecognized) scheme flags cause signature verification to succeed unconditionally. This follows the precedent of unknown public key types in BIP 342, where signature checks against public keys that are not 32 bytes succeed unconditionally so that new public key types can be introduced via soft fork. As with BIP 342, this success applies only to the individual signature check: script execution continues, all other conditions in the script remain enforced, empty signatures still yield the same result as they would for a recognized scheme (false for <code>OP_CHECKSIG</code>, script failure for <code>OP_CHECKSIGVERIFY</code>, and no counter increment for <code>OP_CHECKSIGADD</code>). In Tapscript leaf version 0xc2 the sigops budget is not charged for non-empty signatures with reserved (or unrecognized) flag bytes.
@@ -240,12 +232,6 @@ Unrecognized scheme bytes are strictly reserved for future use and have provisio
 Wallets MUST only generate public keys with recognized scheme flags, and users MUST verify that their wallets do so. Selecting the correct scheme flag for a keypair is straightforward and easy to validate by inspecting scripts visually.
 
 ==Security Considerations==
-
-===Scheme Substitution===
-
-Because the scheme flag is adjoined as part of the public key in this design, and pubkeys are typically committed to in locking scripts, an attacker cannot cause verification under a different verification algorithm without modifying the spending conditions. This design makes the security argument easier: To modify the signature verification algorithm, you must be able to modify the pubkey that a user commits coins to, and if you can modify a pubkey that a user commits coins to, you can already forge signatures and steal coins. This rules out any “rollback” attacks where an adversary could trick a verifier into using the wrong algorithm - e.g. to interpret a public key in one scheme as that of another scheme, or vice versa.
-
-N.B. in a potential future where stack mutation opcodes like <code>OP_CAT</code>, <code>OP_XOR</code>, <code>OP_SUBSTR</code>, <code>OP_SLICE</code>, etc. are re-enabled, poorly-written scripts could be manipulated and future developers will need to bear this risk in mind when designing for the protocol.
 
 ===Unrecognized Flag Misuse===
 
