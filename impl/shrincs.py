@@ -153,7 +153,8 @@ class Array:
   """
   def __class_getitem__(cls, item: tuple):
     element, count = item
-    return Annotated[list[element], LEN(count)]
+    # The element type is supplied at runtime, not declared as a static type alias.
+    return Annotated[list[element], LEN(count)] # type: ignore[valid-type]
 
 UInt8  = Annotated[int, UINT(8)]
 UInt16 = Annotated[int, UINT(16)]
