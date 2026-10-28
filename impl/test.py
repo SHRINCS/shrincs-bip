@@ -157,7 +157,7 @@ if __name__ == "__main__":
   for chain_iterator in (wots_tw_chain_iter, wots_c_chain_iter):
     annotations = get_type_hints(chain_iterator, include_extras=True)
     assert find_metadata(annotations['start'], UINT)[0].bits == 32
-    assert find_metadata(annotations['steps'], UINT)[0].bits == 32
+    assert find_metadata(annotations['stop'], UINT)[0].bits == 32
 
   return_lengths = find_metadata(
     get_type_hints(shrincs_sign, include_extras=True)['return'], LEN
