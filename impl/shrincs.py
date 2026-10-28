@@ -1036,15 +1036,13 @@ def hypertree_sign(
   This function is only used in the stateless path, and only by the signer.
   """
   sig = b""
-  for j in range(SPHX_LAYER_COUNT - 1):
+  for j in range(SPHX_LAYER_COUNT):
     layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
     tree_index //= 2**SPHX_XMSS_HEIGHT
     sig += layer_sig
 
-  layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, SPHX_LAYER_COUNT - 1, tree_index)
-  sig += layer_sig
   return sig
 
 def hypertree_verify(
@@ -1071,14 +1069,12 @@ def hypertree_verify(
 
   This function is only used in the stateless path, and only by the verifier.
   """
-  for j in range(SPHX_LAYER_COUNT - 1):
+  for j in range(SPHX_LAYER_COUNT):
     layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
     tree_index //= 2**SPHX_XMSS_HEIGHT
 
-  layer_sig = signature[(SPHX_LAYER_COUNT - 1) * SPHX_XMSS_SIGNATURE_SIZE : HYPERTREE_SIGNATURE_SIZE]
-  message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, SPHX_LAYER_COUNT - 1, tree_index)
   return message == sl_root
 
 

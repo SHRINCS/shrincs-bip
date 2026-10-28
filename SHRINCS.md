@@ -1991,15 +1991,13 @@ def hypertree_sign(
     leaf_index: UInt32,
 ) -> Bytes[HYPERTREE_SIGNATURE_SIZE]:
   sig = b""
-  for j in range(SPHX_LAYER_COUNT - 1):
+  for j in range(SPHX_LAYER_COUNT):
     layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
     tree_index //= 2**SPHX_XMSS_HEIGHT
     sig += layer_sig
 
-  layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, SPHX_LAYER_COUNT - 1, tree_index)
-  sig += layer_sig
   return sig
 ```
 <!-- DOC END hypertree_sign -->
@@ -2032,14 +2030,12 @@ def hypertree_verify(
     leaf_index: UInt32,
     sl_root: Bytes[16],
 ) -> bool:
-  for j in range(SPHX_LAYER_COUNT - 1):
+  for j in range(SPHX_LAYER_COUNT):
     layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
     tree_index //= 2**SPHX_XMSS_HEIGHT
 
-  layer_sig = signature[(SPHX_LAYER_COUNT - 1) * SPHX_XMSS_SIGNATURE_SIZE : HYPERTREE_SIGNATURE_SIZE]
-  message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, SPHX_LAYER_COUNT - 1, tree_index)
   return message == sl_root
 ```
 <!-- DOC END hypertree_verify -->
