@@ -185,3 +185,10 @@ if __name__ == "__main__":
       assert shrincs_verify(msg, sig, b"", pk)
       assert len(sig) == SHRINCS_SL_SIGNATURE_SIZE
       print(f'verified stateless signature')
+
+  for sf_structure in (bytes([2, 1]), bytes([FXMSS_SHAPE_BALANCED, 65])):
+    seckey_with_invalid_structure = sk[:64] + sf_structure + sk[66:]
+    for state_ctr in (0, None):
+      sig = shrincs_sign(msg, b"", seckey_with_invalid_structure, state_ctr, None)
+      assert sig is None
+  print('rejected invalid stateful structures')
