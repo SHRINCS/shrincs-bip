@@ -250,9 +250,9 @@ Each digital signature scheme carries its own security assumptions and potential
 
 ==Backward Compatibility==
 
-This BIP defines a new Tapscript leaf version which has new semantics for signature verification and modified verifier resource constraints. Existing script semantics in P2TR, P2WSH and other legacy address formats are unaffected. Moreover, it does not modify or encumber any other Tapscript leaf versions or any particular output types. This BIP only affects scripts using leaf version 0xc2 in Tapscript-supporting output types that enable this leaf version.
+This BIP defines a new Tapscript leaf version that adds new semantics for signature verification and modifies verifier resource constraints. Script semantics for other versions of Tapscript are unaffected. This BIP does not modify or encumber any output types or address encodings. This BIP only affects scripts using leaf version 0xc2 in Tapscript-supporting output types.
 
-Upgraded nodes enforce the rules of this BIP. Non-upgraded nodes treat leaf version 0xc2 as an unknown tapleaf version and, per BIP 341, accept such spends without evaluating the script. The deployment is therefore a soft fork. Non-upgraded nodes will still follow the heaviest, most-worked chain even though they do not validate 0xc2 spending conditions and gain no security from them.
+Upgraded nodes enforce the rules of this BIP. Non-upgraded nodes treat leaf version 0xc2 as an unknown Tapscript leaf version and, per BIP 341, accept such spends without evaluating the script. The deployment is therefore a soft fork. Non-upgraded nodes will still follow the heaviest, most-worked chain even though they do not validate 0xc2 spending conditions and gain no security from them.
 
 ==Reference Implementation==
 
