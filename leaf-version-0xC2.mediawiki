@@ -148,7 +148,6 @@ This limit applies both to elements on the initial stack and to push opcodes wit
 
 In Tapscript leaf version 0xc0, the per-input sigops budget is 50 plus the total serialized size of an input witness in bytes (including the CompactSize prefix). Each signature opcode executed on a non-empty signature decrements this budget by 50; sigops with an empty signature are free. If the cost of a sigop brings the sigops budget below zero, then the script fails immediately.
 
-Such a rule is sufficient for signature schemes with small signatures such as Schnorr. However, different algorithms have different verification costs.
 
 Tapscript leaf version 0xc2 retains the initial sigops budget of 0xc0, that is 50 plus the serialized size in bytes of the witness. However, version 0xc2 requires signature scheme BIPs to define a strictly-positive cost (or cost function) that will be applied to the sigops budget for signature verifications on keys corresponding to that scheme and defers to these BIPs to justify their chosen cost.
 
