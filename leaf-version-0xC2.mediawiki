@@ -246,7 +246,7 @@ This is a user and a wallet responsibility, not a consensus issue.
 
 ===Per-Scheme Security===
 
-Each digital signature scheme carries its own security assumptions and potential vulnerabilities. This BIP does not endorse any particular scheme. Security analysis is the responsibility of each new signature scheme proposal to defend itself.
+Each digital signature scheme carries its own security assumptions and potential vulnerabilities. This BIP does not endorse any particular scheme. Security analysis is the responsibility of each new signature scheme proposal.
 
 ==Backward Compatibility==
 
