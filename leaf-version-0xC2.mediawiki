@@ -90,7 +90,6 @@ In the procedures below, "fail" means script execution MUST fail and terminate i
 # Let <code>flag</code> be the first byte of <code>pubkey</code>, and <code>pubkey_data</code> be the remainder.
 # If <code>flag</code> is unrecognized, push <code>n + 1</code> and continue.
 # Decrement the sigops budget by the cost associated to <code>flag</code>; fail if this budget falls below zero.
-# If <code>pubkey_data</code> is not a valid public key encoding for the scheme designated by <code>flag</code>, fail.
 # Verify <code>signature</code> against <code>pubkey_data</code> and the transaction data using the signature verification algorithm defined for <code>flag</code>. If verification fails, fail. Otherwise push <code>n + 1</code> and continue.
 
 As with Tapscript version 0xc0 the sigops <code>OP_CHECKMULTISIG</code> and <code>OP_CHECKMULTISIGVERIFY</code> are disabled in Tapscript version 0xc2. The disabled opcodes behave in the same way as <code>OP_RETURN</code>: fail and terminate the script immediately when executed. They are ignored when found in an unexecuted branch of the script.
