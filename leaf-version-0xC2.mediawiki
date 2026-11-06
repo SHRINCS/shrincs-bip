@@ -148,7 +148,6 @@ This limit applies both to elements on the initial stack and to push opcodes wit
 
 In Tapscript leaf version 0xc0, the per-input sigops budget is 50 plus the total serialized size of an input witness in bytes (including the CompactSize prefix). Each signature opcode executed on a non-empty signature decrements this budget by 50; sigops with an empty signature are free. If the cost of a sigop brings the sigops budget below zero, then the script fails immediately.
 
-
 Tapscript leaf version 0xc2 retains the initial sigops budget of 0xc0, that is 50 plus the serialized size in bytes of the witness. However, version 0xc2 requires signature scheme BIPs to define a strictly-positive cost that will be applied to the sigops budget for signature verifications on keys corresponding to that scheme and defers to these BIPs to justify their chosen cost.
 
 This design allows new signature schemes to be added cleanly as future soft forks. If a new scheme is defined by upgraded nodes, the sigops cost they see is always greater than the sigops cost as seen by a legacy node which is unaware of the new scheme.
@@ -170,8 +169,6 @@ The scheme flag is prepended to the public key rather than to the signature. Thi
 If the flag were part of the signature, an attacker could control which verification algorithm is used. This would allow theft by specifying a reserved (auto-success) algorithm flag.
 
 The security argument is straightforward: To modify the signature scheme, you must be able to modify the public key that a user commits coins to. If you can modify the public key that a user commits coins to, you can already forge signatures and steal coins.
-
-However, in a future state where <code>OP_CAT</code> or similar stack mutation opcodes are re-enabled, poorly-written scripts could potentially be manipulated. Future developers will need to bear this risk in mind when designing protocols.
 
 ===Why Raise the Limit on Maximum Stack Element Size?===
 
