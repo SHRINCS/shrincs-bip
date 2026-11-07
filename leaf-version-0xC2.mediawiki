@@ -230,16 +230,6 @@ Wallets MUST only generate public keys with recognized scheme flags, and users M
 
 ==Security Considerations==
 
-===Unrecognized Flag Misuse===
-
-A signature operation against a public key prefixed with a reserved flag byte succeeds for any non-empty signature. Locking an output to such a public key — which may be as short as the flag byte alone — would create an anyone-can-spend output. In multisig scripts the failure is subtler: Each unrecognized-flag key effectively removes its signature check from the spending conditions, silently degrading a threshold (e.g. a 2-of-2 becomes a 1-of-1).
-
-A particular hazard is reusing a bare BIP 340 public key from a leaf version 0xc0 script without prepending the 0x02 scheme flag. The first byte of the key would then be interpreted as the flag — almost certainly an unrecognized one — recreating exactly this failure.
-
-The anyone-can-spend risk of misusing a reserved flag is comparable to that of including an <code>OP_SUCCESSx</code> opcode in a leaf version 0xc0 script, though narrower in scope.
-
-This is a user and a wallet responsibility, not a consensus issue.
-
 ===Per-Scheme Security===
 
 Each digital signature scheme carries its own security assumptions and potential vulnerabilities. This BIP does not endorse any particular scheme. Security analysis is the responsibility of each new signature scheme proposal.
