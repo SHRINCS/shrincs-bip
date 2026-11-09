@@ -525,12 +525,11 @@ Unless stated otherwise, all integers are serialized to and parsed from bytes as
 <!-- DOC START base_2b -->
 Decomposes the bytes `x` into `outlen` groups of `b` bits which are each
 parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
-of `x` are parsed, and so `x` must have accordingly sufficient length.
+of `x` are parsed. If `x` is shorter than `outlen * b` bits, the missing
+trailing bits are treated as zero.
 
 ```py
 def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
-  assert len(x) >= ceildiv(outlen * b, 8)
-
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
   acc = 0              # accumulator, collects bits from x
@@ -538,7 +537,7 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
 
   for i in range(outlen):
     while bits_filled < b:
-      acc = (acc << 8) + x[j]
+      acc = (acc << 8) + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
       j += 1
       bits_filled += 8
 
