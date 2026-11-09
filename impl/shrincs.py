@@ -40,9 +40,8 @@ def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
   """
   Decomposes the bytes `x` into `outlen` groups of `b` bits which are each
   parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
-  of `x` are parsed, and so `x` must have accordingly sufficient length. If `x`
-  is shorter than `outlen * b` bits, the missing trailing bits are treated as
-  zero.
+  of `x` are parsed. If `x` is shorter than `outlen * b` bits, the missing
+  trailing bits are treated as zero.
   """
   baseb = [0] * outlen # output array
   j = 0                # counts the bytes read from the input x.
