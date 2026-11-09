@@ -1,0 +1,62 @@
+<pre>
+  BIP:
+  Layer: Consensus (soft fork)
+  Title: Multi-Scheme Flag 0x02, BIP 340 Schnorr
+  Authors: conduition <conduition@conduition.io>
+           Ethan Heilman <wwww@wwww.org>
+           notmike <notmike@notmike.io>
+  Status: Draft
+  Type: Specification
+  License: BSD-3-Clause
+  Requires: 340, 341, 342, [0xc2 BIP]
+</pre>
+
+==Description==
+
+This BIP assigns flag byte 0x02 under Tapscript leaf version 0xc2 ([0xc2 BIP]) to the Schnorr signature scheme specified in [https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki BIP 340]. BIP 340 is the definitive specification for this scheme; this document defines only its integration into 0xc2 script semantics.
+
+==Flag Byte==
+
+0x02
+
+==Parameters==
+
+As specified in BIP 340.
+
+==Key Format==
+
+<code>pubkey_data</code> MUST be a 32-byte BIP 340 x-only public key. Any other size is an invalid encoding for this scheme.
+
+==Signature Format==
+
+As in BIP 342:
+
+* 64 bytes: a BIP 340 signature, ''hash_type'' = 0x00 (SIGHASH_DEFAULT).
+* 65 bytes: a BIP 340 signature followed by a ''hash_type'' byte, which MUST be valid per BIP 341 and MUST NOT be 0x00.
+* Any other non-zero length is invalid.
+
+==Verification Procedure==
+
+Given a non-empty ''signature'' and ''pubkey_data'':
+
+# If ''pubkey_data'' is not 32 bytes, fail.
+# If ''signature'' is not 64 or 65 bytes, fail.
+# If 65 bytes: let ''hash_type'' be the final byte; fail if 0x00 or invalid per BIP 341. Otherwise ''hash_type'' = 0x00.
+# Compute the signature message per BIP 341 with the BIP 342 Tapscript extension, using ''key_version'' = 0xFF. Fail if the message cannot be computed.
+# Apply BIP 340 ''Verify'' to the first 64 bytes of ''signature'', ''pubkey_data'', and the message. Fail on failure; otherwise succeed.
+
+==Sigops Cost==
+
+50 units per verification — identical to leaf version 0xc0, since verification is unchanged from BIP 340/342. This is the baseline against which future scheme BIPs scale their costs.
+
+==Other Properties==
+
+As documented in BIP 340: non-malleable, batch-verifiable, compatible with key/signature aggregation (e.g. MuSig2, BIP 327) and adaptor signatures. The flag byte exists only in script and affects none of these. No post-quantum security.
+
+==Test Vectors==
+
+BIP 340 ''Verify'' test vectors apply unchanged to step 5. Integration-level vectors (flag parsing, key/signature size checks, ''key_version'' 0xFF): [TBD] pending parent BIP finalization.
+
+==Copyright==
+
+BSD-3-Clause.
