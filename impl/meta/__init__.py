@@ -1,7 +1,7 @@
 # This file stores derived values used for templating comparisons
 # and other non-essential metadata into the specification document.
 
-from .shrincs import *
+from ..shrincs import *
 from .stateless_params import StatelessParameterSet
 from .stateful_params import StatefulParameterSet
 from math import floor

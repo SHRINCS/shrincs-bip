@@ -3,7 +3,7 @@ from math import log10, comb
 from collections.abc import Hashable
 from dataclasses import dataclass
 
-from .shrincs import ceildiv, base_2b
+from ..shrincs import ceildiv, base_2b
 from .common import num_messages_sum, sha256_compressions
 
 

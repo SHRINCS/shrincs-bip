@@ -1,7 +1,7 @@
 from math import log2
 from dataclasses import dataclass
 
-from .shrincs import ceildiv
+from ..shrincs import ceildiv
 from .common import num_messages_sum, sha256_compressions
 
 # Returns log2(Pr[sum(n random s-sided dice) != p]**tries).
