@@ -2,76 +2,37 @@
 # and other non-essential metadata into the specification document.
 
 from .shrincs import *
-from math import comb, floor, log2
+from .stateless_params import StatelessParameterSet
+from .stateful_params import StatefulParameterSet
+from math import floor
 
+# The stateless (SPHINCS+) parameter set, used to populate the stateless
+# performance metrics templated into the specification.
+STATELESS = StatelessParameterSet(
+  h     = SPHX_XMSS_HEIGHT * SPHX_LAYER_COUNT,
+  d     = SPHX_LAYER_COUNT,
+  a     = SPHX_FORS_HEIGHT,
+  k     = SPHX_FORS_COUNT,
+  log_w = WOTS_TW_CHAIN_BITS,
+  qs    = 2**40, # signature budget
+  tsec  = 128,   # target security level
+)
 
-# Find the coefficient of x^p in the expanded polynomial (1 + x + x^2 + ... + x^(w-1))^l1.
-# This is the number of possible WOTS messages whose indexes sum to `p`.
-#   https://mathworld.wolfram.com/Dice.html
-#   https://mathworld.wolfram.com/images/equations/Dice/NumberedEquation7.svg
-def num_messages_sum(w: int, l1: int, p: int) -> int:
-  return sum(((-1)**k * comb(l1, k) * comb(p + l1 - w*k - 1, l1 - 1) for k in range(p//w + 1)))
+# The stateful (WOTS+C + FXMSS) parameter set, used to populate the stateful
+# performance metrics templated into the specification.
+STATEFUL = StatefulParameterSet(WOTS_C_CHAIN_BITS)
 
-# Returns log2(Pr[sum(n random s-sided dice) != p]**tries).
-# Used to compute the probability of WOTS+C grinding failure.
-# Logic taken from https://gist.github.com/conduition/c19f00d9420eee009c9f33d9cd991bd6
-def target_sum_fail_probability_log2(n: int, s: int, p: int, tries: int) -> float:
-  # The total number of possible combinations rolling n dice with s sides each is:
-  d = s**n
+SLH_DSA_SHA2_128s = StatelessParameterSet(h=63, d=7, a=12, k=14, log_w=4, qs=2**64, tsec=128)
 
-  # This finds the number of possible rolls of n dice with s sides whose faces sum to p.
-  #
-  # Uses the formula from https://mathworld.wolfram.com/Dice.html
-  #   https://mathworld.wolfram.com/images/equations/Dice/NumberedEquation7.svg
-  c = num_messages_sum(s, n, p)
-
-  # The number of invalid combinations (i.e. # of possible combos minus # of valid combos)
-  q = d - c
-
-  # The failure probability for a single random combination (invalid_combinations / total_combinations).
-  r = q / d
-
-  # The probability of making `tries` consecutive rolls of n dice which do not sum to p is r ** tries.
-  # We avoid the need for extremely high precision floats by computing with logarithms.
-  #
-  #   log2(r ** tries) = log2(r) * tries
-  return log2(r) * tries
-
-# Helper to encode the checksum for a WOTS-TW message. Taken from shrincs.py
-def encode_checksum(checksum: int) -> list[int]:
-  checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
-  for i in range(WOTS_TW_CHAIN_COUNT2):
-    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = checksum % (2**WOTS_TW_CHAIN_BITS)
-    checksum >>= WOTS_TW_CHAIN_BITS
-  return checksum_indexes
-
-# Compute the average checksum chain index over a uniform distribution of messages.
-def wots_tw_checksum_index_avg(w: int, l1: int, l2: int) -> float:
-  msg_sum_counts = [num_messages_sum(w, l1, i) for i in range(1 + l1 * (w-1))]
-
-  # ensure we have accounted for every possible message.
-  assert sum(msg_sum_counts) == w**l1
-
-  # Sum and average all the indexes for each possible encoded checksum,
-  # weighted by the probability of that checksum occurring.
-  checksum_index_acc = 0
-  for msg_sum, weight in enumerate(msg_sum_counts):
-    checksum = l1 * (w - 1) - msg_sum
-    checksum_index_acc += sum(encode_checksum(checksum)) * weight
-  return checksum_index_acc / (w**l1) / WOTS_TW_CHAIN_COUNT2
-
-
-def sha256_compressions(size: int) -> int:
-  """Compute the number of SHA256 compressions needed to hash a given size preimage."""
-  return size // 64 + (1 if (size % 64) < 56 else 2)
+# For reference. Subtract 1 for the indicator byte.
+SLH_DSA_128S_SIGNATURE_SIZE = SLH_DSA_SHA2_128s.signature_size() - 1
 
 # Signature/key size ratios.
 SHRINCS_MIN_KEY_PLUS_SIG_SIZE = SHRINCS_SF_SIGNATURE_SIZE_MIN + 48
-SLH_DSA_128S_SIZE_RATIO = round((7856+32) / SHRINCS_MIN_KEY_PLUS_SIG_SIZE, 2)
+SLH_DSA_128S_SIZE_RATIO = round((SLH_DSA_128S_SIGNATURE_SIZE+32) / SHRINCS_MIN_KEY_PLUS_SIG_SIZE, 2)
 ML_DSA_SIZE_RATIO = round((2420+1312) / SHRINCS_MIN_KEY_PLUS_SIG_SIZE, 2)
 
 # Comparison against SLH-DSA-SHA2-128s.
-SLH_DSA_128S_SIGNATURE_SIZE = 7856
 SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT = round(
   100 * (SLH_DSA_128S_SIGNATURE_SIZE - SHRINCS_SL_SIGNATURE_SIZE) /
   SLH_DSA_128S_SIGNATURE_SIZE
@@ -85,229 +46,75 @@ SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT = round(
   2
 )
 
+# Minimum SHA256 compressions needed to verify a stateless SHRINCS signature.
+STATELESS_VERIFY_COMPRESSIONS_MIN = STATELESS.verify_compressions_min()
+
+# Maximum SHA256 compressions needed to verify a stateless SHRINCS signature.
+STATELESS_VERIFY_COMPRESSIONS_MAX = STATELESS.verify_compressions_max()
+
+# SHA256 compressions per byte for the stateless verifier (worst case).
+STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX = STATELESS.verify_compressions_per_byte()
+
 # Comparing stateful/stateless signature sizes.
 STATEFUL_SIG_SIZE_RATIO = round(SHRINCS_SL_SIGNATURE_SIZE / SHRINCS_SF_SIGNATURE_SIZE_MIN, 2)
 
+# Minimum / maximum SHA256 compressions needed to verify a stateful SHRINCS
+# signature (H_msg_sf + H_grind + recomputing WOTS+C chain tips + combining tips
+# + merkle nodes).
+STATEFUL_VERIFY_COMPRESSIONS_MIN = STATEFUL.verify_compressions_min()
+STATEFUL_VERIFY_COMPRESSIONS_MAX = STATEFUL.verify_compressions_max()
 
-# Minimum SHA256 compressions needed to verify a stateful SHRINCS signature.
-#
-# H_msg_sf call +
-# H_grind call +
-# Recomputing WOTS chain tips +
-# Combining WOTS chain tips +
-# One H() call (merkle node)
-STATEFUL_VERIFY_COMPRESSIONS_MIN = 4 + \
-                                   1 + \
-                                   (WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1) - WOTS_C_CONSTANT_SUM) + \
-                                   sha256_compressions(22 + WOTS_C_CHAIN_COUNT * 16) + \
-                                   1
-
-# Maximum SHA256 compressions needed to verify a stateful SHRINCS signature.
-STATEFUL_VERIFY_COMPRESSIONS_MAX = STATEFUL_VERIFY_COMPRESSIONS_MIN + 254 # 254 additional H() calls
-
-# SHA256 compressions per byte for the stateful verifier (worst case).
-STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX = round(STATEFUL_VERIFY_COMPRESSIONS_MIN / SHRINCS_SF_SIGNATURE_SIZE_MIN, 3)
-
-# SHA256 compressions needed to verify a FORS signature.
-FORS_VERIFY_COMPRESSIONS = SPHX_FORS_COUNT + \
-                           SPHX_FORS_COUNT * SPHX_FORS_HEIGHT + \
-                           sha256_compressions(22 + SPHX_FORS_COUNT * 16) # Combining FORS roots
-
-# The expected WOTS index is half the max index.
-WOTS_TW_AVERAGE_MESSAGE_INDEX = (2**WOTS_TW_CHAIN_BITS - 1) / 2
-
-# Checksum chain signing cost averaged over all messages.
-WOTS_TW_AVERAGE_CHECKSUM_INDEX = wots_tw_checksum_index_avg(2**WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1, WOTS_TW_CHAIN_COUNT2)
-
-# Minimum SHA256 compressions needed to verify an XMSS signature.
-#
-# WOTS verify cost + H() invocations (merkle nodes)
-XMSS_VERIFY_COMPRESSIONS_MIN = sum((2**WOTS_TW_CHAIN_BITS - i - 1 for i in wots_tw_message_to_indexes(replicate(0xFF, 16)))) + \
-                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16) + \
-                               SPHX_XMSS_HEIGHT
-
-# Maximum SHA256 compressions needed to verify an XMSS signature.
-#
-# WOTS verify cost + H() invocations (merkle nodes)
-# H() invocations (merkle nodes)
-XMSS_VERIFY_COMPRESSIONS_MAX = sum((2**WOTS_TW_CHAIN_BITS - i - 1 for i in wots_tw_message_to_indexes(zeros(16)))) + \
-                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16) + \
-                               SPHX_XMSS_HEIGHT
-
-# WOTS_TW_CHAIN_COUNT1 * Average WOTS message chain cost +
-# WOTS_TW_CHAIN_COUNT2 * Average WOTS checksum chain cost +
-# Combining WOTS chain tips +
-# H() invocations (merkle nodes)
-XMSS_VERIFY_COMPRESSIONS_AVG = WOTS_TW_CHAIN_COUNT1 * (2**WOTS_TW_CHAIN_BITS - 1 - WOTS_TW_AVERAGE_MESSAGE_INDEX) + \
-                               WOTS_TW_CHAIN_COUNT2 * (2**WOTS_TW_CHAIN_BITS - 1 - WOTS_TW_AVERAGE_CHECKSUM_INDEX) + \
-                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16) + \
-                               SPHX_XMSS_HEIGHT
-
-# Minimum SHA256 compressions needed to verify a stateless SHRINCS signature.
-#
-# H_msg_sl call +
-# FORS +
-# hypertree verify
-STATELESS_VERIFY_COMPRESSIONS_MIN = 4 + \
-                                    FORS_VERIFY_COMPRESSIONS + \
-                                    SPHX_LAYER_COUNT * XMSS_VERIFY_COMPRESSIONS_MIN
-
-# Maximum SHA256 compressions needed to verify a stateless SHRINCS signature.
-#
-# H_msg_sl call +
-# FORS +
-# hypertree verify
-STATELESS_VERIFY_COMPRESSIONS_MAX = 4 + \
-                                    FORS_VERIFY_COMPRESSIONS + \
-                                    SPHX_LAYER_COUNT * XMSS_VERIFY_COMPRESSIONS_MAX
-
-# SHA256 compressions per byte for the stateless verifier (worst case).
-STATELESS_VERIFY_COMPRESSIONS_PER_BYTE_MAX = round(STATELESS_VERIFY_COMPRESSIONS_MAX / SHRINCS_SL_SIGNATURE_SIZE, 3)
+# The worst-case stateful verifier compressions per byte.
+# depth = 1 yields the smallest signature with highest verify cost density.
+STATEFUL_VERIFY_COMPRESSIONS_PER_BYTE_MAX = STATEFUL.verify_compressions_per_byte(1)
 
 # Comparison of worst-case stateful vs stateless signing performance.
 STATEFUL_VERIFY_SPEED_RATIO = round(STATELESS_VERIFY_COMPRESSIONS_MAX / STATEFUL_VERIFY_COMPRESSIONS_MAX, 2)
 
-# WOTS chains +
-# Combining WOTS chain tips
-WOTS_TW_KEYGEN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT * 2**WOTS_TW_CHAIN_BITS + \
-                              sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16)
-
-# PRF invocations +
-# message chain compressions +
-# checksum chain compressions
-WOTS_TW_SIGN_COMPRESSIONS_AVG = WOTS_TW_CHAIN_COUNT + \
-                                WOTS_TW_CHAIN_COUNT1 * (WOTS_TW_AVERAGE_MESSAGE_INDEX) + \
-                                WOTS_TW_CHAIN_COUNT2 * (WOTS_TW_AVERAGE_CHECKSUM_INDEX)
-
-# Generating other WOTS leaves +
-# WOTS-TW signing +
-# H() invocations (merkle nodes)
-XMSS_SIGN_COMPRESSIONS_AVG = (2**SPHX_XMSS_HEIGHT - 1) * WOTS_TW_KEYGEN_COMPRESSIONS + \
-                             WOTS_TW_SIGN_COMPRESSIONS_AVG + \
-                             2**SPHX_XMSS_HEIGHT - 1 - SPHX_XMSS_HEIGHT
-
-# One PRF call + one F call per leaf (total 2**(SPHX_FORS_HEIGHT+1)),
-# plus 2**SPHX_FORS_HEIGHT - 1 calls to H (merkle nodes).
-FORS_TREE_GEN_COMPRESSIONS = 3 * 2**SPHX_FORS_HEIGHT - 1
-
 # SHA256 compressions needed to sign with the SHRINCS stateless component.
-#
-# PRF_msg_sl call +
-# H_msg_sl call +
-# FORS trees +
-# Combining FORS roots +
-# Hypertree signing (d - 1 XMSS layers) +
-# Signing with top XMSS layer
-STATELESS_SIGN_COMPRESSIONS_AVG = round(
-  1 + sha256_compressions(2 + 16 + 16 + 32) +
-  4 +
-  SPHX_FORS_COUNT * FORS_TREE_GEN_COMPRESSIONS +
-  sha256_compressions(22 + SPHX_FORS_COUNT * 16) +
-  (SPHX_LAYER_COUNT - 1) * (XMSS_SIGN_COMPRESSIONS_AVG + XMSS_VERIFY_COMPRESSIONS_AVG) +
-  XMSS_SIGN_COMPRESSIONS_AVG
-)
+STATELESS_SIGN_COMPRESSIONS_AVG = STATELESS.sign_compressions_avg()
 
 # 1 - SHRINCS work / SLH-DSA work
-# TODO: compute the SLH-DSA costs using the same logic we use for SHRINCS
-SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_SIGN_COMPRESSIONS_AVG / 2218245))
-SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT = round(100 * (1 - STATELESS_VERIFY_COMPRESSIONS_MAX / 3893))
+SHRINCS_SL_SIGN_COMPRESSIONS_REDUCTION_PERCENT = \
+  round(100 * (1 - STATELESS_SIGN_COMPRESSIONS_AVG / SLH_DSA_SHA2_128s.sign_compressions_avg()))
+SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT = \
+  round(100 * (1 - STATELESS_VERIFY_COMPRESSIONS_MAX / SLH_DSA_SHA2_128s.verify_compressions_max()))
 
-WOTS_C_GRIND_FAIL_PROBABILITY_LOG = floor(
-  -target_sum_fail_probability_log2(
-    WOTS_C_CHAIN_COUNT,                         # Number of WOTS+C chains
-    2**WOTS_C_CHAIN_BITS,                       # WOTS+C chain length
-    WOTS_C_CONSTANT_SUM,
-    2**16
-  )
+# WOTS+C grinding failure probability over 2**16 attempts.
+WOTS_C_GRIND_FAIL_PROBABILITY_LOG = floor(-STATEFUL.grind_fail_probability_log2(2**16))
+
+# Average SHA256 compressions to sign with the SHRINCS stateful component, at
+# various UXMSS (unbalanced) / BXMSS (balanced) tree depths.
+UXMSS_31_SIGN_COMPRESSIONS_AVG  = STATEFUL.uxmss_sign_compressions(31)
+UXMSS_255_SIGN_COMPRESSIONS_AVG = STATEFUL.uxmss_sign_compressions(255)
+
+BXMSS_5_SIGN_COMPRESSIONS_AVG  = STATEFUL.bxmss_sign_compressions(5)
+BXMSS_8_SIGN_COMPRESSIONS_AVG  = STATEFUL.bxmss_sign_compressions(8)
+BXMSS_10_SIGN_COMPRESSIONS_AVG = STATEFUL.bxmss_sign_compressions(10)
+BXMSS_12_SIGN_COMPRESSIONS_AVG = STATEFUL.bxmss_sign_compressions(12)
+BXMSS_16_SIGN_COMPRESSIONS_AVG = STATEFUL.bxmss_sign_compressions(16)
+BXMSS_20_SIGN_COMPRESSIONS_AVG = STATEFUL.bxmss_sign_compressions(20)
+
+# Stateful/stateless key-generation cost of the stateless root XMSS tree.
+STATELESS_KEYGEN_COMPRESSIONS = STATELESS.keygen_compressions()
+
+# SHA256 compressions needed to generate a SHRINCS key with UXMSS/BXMSS at
+# various depths. The stateless keygen cost is added on top to describe the total
+# SHRINCS keygen cost.
+UXMSS_31_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.uxmss_keygen_compressions(31)
+UXMSS_255_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.uxmss_keygen_compressions(255)
+
+UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY = STATEFUL.uxmss_keygen_compressions(255)
+
+BXMSS_5_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.bxmss_keygen_compressions(5)
+BXMSS_8_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.bxmss_keygen_compressions(8)
+BXMSS_10_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.bxmss_keygen_compressions(10)
+BXMSS_12_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.bxmss_keygen_compressions(12)
+BXMSS_16_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.bxmss_keygen_compressions(16)
+BXMSS_20_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + STATEFUL.bxmss_keygen_compressions(20)
+
+# Percentage by which a naive WOTS-TW-style checksum would inflate the stateful
+# signature, using the WOTS+C checksum chain count from the stateful ParameterSet.
+STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT = round(
+  100 * (16 * STATEFUL.wots_checksum_chains_hypothetical() - 2) / SHRINCS_SF_SIGNATURE_SIZE_MIN
 )
-
-EXPECTED_WOTS_C_GRINDING_ATTEMPTS = 1 / (1 - 2**target_sum_fail_probability_log2(WOTS_C_CHAIN_COUNT, 2**WOTS_C_CHAIN_BITS, WOTS_C_CONSTANT_SUM, 1))
-
-# WOTS chains +
-# Combining WOTS chain tips
-WOTS_C_KEYGEN_COMPRESSIONS = (WOTS_C_CHAIN_COUNT * 2**WOTS_C_CHAIN_BITS + \
-                             sha256_compressions(22 + 16 * WOTS_C_CHAIN_COUNT))
-
-# Average number of SHA256 compressions needed for UXMSS signing.
-#
-# PRF_msg_sf call +
-# H_msg_sf call +
-# Expected number of grinding attempts +
-# PRF invocations +
-# WOTS chain computation +
-# Regenerating other leaves
-# H() invocations (merkle nodes) (averaged over all leaves)
-def uxmss_sign_compressions(depth: int) -> int:
-  return round(
-    1 + sha256_compressions(2 + 16 + 16 + 32) +
-    4 +
-    EXPECTED_WOTS_C_GRINDING_ATTEMPTS +
-    WOTS_C_CONSTANT_SUM +
-    WOTS_C_CHAIN_COUNT +
-    depth * WOTS_C_KEYGEN_COMPRESSIONS +
-    depth * (depth - 1) / (2 * (depth + 1))
-  )
-
-UXMSS_31_SIGN_COMPRESSIONS_AVG  = uxmss_sign_compressions(31)
-UXMSS_255_SIGN_COMPRESSIONS_AVG = uxmss_sign_compressions(255)
-
-# Average number of SHA256 compressions needed for BXMSS signing.
-#
-# PRF_msg_sf call +
-# H_msg_sf call +
-# Expected number of grinding attempts +
-# PRF invocations +
-# WOTS chain computation +
-# Regenerating other leaves +
-# H() invocations (merkle nodes)
-def bxmss_sign_compressions(depth: int) -> int:
-  return round(
-    1 + sha256_compressions(2 + 16 + 16 + 32) +
-    4 +
-    EXPECTED_WOTS_C_GRINDING_ATTEMPTS +
-    WOTS_C_CONSTANT_SUM +
-    WOTS_C_CHAIN_COUNT +
-    (2**depth - 1) * WOTS_C_KEYGEN_COMPRESSIONS +
-    2**depth - 1 - depth
-  )
-
-BXMSS_5_SIGN_COMPRESSIONS_AVG  = bxmss_sign_compressions(5)
-BXMSS_8_SIGN_COMPRESSIONS_AVG  = bxmss_sign_compressions(8)
-BXMSS_10_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(10)
-BXMSS_12_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(12)
-BXMSS_16_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(16)
-BXMSS_20_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(20)
-
-# Generating leaves +
-# H() invocations (merkle nodes)
-STATELESS_KEYGEN_COMPRESSIONS = 2**SPHX_XMSS_HEIGHT * WOTS_TW_KEYGEN_COMPRESSIONS + \
-                                2**SPHX_XMSS_HEIGHT - 1
-
-# SHA256 compressions needed to generate a SHRINCS key with UXMSS at various depths.
-#
-# Generating leaves + H() invocations (merkle nodes)
-def uxmss_keygen_compressions(depth: int) -> int:
-  return (depth + 1) * WOTS_C_KEYGEN_COMPRESSIONS + depth
-
-
-UXMSS_31_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + uxmss_keygen_compressions(31)
-UXMSS_255_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + uxmss_keygen_compressions(255)
-
-UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY = uxmss_keygen_compressions(255)
-
-# SHA256 compressions needed to generate a SHRINCS key with BXMSS at various depths.
-#
-# Generating leaves + H() invocations (merkle nodes)
-def bxmss_keygen_compressions(depth: int) -> int:
-  return 2**depth * WOTS_C_KEYGEN_COMPRESSIONS + (2**depth - 1)
-
-BXMSS_5_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(5)
-BXMSS_8_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(8)
-BXMSS_10_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(10)
-BXMSS_12_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(12)
-BXMSS_16_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(16)
-BXMSS_20_KEYGEN_COMPRESSIONS = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(20)
-
-STATEFUL_WOTS_CHECKSUM_MAX = WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1)
-STATEFUL_WOTS_CHECKSUM_CHAINS_HYPOTHETICAL = ceildiv(STATEFUL_WOTS_CHECKSUM_MAX.bit_length(), WOTS_C_CHAIN_BITS)
-STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT = round(100 * (16 * STATEFUL_WOTS_CHECKSUM_CHAINS_HYPOTHETICAL - 2) / SHRINCS_SF_SIGNATURE_SIZE_MIN)
