@@ -1,7 +1,7 @@
 <pre>
   BIP: ?
   Layer: Consensus (soft fork)
-  Title: CHECKSIG Multiplexer, Multi-Scheme Scripts
+  Title: CHECKSIG Multiplexer Multi-Scheme Scripts
   Authors: conduition <conduition@proton.me>
            Ethan Heilman <1ethan.r.heilman@gmail.com>
            Mikhail Kudinov <m.kudinov@tue.nl>
@@ -125,15 +125,12 @@ Additional domain separation between Tapscript leaf versions 0xc0 and 0xc2 is no
 
 Future BIPs defining new scheme flags MUST AT MINIMUM specify:
 
-* '''Description''' - Name and description of the signature scheme and links to the source documents.
+* '''Description''' - Name and description of the signature scheme and links to the reference documents and scheme specification.
 * '''Flag byte''' - The constant value assigned to the scheme's flag byte.
-* '''Parameters''' - List of the important parameters which define / constrain the scheme (e.g. group generators, orders (sizes), hash functions, other primitives and any magic numbers, etc).
 * '''Key format''' - Structure and size of all public and private keys and their components.
 * '''Signature format''' - Structure and size (whether fixed- or variable) of the signatures. If signatures are variably sized, how the verifier will determine boundaries.
 * '''Verification procedure''' - Complete algorithm for verification of signatures.
 * '''Sigops cost''' - Cost charged against the sigops budget for signature operations (see "Resource Limits"). Schemes MUST justify their own scheme-specific cost (e.g. cost proportional to worst-case verification time relative to Schnorr), or may even define a cost function that computes a cost dynamically from the pubkey and/or signature size.
-* '''Other Properties''' - Other important properties of the scheme (e.g. malleable signatures, aggregable, etc.) and any required restrictions.
-* '''Test Vectors''' - Valid/invalid signatures, edge-case keys, boundary encoding.
 
 ==Resource Limits==
 
