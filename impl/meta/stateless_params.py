@@ -1,5 +1,6 @@
 from decimal import Decimal, getcontext
 from math import log10, comb
+from functools import lru_cache
 from collections.abc import Hashable
 from dataclasses import dataclass
 
@@ -32,12 +33,14 @@ def encode_checksum(checksum: int, w: int, count2: int) -> list[int]:
     checksum //= w
   return checksum_indexes
 
+@lru_cache(maxsize=None)
 def wots_tw_checksum_index_avg(w: int, l1: int, l2: int) -> float:
   """
   Average WOTS-TW checksum chain index over a uniform distribution of messages.
 
   `w` is the WOTS chain length (2**log_w), which is also the base used to
-  re-encode the checksum.
+  re-encode the checksum. Depends only on log_w, so cache it across the many
+  parameter sets that share a log_w.
   """
   msg_sum_counts = [num_messages_sum(w, l1, i) for i in range(1 + l1 * (w - 1))]
 
