@@ -52,58 +52,17 @@ def wots_tw_checksum_index_avg(w: int, l1: int, l2: int) -> float:
     checksum_index_acc += sum(encode_checksum(checksum, w, l2)) * weight
   return checksum_index_acc / (w**l1) / l2
 
-
-#### Generic caching layer to save time
-class memoized(object):
-  def __init__(self, func):
-    self.func = func
-    self.cache = {}
-    self.__name__ = 'memoized:' + func.__name__
-  def __call__(self,*args):
-    if not isinstance(args, Hashable):
-      return self.func(*args)
-    if not args in self.cache:
-      self.cache[args] = self.func(*args)
-    return self.cache[args]
-
-
-#### SPHINCS+ security analysis
-# Logic originally from https://sphincs.org/data/spx_parameter_exploration.sage
-
-# Pr[exactly r sigs hit the leaf targeted by this forgery attempt]
-@memoized
-def qhitprob(leaves, qs, r):
-  p = 1 / Decimal(leaves)
-  return comb(qs, r) * p**r * (1 - p)**(qs - r)
-
-# Pr[FORS forgery given that exactly r sigs hit the leaf] = (1-(1-1/(2^a))^r)^k
-@memoized
-def forgeryprob(a, r, k):
-  if k == 1: return 1 - (1 - 1 / Decimal(2**a))**r
-  return forgeryprob(a, r, 1) * forgeryprob(a, r, k-1)
-
-@memoized
-def sigmalimit(tsec):
-  return 1 / Decimal(2**tsec)
-
-@memoized
-def donelimit(tsec):
-  return 1 - sigmalimit(tsec) / Decimal(2**20)
-
-
-getcontext().prec = int(log10(2**356)) + 1
-
+getcontext().prec = int(log10(2**768)) + 1
 
 # Pr[attacker H_msg call is covered by `sigs` FORS signatures among `leaves` keys]
 def compute_sigma(leaves, a, k, sigs, tsec):
-  sigma = 0
-  done = qhitprob(leaves, sigs, 0)
-  for r in range(1, sigs):
-    t = qhitprob(leaves, sigs, r)
-    sigma += t * forgeryprob(a, r, k)
-    done += t
-    if done >= donelimit(tsec): break
-
+  q = Decimal(1) / Decimal(2)**a
+  one = Decimal(1)
+  sigma = Decimal(0)
+  for j in range(k + 1):
+    t = (one - q)**j
+    pgf = (one - (one - t) / Decimal(leaves))**sigs
+    sigma += comb(k, j) * ((-1)**j) * pgf
   return sigma
 
 
