@@ -58,6 +58,16 @@ def wots_tw_checksum_index_avg(w: int, l1: int, l2: int) -> float:
 getcontext().prec = int(log10(2**768)) + 1
 
 # Pr[attacker H_msg call is covered by `sigs` FORS signatures among `leaves` keys]
+#   = sum(
+#       Pr[i signatures hit a leaf] * Pr[leaf is selected for exactly i signatures]
+#       for i in range(1, sigs + 1)
+#     )
+#
+# The above formula is defined in the SPHINCS+ paper, section 5. This
+# formula below is a more efficient rewrite that computes the exact
+# same quantity without summing such an enormous number of terms.
+#
+# TODO: link to paper once published
 def compute_sigma(leaves, a, k, sigs, tsec):
   q = Decimal(1) / Decimal(2)**a
   one = Decimal(1)
@@ -202,3 +212,34 @@ class StatelessParameterSet:
     (i.e. max verify compressions / sig size)
     """
     return self._metrics()["verify_per_byte_max"]
+
+
+
+#### SPHINCS+ security analysis, kept for reference
+# Logic originally from https://sphincs.org/data/spx_parameter_exploration.sage
+
+# Pr[exactly r sigs hit the leaf targeted by this forgery attempt]
+def qhitprob(leaves, qs, r):
+  p = 1 / Decimal(leaves)
+  return comb(qs, r) * p**r * (1 - p)**(qs - r)
+
+# Pr[FORS forgery given that exactly r sigs hit the leaf] = (1-(1-1/(2^a))^r)^k
+def forgeryprob(a, r, k):
+  if k == 1: return 1 - (1 - 1 / Decimal(2**a))**r
+  return forgeryprob(a, r, 1) * forgeryprob(a, r, k-1)
+
+def sigmalimit(tsec):
+  return 1 / Decimal(2**tsec)
+
+def donelimit(tsec):
+  return 1 - sigmalimit(tsec) / Decimal(2**20)
+
+def compute_sigma_bhk19(leaves, a, k, sigs, tsec):
+  sigma = 0
+  done = qhitprob(leaves, sigs, 0)
+  for r in range(1, sigs):
+    t = qhitprob(leaves, sigs, r)
+    sigma += t * forgeryprob(a, r, k)
+    done += t
+    if done >= donelimit(tsec): break
+  return sigma
