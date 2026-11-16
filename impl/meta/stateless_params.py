@@ -139,13 +139,17 @@ class StatelessParameterSet:
     sphx_sig_size = 16 + fors_sig_size + hypertree_sig_size
     sl_sig_size = 1 + sphx_sig_size # indicator byte
 
+    # 2 bytes SLH-DSA context, 16 byte complementary root, 32 byte actual message.
+    ctx_msg_size = 2 + 16 + 32
+
     sign_avg = round(
-      1
-      + sha256_compressions(2 + 16 + 16 + 32)    # H_msg_sl
-      + 4                                        # PRF_msg_sl
-      + self.k * fors_tree_gen                   # FORS trees
-      + sha256_compressions(22 + self.k * 16)    # combining FORS roots
-      + (self.d - 1) * (xmss_sign_avg + xmss_verify_avg)  # intermediate layers
+      + sha256_compressions(16 + 16 + 16 + ctx_msg_size)     # H_msg_sl inner
+      + sha256_compressions(16 + 16 + 32)                    # H_msg_sl outer
+      + sha256_compressions(16 + ctx_msg_size)               # PRF_msg_sl HMAC inner
+      + sha256_compressions(32)                              # PRF_msg_sl HMAC outer
+      + self.k * fors_tree_gen                               # FORS trees
+      + sha256_compressions(22 + self.k * 16)                # combining FORS roots
+      + (self.d - 1) * (xmss_sign_avg + xmss_verify_avg)     # intermediate layers
       + xmss_sign_avg                            # top layer
     )
 
