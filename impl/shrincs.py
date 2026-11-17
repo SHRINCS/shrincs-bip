@@ -408,7 +408,7 @@ def H_grind(pk_seed: Bytes[16], ADRS: WotsCGrind, digest: Bytes[32], counter: UI
 
   This function is only used in the stateful path, and by both the signer and the verifier.
   """
-  return sha256(pk_seed + zeros(48) + ADRS.to_bytes()[:10] + digest + zeros(4) + counter.to_bytes(2))[:16]
+  return sha256(pk_seed + zeros(48) + ADRS.to_bytes()[:10] + digest + zeros(8) + counter.to_bytes(2))[:16]
 
 def PRF(
     pk_seed: Bytes[16], sk_seed: Bytes[16], ADRS: Union[WotsTwPrf, WotsCPrf, ForsPrf]
