@@ -8,6 +8,7 @@ from ..shrincs import ceildiv, base_2b
 from .common import num_messages_sum, sha256_compressions
 
 
+@lru_cache(maxsize=None)
 def wots_tw_chain_counts(log_w: int) -> tuple[int, int, int]:
   """Returns (count1, count2, checksum_max) for a WOTS-TW message of 128 bits."""
   count1 = ceildiv(128, log_w)
@@ -24,6 +25,14 @@ def wots_tw_message_to_indexes(message: bytes, log_w: int) -> list[int]:
   for i in range(count2):
     checksum_indexes[count2 - 1 - i] = (checksum // 2**(log_w * i)) % 2**log_w
   return msg_indexes + checksum_indexes
+
+# Cached: the metric formulas ask for the two extreme messages (all-0xFF and
+# all-0x00) once per evaluated parameter set, and only the chain width changes
+# between sets.
+@lru_cache(maxsize=256)
+def wots_tw_chain_costs(message: bytes, log_w: int) -> int:
+  """The WOTS-TW chain iterations needed to verify a signature over `message`."""
+  return sum((2**log_w - i - 1 for i in wots_tw_message_to_indexes(message, log_w)))
 
 def encode_checksum(checksum: int, w: int, count2: int) -> list[int]:
   """Encodes a checksum into `count2` WOTS-TW chain indexes, each in [0, w)."""
@@ -68,6 +77,11 @@ getcontext().prec = int(log10(2**768)) + 1
 # same quantity without summing such an enormous number of terms.
 #
 # TODO: link to paper once published
+#
+# Cached: sigma depends only on (leaves, a, k, sigs), and needs the full
+# precision set above, so a search that sweeps d and log_w over the same
+# (h, a, k) would otherwise recompute the same expensive value per candidate.
+@lru_cache(maxsize=1 << 16)
 def compute_sigma(leaves, a, k, sigs, tsec):
   q = Decimal(1) / Decimal(2)**a
   one = Decimal(1)
@@ -132,9 +146,9 @@ class StatelessParameterSet:
                        + combine + xmss_height)
 
     # XMSS verification in the best (all-0xFF message) and worst (all-0x00) cases.
-    xmss_verify_min = (sum((w - i - 1 for i in wots_tw_message_to_indexes(bytes([0xFF]) * 16, log_w)))
+    xmss_verify_min = (wots_tw_chain_costs(bytes([0xFF]) * 16, log_w)
                        + combine + xmss_height)
-    xmss_verify_max = (sum((w - i - 1 for i in wots_tw_message_to_indexes(bytes(16), log_w)))
+    xmss_verify_max = (wots_tw_chain_costs(bytes(16), log_w)
                        + combine + xmss_height)
 
     # FORS cost: one F per leaf used, one H per sibling, plus combining roots.
