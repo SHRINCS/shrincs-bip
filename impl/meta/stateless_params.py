@@ -90,7 +90,10 @@ def compute_sigma(leaves, a, k, sigs, tsec):
     t = (one - q)**j
     pgf = (one - (one - t) / Decimal(leaves))**sigs
     sigma += comb(k, j) * ((-1)**j) * pgf
-  return sigma
+
+  # Below the precision floor this sum leaves cancellation residue,
+  # which can be negative.
+  return max(sigma, Decimal(0))
 
 
 @dataclass
