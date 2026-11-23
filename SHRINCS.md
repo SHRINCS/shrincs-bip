@@ -2794,6 +2794,7 @@ Implementors must take care to avoid many dangerous state management practices w
 - State counters must not be exported and imported into other software.
 - Implementations must not allow concurrent signing.
 - Signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
+- If incrementing the last usable counter would overflow, signers must record exhaustion in persistent storage _before_ signing with that counter.
 
 Signers are highly encouraged to store state counters only in durable, persistent, rollback-resistant storage which is protected against unauthorized modification.
 
