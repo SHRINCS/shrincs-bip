@@ -70,6 +70,9 @@ SPHX_FORS_HEIGHT   = 13
 SPHX_FORS_COUNT    = 10
 FXMSS_HEIGHT       = 255
 BXMSS_MAX_DEPTH    = 64
+FXMSS_INDEX_BITS   = 64
+
+assert BXMSS_MAX_DEPTH <= FXMSS_INDEX_BITS
 
 #  Derived constants
 WOTS_TW_CHAIN_COUNT1          = ceildiv(128, WOTS_TW_CHAIN_BITS)
@@ -1174,9 +1177,19 @@ def fxmss_sign(
     return None # practically impossible
 
   # Append the Merkle authentication path.
-  for j in range(leaf_depth):
-    sibling_index = (leaf_index // 2**j) ^ 1
-    sibling_height = leaf_height + j
+  for level in range(leaf_depth):
+    # The quotient is zero when the divisor would exceed the index width.
+    if level < FXMSS_INDEX_BITS:
+      ancestor_index = leaf_index // 2**level
+    else:
+      ancestor_index = 0
+
+    if ancestor_index % 2 == 0:
+      sibling_index = ancestor_index + 1
+    else:
+      sibling_index = ancestor_index - 1
+
+    sibling_height = leaf_height + level
     sig += fxmss_node(
       sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
     )
@@ -1215,8 +1228,8 @@ def fxmss_pubkey_from_sig(
   # Ensure the XMSS path size matches leaf_depth.
   assert len(xmss_auth) == leaf_depth * 16
 
-  # Ensure leaf_index describes a valid position in the FXMSS tree.
-  assert leaf_index < 2 ** min(64, leaf_depth)
+  # At the index width or deeper, every input index fits and the bound would overflow.
+  assert leaf_depth >= FXMSS_INDEX_BITS or leaf_index < 2**leaf_depth
 
   node = wots_c_pubkey_from_sig(
     wots_sig, message_digest, pk_seed, leaf_height, leaf_index
@@ -1224,10 +1237,17 @@ def fxmss_pubkey_from_sig(
   if node is None:
     return None
 
-  for k in range(leaf_depth):
-    parent = FxmssTree(leaf_height + k + 1, leaf_index // 2**(k+1))
-    sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index // 2**k) % 2 == 0:
+  for level in range(leaf_depth):
+    # The quotient is zero when the divisor would exceed the index width.
+    if level < FXMSS_INDEX_BITS:
+      ancestor_index = leaf_index // 2**level
+    else:
+      ancestor_index = 0
+
+    parent = FxmssTree(leaf_height + level + 1, ancestor_index // 2)
+    sibling = xmss_auth[level*16 : (level+1)*16]
+
+    if ancestor_index % 2 == 0:
       node = H(pk_seed, parent, node + sibling)
     else:
       node = H(pk_seed, parent, sibling + node)
@@ -1702,7 +1722,7 @@ def shrincs_sign(
   if fxmss_signature is None:
     return None # practically impossible
 
-  # Encode the leaf index with a byte size proportional to its maximum = 2**min(64, leaf_depth)
+  # The wire format rounds min(64, leaf_depth) index bits up to whole bytes.
   leaf_depth = FXMSS_HEIGHT - leaf_height
   leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
 
@@ -1766,11 +1786,11 @@ def shrincs_verify(
     R = signature[1:17]
     leaf_height = indicator
     leaf_depth = FXMSS_HEIGHT - leaf_height
-    leaf_index_size = ceildiv(min(leaf_depth, 64), 8)
+    leaf_index_size = ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8)
     leaf_index = int.from_bytes(signature[17 : 17+leaf_index_size])
 
-    # Reject a leaf_index that names no position in a tree of this depth.
-    if leaf_index >= 2 ** min(64, leaf_depth):
+    # At the index width or deeper, every encoded index fits and the bound would overflow.
+    if leaf_depth < FXMSS_INDEX_BITS and leaf_index >= 2**leaf_depth:
       return False
 
     fxmss_signature = signature[17+leaf_index_size:]
