@@ -2961,6 +2961,9 @@ def shrincs_sign(
   sf_structure = shrincs_seckey[64:66]
   sf_root      = shrincs_seckey[66:82]
 
+  tree_shape, tree_depth = sf_structure
+  tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+
   leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
 
   # Stateless signing path.
@@ -2981,10 +2984,8 @@ def shrincs_sign(
   message_digest = H_msg_sf(
     R, pk_seed, sf_root, leaf_height, leaf_index, bound_message
   )
-  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
   fxmss_signature = fxmss_sign(
-    message_digest, sk_seed, leaf_index, leaf_height, pk_seed,
-    tree_balanced, sf_structure[1]
+    message_digest, sk_seed, leaf_index, leaf_height, pk_seed, tree_balanced, tree_depth
   )
   if fxmss_signature is None:
     return None # practically impossible
