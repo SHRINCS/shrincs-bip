@@ -117,6 +117,9 @@ SF_FXMSS_TREE   = 18
 SF_WOTS_C_PRF   = 21
 SF_WOTS_C_GRIND = 22
 
+# technically 64 is the real limit, but using 63 to avoid integer overflow
+# with 64-bit state counters.
+BXMSS_MAX_DEPTH = 63
 
 #  Value types
 #
@@ -1542,7 +1545,7 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
     - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
     - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
       must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
-      depths for each shape in [Tree Shapes](#tree-shapes).
+      and maximum depths for each shape in [Tree Shapes](#tree-shapes).
   - Outputs:
     - an 82-byte SHRINCS secret key.
     - a 48-byte SHRINCS public key.
@@ -1556,7 +1559,9 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   > of depth `d` requires `2**d` WOTS+C public-key generations, so implementations should reject a
   > depth they cannot afford to compute.
   """
-  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or (
+    sf_structure[0] == FXMSS_SHAPE_BALANCED and sf_structure[1] <= BXMSS_MAX_DEPTH
+  )
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
@@ -1615,6 +1620,8 @@ def shrincs_sf_leaf_select(
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
+    if state_ctr >= 2**BXMSS_MAX_DEPTH:
+      return None
     if state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
