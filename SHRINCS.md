@@ -330,7 +330,7 @@ Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox 
 
 ### Does FXMSS have a big enough signature budget?
 
-FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->, but leaf indexing uses 64-bit unsigned integers, so in theory one could generate a BXMSS tree of at most depth 64 containing 2<sup>64</sup> WOTS+C leaves.
+FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->. A BXMSS tree of depth <!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --> contains 2<sup><!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --></sup> WOTS+C leaves.
 However, this is impractical because FXMSS is a single-tree design XMSS-variant.
 A single-tree design puts a fundamental limit on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
 This is because all WOTS+C keys in FXMSS must be arranged into a single merkle tree, whose root must be known before the SHRINCS public key can be fully computed.
@@ -380,13 +380,12 @@ Here follow the parameters of the stateful and stateless components.
 
 #### Stateful Parameters
 
-<!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
-
 | Parameter | Value | Description |
 |:-:|:-:|:--|
 | `WOTS_C_CHAIN_BITS` | <!-- CONST START WOTS_C_CHAIN_BITS -->4<!-- CONST END WOTS_C_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
 | `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
-| `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+| `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The maximum FXMSS leaf depth, also used as the fixed root height. |
+| `BXMSS_MAX_DEPTH` | <!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --> | The maximum FXMSS leaf depth for balanced trees. |
 
 #### Stateless Parameters
 
@@ -2136,7 +2135,8 @@ The `depth` of the BXMSS tree at key generation time has a significant impact on
 The exact size of the constant-size signatures is also dictated by `depth`: each step further from the root node we take, we must add 16 bytes to the FXMSS signature.
 Furthermore, each step doubles the number of leaf nodes, and so doubles the signature budget, but also doubles the amount of computational work needed for BXMSS key generation and/or signing.
 
-Signer implementations may specify any height for BXMSS trees depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
+Signer implementations may specify any depth up to `BXMSS_MAX_DEPTH`.
+Typical depths range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (about 1 million signatures).
 
 
 ##### Custom Shapes
@@ -2149,7 +2149,7 @@ This specification only defines two shapes: BXMSS and UXMSS. For security and pr
 ##### Caveats
 
 - Only nodes with index less than `2**64` are indexable in FXMSS.[^fxmss_node_index]
-- Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
+- BXMSS depths above `BXMSS_MAX_DEPTH` are invalid. Generating a tree at a supported depth can still be impractical.
 - A tree of depth 0 has no stateful signatures, whatever its shape.
   Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it.
   Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path.
@@ -2824,14 +2824,13 @@ and the stateful tree `sf_structure`.
 
 - Inputs:
   - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
-    must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
-    depths for each shape in [Tree Shapes](#tree-shapes).
-- Outputs:
-  - an 82-byte SHRINCS secret key.
-  - a 48-byte SHRINCS public key.
+  - `sf_structure`: a 2-byte FXMSS structure, with a shape byte followed by a depth byte.
+    See [Tree Shapes](#tree-shapes) for the supported shapes and depths.
+- Output:
+  - a pair consisting of an 82-byte SHRINCS secret key and a 48-byte SHRINCS public key, or null.
 
-This function is used only during key generation.
+This function returns `None` if `sf_structure` is invalid. An unknown shape or a balanced
+depth above `BXMSS_MAX_DEPTH` is invalid.
 
 > [!WARNING]
 > The `sf_structure` argument, consisting of a shape byte followed by a depth byte `d`, must come
@@ -2841,18 +2840,21 @@ This function is used only during key generation.
 > depth they cannot afford to compute.
 
 ```py
-def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
-  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> Optional[tuple[Bytes[82], Bytes[48]]]:
+  tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
+  tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
   pk_seed = seed[32:48]
 
   sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, SPHX_LAYER_COUNT - 1, 0)
-  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
-  sf_root = fxmss_node(
-    sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
-  )
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, tree_depth)
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root

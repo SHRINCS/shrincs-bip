@@ -34,18 +34,24 @@ KEYGEN_TEST_VEC_INPUTS = [
   KeygenVectorInput(seed=b"uxmss-255", balanced=False, depth=255),
 ]
 
-def generate_keygen_vectors():
+def generate_keygen_vectors() -> None:
+  rows = []
+  for inp in KEYGEN_TEST_VEC_INPUTS:
+    structure = bytes([shrincs.FXMSS_SHAPE_BALANCED, inp.depth]) if inp.balanced else \
+                bytes([shrincs.FXMSS_SHAPE_UNBALANCED, inp.depth])
+    derived = shrincs.sha256(inp.seed + b"1") + shrincs.sha256(inp.seed + b"2")
+    keypair = shrincs.shrincs_keygen(derived[:48], structure)
+    if keypair is None:
+      raise ValueError(f'key generation rejected tree structure {structure.hex()}')
+    seckey, pubkey = keypair
+    row = [derived[:48], structure, seckey, pubkey]
+    rows.append([hexlify(x).decode() for x in row])
+
   vec_path = path.join('test_vectors', 'keygen.csv')
   with open(vec_path, 'w', newline='') as fh:
     w = csv.writer(fh)
     w.writerow(['seed', 'structure', 'seckey', 'pubkey'])
-    for inp in KEYGEN_TEST_VEC_INPUTS:
-      structure = bytes([shrincs.FXMSS_SHAPE_BALANCED, inp.depth]) if inp.balanced else \
-                  bytes([shrincs.FXMSS_SHAPE_UNBALANCED, inp.depth])
-      derived = shrincs.sha256(inp.seed + b"1") + shrincs.sha256(inp.seed + b"2")
-      seckey, pubkey = shrincs.shrincs_keygen(derived[:48], structure)
-      row = [derived[:48], structure, seckey, pubkey]
-      w.writerow([hexlify(x).decode() for x in row])
+    w.writerows(rows)
   write_file_fingerprint(vec_path)
 
 class SignVectorInput:

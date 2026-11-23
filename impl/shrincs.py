@@ -69,6 +69,7 @@ SPHX_XMSS_HEIGHT   = 9
 SPHX_FORS_HEIGHT   = 13
 SPHX_FORS_COUNT    = 10
 FXMSS_HEIGHT       = 255
+BXMSS_MAX_DEPTH    = 64
 
 #  Derived constants
 WOTS_TW_CHAIN_COUNT1          = ceildiv(128, WOTS_TW_CHAIN_BITS)
@@ -1533,21 +1534,20 @@ def slh_dsa_verify(
 
 #  SHRINCS algorithms
 
-def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
+def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> Optional[tuple[Bytes[82], Bytes[48]]]:
   """
   The SHRINCS key generation function. Computes the secret and public keys from a 48-byte `seed`
   and the stateful tree `sf_structure`.
 
   - Inputs:
     - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
-      must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
-      depths for each shape in [Tree Shapes](#tree-shapes).
-  - Outputs:
-    - an 82-byte SHRINCS secret key.
-    - a 48-byte SHRINCS public key.
+    - `sf_structure`: a 2-byte FXMSS structure, with a shape byte followed by a depth byte.
+      See [Tree Shapes](#tree-shapes) for the supported shapes and depths.
+  - Output:
+    - a pair consisting of an 82-byte SHRINCS secret key and a 48-byte SHRINCS public key, or null.
 
-  This function is used only during key generation.
+  This function returns `None` if `sf_structure` is invalid. An unknown shape or a balanced
+  depth above `BXMSS_MAX_DEPTH` is invalid.
 
   > [!WARNING]
   > The `sf_structure` argument, consisting of a shape byte followed by a depth byte `d`, must come
@@ -1556,17 +1556,20 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   > of depth `d` requires `2**d` WOTS+C public-key generations, so implementations should reject a
   > depth they cannot afford to compute.
   """
-  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
+  tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
   pk_seed = seed[32:48]
 
   sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, SPHX_LAYER_COUNT - 1, 0)
-  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
-  sf_root = fxmss_node(
-    sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
-  )
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, tree_depth)
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root

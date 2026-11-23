@@ -1,7 +1,9 @@
 from random import randbytes
 from typing import get_args, get_type_hints
+from unittest.mock import patch
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
 from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
+from shrincs import BXMSS_MAX_DEPTH
 from shrincs import LEN, UINT, SHRINCS_SL_SIGNATURE_SIZE, SPHX_SIGNATURE_SIZE
 from shrincs import wots_c_chain_iter, wots_tw_chain_iter
 from shrincs import Address, WotsTwHash, WotsTwPrf, WotsTwPk, XmssTree
@@ -153,6 +155,17 @@ def verify_address_serialization():
   )
 
 
+def verify_fxmss_structure_limits() -> None:
+  with (
+    patch('shrincs.xmss_node') as stateless_root,
+    patch('shrincs.fxmss_node') as stateful_root,
+  ):
+    for sf_structure in (bytes([2, 1]), bytes([FXMSS_SHAPE_BALANCED, BXMSS_MAX_DEPTH + 1])):
+      assert shrincs_keygen(bytes(48), sf_structure) is None
+    stateless_root.assert_not_called()
+    stateful_root.assert_not_called()
+
+
 if __name__ == "__main__":
   for chain_iterator in (wots_tw_chain_iter, wots_c_chain_iter):
     annotations = get_type_hints(chain_iterator, include_extras=True)
@@ -166,13 +179,16 @@ if __name__ == "__main__":
   assert not any(length.size == SPHX_SIGNATURE_SIZE for length in return_lengths)
 
   verify_address_serialization()
+  verify_fxmss_structure_limits()
 
   structures = [
     (bytes([FXMSS_SHAPE_BALANCED, 4]), 16),
     (bytes([FXMSS_SHAPE_UNBALANCED, 16]), 17)
   ]
   for (i, (sf_structure, stateful_signature_count)) in enumerate(structures):
-    sk, pk = shrincs_keygen(randbytes(48), sf_structure)
+    keypair = shrincs_keygen(randbytes(48), sf_structure)
+    assert keypair is not None
+    sk, pk = keypair
 
     msg = b"foobar!"
     for j in range(stateful_signature_count):
