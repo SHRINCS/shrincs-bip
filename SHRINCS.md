@@ -17,7 +17,7 @@
 
 This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based post-quantum signature scheme, for use in Bitcoin transaction authorization.
 
-SHRINCS combines compact stateful hash-based signatures with a stateless fallback[^hbsb].
+SHRINCS combines stateless hash-based signatures with compact stateful signatures[^hbsb].
 It is instantiated with SHA256, targeting NIST security category 1: 128 bits of classical and 64 bits of quantum security.
 A security proof is TODO.
 
@@ -47,7 +47,7 @@ At a high level, a SHRINCS instance combines two hash-based signature schemes:
 2. A **stateless** component — SLH-DSA[^slhdsa], the NIST-standardized variant of SPHINCS+[^sphincs+], with a non-standard parameter set.
 
 A signature from either component is sufficient to pass verification.
-The signer uses the stateful component as its compact, primary path, and falls back to the stateless component when signing state is unavailable (lost, corrupted, or intentionally reset, e.g. after seed recovery).
+The signer can use the stateful component as a compact optimization, and uses the stateless component when signing state is unavailable (lost, corrupted, or intentionally reset, e.g. after seed recovery).
 
 The **stateful** component, FXMSS, generates small signatures.
 It is a variant of XMSS[^xmss].
@@ -275,7 +275,7 @@ WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, 
 An alternative choice would be to use WOTS-TW in the stateful path too, which would reduce code surface at the cost of signature size and verification time.
 With the parameter set specified here, this would result in stateful signatures up to approximately <!-- CONST START STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->8<!-- CONST END STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->% larger and require more hash computations for verification on average, although the exact number would depend on the signed message.
 The additional code complexity appears to be worth the efficiency gains in this case:
-The stateful component would be the primary signing tool used in Bitcoin transactions, and thus the WOTS+C optimization is warranted.
+The stateful component exists to reduce signature size and verification cost, and thus the WOTS+C optimization is warranted.
 
 ### Why statefulness?
 
@@ -295,7 +295,7 @@ Reusing a state counter value under the same key pair can enable anyone who obse
 Implementations can prevent such reuse by enforcing the invariants specified in [On Managing State](#on-managing-state).
 Implementations that cannot safely manage state can still generate valid SHRINCS key pairs and sign using the stateless component.
 If a key pair's state counter is lost, corrupted, or otherwise uncertain, an implementation MUST refuse stateful signing.
-The stateless fallback allows the implementation to do so while always maintaining the ability to sign with that key pair.
+The stateless component allows the implementation to do so while always maintaining the ability to sign with that key pair.
 
 State reuse can be detected before publication by comparing a stateful signature with earlier signatures, providing defense in depth against failures in the signer's state management.
 Each stateful signature reveals the WOTS+C leaf it uses and can be rejected if the same leaf identifier has previously been observed under the same key pair.
