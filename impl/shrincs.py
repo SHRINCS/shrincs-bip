@@ -1609,7 +1609,7 @@ def shrincs_sf_leaf_select(
   next WOTS+C leaf for the given `sf_structure` and `state_ctr`.
 
   - Inputs:
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `sf_structure`: a valid 2-byte FXMSS structure, with a supported shape and depth.
     - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
       previously issued, or `None`.
   - Outputs:
@@ -1622,10 +1622,13 @@ def shrincs_sf_leaf_select(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= BXMSS_MAX_DEPTH
+
   if state_ctr is None:
     return None
 
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  tree_shape, tree_depth = sf_structure
 
   # A depth-zero tree holds no usable WOTS+C leaf.
   if tree_depth == 0:
@@ -1634,15 +1637,14 @@ def shrincs_sf_leaf_select(
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if state_ctr < tree_depth:
+    elif state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
-
-  elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr < 2**tree_depth:
+  else:
+    # At the index width, every counter selects a leaf and the leaf count would overflow.
+    if tree_depth >= FXMSS_INDEX_BITS or state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
-  # - unknown FXMSS tree shape
-  # - no more signatures left
+  # The counter is out of range for this tree.
   return None
 
 def shrincs_sign(
@@ -1654,9 +1656,11 @@ def shrincs_sign(
 ) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
                     Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
   """
-  The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`:
-  uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
-  falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
+  The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key
+  `shrincs_seckey` on the stateful FXMSS path when `state_ctr` selects a usable leaf, or on the
+  stateless SLH-DSA path otherwise. The function returns `None` if the key contains an unsupported
+  `sf_structure` or [WOTS+C grinding exhausts its attempts](#on-signing-fallibility).
+  Verifiers must use `shrincs_verify` with the same `ctx`.
 
   - Inputs:
     - `message`: a message of at most `2**61 - 384` bytes.
@@ -1682,9 +1686,10 @@ def shrincs_sign(
 
   > [!CAUTION]
   > Using the same key to sign different `(message, ctx)` pairs with the same `state_ctr` is
-  > a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
-  > which increments and saves the state counter as `state_ctr + 1` on a persistent,
-  > rollback-resistant storage medium before the signature is returned to the caller.
+  > a security vulnerability. The caller must follow [On Managing State](#on-managing-state).
+  > If incrementing the last usable counter would exceed the signer's supported counter range,
+  > the caller must durably record exhaustion before signing with that counter and pass `None`
+  > on subsequent calls.
   """
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
@@ -1694,7 +1699,12 @@ def shrincs_sign(
   sf_root      = shrincs_seckey[66:82]
 
   tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
   tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
 
@@ -1722,9 +1732,8 @@ def shrincs_sign(
   if fxmss_signature is None:
     return None # practically impossible
 
-  # The wire format rounds min(64, leaf_depth) index bits up to whole bytes.
   leaf_depth = FXMSS_HEIGHT - leaf_height
-  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
+  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8))
 
   return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
 

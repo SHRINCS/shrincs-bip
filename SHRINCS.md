@@ -2079,6 +2079,7 @@ The two shapes are identified by their respective constants.
 | ... | 2...255 | Reserved. |
 
 We leave open the possibility to define new shape flags for new XMSS tree structures, but we encourage signers to utilize the recommended shapes wherever possible, for the sake of security and anonymity.
+The reference signer rejects keys with reserved shape flags on both signing paths. Verification is agnostic to the tree shape.
 
 The following sections describe the usage properties of the two shapes, and we let the variable `depth` represent the depth byte as a parameter of the shape.
 
@@ -2803,6 +2804,7 @@ To avoid using the same WOTS+C keypair more than once, signers using FXMSS must 
 This counter tracks the number of signatures previously issued by the keypair.
 It increments once for every stateful FXMSS signature created, and _must never decrement._
 When signing, the SHRINCS stateful signing algorithm chooses which WOTS+C leaf to use based on the state counter and the FXMSS tree structure.
+Signers may restrict the tree depths and counter range they support. The last usable counter is determined by both the tree and the signer's supported counter range.
 
 It is **absolutely critical for security that signers manage state counters extremely carefully.**
 Implementors must take care to avoid many dangerous state management practices which lead to state reuse:
@@ -2811,8 +2813,8 @@ Implementors must take care to avoid many dangerous state management practices w
 - State counters must not live in unprotected storage (e.g. shared memory, a user-accessible folder, etc).
 - State counters must not be exported and imported into other software.
 - Implementations must not allow concurrent signing.
-- Signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
-- If incrementing the last usable counter would overflow, signers must record exhaustion in persistent storage _before_ signing with that counter.
+- If the next counter is within the signer's supported counter range, signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
+- If incrementing the last usable counter would exceed that range, signers must record exhaustion in persistent storage _before_ signing with that counter. Subsequent calls must pass `None` to use the stateless path.
 
 Signers are highly encouraged to store state counters only in durable, persistent, rollback-resistant storage which is protected against unauthorized modification.
 
@@ -2888,7 +2890,7 @@ The SHRINCS stateful-path leaf-selection function. Computes the position `(index
 next WOTS+C leaf for the given `sf_structure` and `state_ctr`.
 
 - Inputs:
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `sf_structure`: a valid 2-byte FXMSS structure, with a supported shape and depth.
   - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
     previously issued, or `None`.
 - Outputs:
@@ -2905,10 +2907,13 @@ This function is only used in the stateful path, and only by the signer.
 def shrincs_sf_leaf_select(
     sf_structure: Bytes[2], state_ctr: Optional[UInt64]
 ) -> Optional[tuple[UInt64, UInt8]]:
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= BXMSS_MAX_DEPTH
+
   if state_ctr is None:
     return None
 
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  tree_shape, tree_depth = sf_structure
 
   # A depth-zero tree holds no usable WOTS+C leaf.
   if tree_depth == 0:
@@ -2917,15 +2922,14 @@ def shrincs_sf_leaf_select(
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if state_ctr < tree_depth:
+    elif state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
-
-  elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr < 2**tree_depth:
+  else:
+    # At the index width, every counter selects a leaf and the leaf count would overflow.
+    if tree_depth >= FXMSS_INDEX_BITS or state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
-  # - unknown FXMSS tree shape
-  # - no more signatures left
+  # The counter is out of range for this tree.
   return None
 ```
 <!-- DOC END shrincs_sf_leaf_select -->
@@ -2934,9 +2938,11 @@ def shrincs_sf_leaf_select(
 #### `shrincs_sign(...)`
 
 <!-- DOC START shrincs_sign -->
-The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`:
-uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
-falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
+The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key
+`shrincs_seckey` on the stateful FXMSS path when `state_ctr` selects a usable leaf, or on the
+stateless SLH-DSA path otherwise. The function returns `None` if the key contains an unsupported
+`sf_structure` or [WOTS+C grinding exhausts its attempts](#on-signing-fallibility).
+Verifiers must use `shrincs_verify` with the same `ctx`.
 
 - Inputs:
   - `message`: a message of at most `2**61 - 384` bytes.
@@ -2962,9 +2968,10 @@ This function is used only by the signer.
 
 > [!CAUTION]
 > Using the same key to sign different `(message, ctx)` pairs with the same `state_ctr` is
-> a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
-> which increments and saves the state counter as `state_ctr + 1` on a persistent,
-> rollback-resistant storage medium before the signature is returned to the caller.
+> a security vulnerability. The caller must follow [On Managing State](#on-managing-state).
+> If incrementing the last usable counter would exceed the signer's supported counter range,
+> the caller must durably record exhaustion before signing with that counter and pass `None`
+> on subsequent calls.
 
 ```py
 def shrincs_sign(
@@ -2983,7 +2990,12 @@ def shrincs_sign(
   sf_root      = shrincs_seckey[66:82]
 
   tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
   tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
 
@@ -3011,16 +3023,15 @@ def shrincs_sign(
   if fxmss_signature is None:
     return None # practically impossible
 
-  # The wire format rounds min(64, leaf_depth) index bits up to whole bytes.
   leaf_depth = FXMSS_HEIGHT - leaf_height
-  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
+  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8))
 
   return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
 ```
 <!-- DOC END shrincs_sign -->
 
 > [!NOTE]
-> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
+> Assuming valid inputs, [the `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 #### `shrincs_verify(...)`
 
@@ -3118,8 +3129,9 @@ def shrincs_verify(
 
 ## On Signing Fallibility
 
-The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` if the function fails.
-This originates from an edge case condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+`shrincs_sign` returns `None` if the secret key encodes an unsupported FXMSS structure.
+With a supported structure, the stateful signer can return `None` when `wots_c_grind_to_constant_sum` exhausts its attempts.
+This failure propagates through `wots_c_sign` and `fxmss_sign` to `shrincs_sign`.
 
 While this edge case is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe.
 See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.

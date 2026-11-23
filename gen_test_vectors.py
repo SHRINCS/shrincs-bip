@@ -136,32 +136,38 @@ SIGNATURES_VALID_TEST_VEC_INPUTS = [
   ),
 ]
 
-def generate_signatures_valid_test_vectors():
+def generate_signatures_valid_test_vectors() -> None:
+  rows = []
+  for fixture_number, inp in enumerate(SIGNATURES_VALID_TEST_VEC_INPUTS, start=1):
+    signature = shrincs.shrincs_sign(
+      inp.message,
+      inp.ctx,
+      inp.seckey,
+      inp.state_ctr,
+      inp.opt_rand
+    )
+    if signature is None:
+      raise ValueError(f'signing failed for signature vector {fixture_number}')
+
+    pubkey = shrincs.shrincs_extract_pubkey(inp.seckey)
+    if not shrincs.shrincs_verify(inp.message, signature, inp.ctx, pubkey):
+      raise ValueError(f'verification failed for signature vector {fixture_number}')
+
+    rows.append([
+      hexlify(inp.seckey).decode(),
+      hexlify(pubkey).decode(),
+      hexlify(inp.message).decode(),
+      hexlify(inp.ctx).decode(),
+      '' if inp.opt_rand is None else hexlify(inp.opt_rand).decode(),
+      '' if inp.state_ctr is None else inp.state_ctr,
+      hexlify(signature).decode(),
+    ])
+
   vec_path = path.join('test_vectors', 'signatures_valid.csv')
   with open(vec_path, 'w', newline='') as fh:
     w = csv.writer(fh)
     w.writerow(['seckey', 'pubkey', 'message', 'ctx', 'opt_rand', 'state_ctr', 'signature'])
-    for inp in SIGNATURES_VALID_TEST_VEC_INPUTS:
-      signature = shrincs.shrincs_sign(
-        inp.message,
-        inp.ctx,
-        inp.seckey,
-        inp.state_ctr,
-        inp.opt_rand
-      )
-      pubkey = shrincs.shrincs_extract_pubkey(inp.seckey)
-
-      assert shrincs.shrincs_verify(inp.message, signature, inp.ctx, pubkey)
-
-      w.writerow([
-        hexlify(inp.seckey).decode(),
-        hexlify(pubkey).decode(),
-        hexlify(inp.message).decode(),
-        hexlify(inp.ctx).decode(),
-        '' if inp.opt_rand is None else hexlify(inp.opt_rand).decode(),
-        '' if inp.state_ctr is None else inp.state_ctr,
-        hexlify(signature).decode(),
-      ])
+    w.writerows(rows)
   write_file_fingerprint(vec_path)
 
 def generate_test_vectors():
