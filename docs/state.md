@@ -33,20 +33,9 @@ These media are all unsuitable as primary state storage media for one reason or 
 
 It is possible to combine multiple unsafe state storage media into a cohesive redundant system (see [Redundancy](#redundancy)), but having at least one robust state storage medium is safest, even if that medium only stores a commitment and not the full state itself (see [Offloading](#offloading)).
 
-### Fresh Addresses
-
-**The easiest way for a wallet to avoid state reuse is to avoid address reuse.**
-
-If a consumer wallet only receives one UTXO per address and uses a unique SHRINCS key per address, then state reuse is only possible in rare edgecases when double-signing the same transaction, or RBFing an unconfirmed transaction.
-Once that UTXO is spent and confirmed, if no other UTXOs are ever received, the wallet has no more reason to use the stateful path on that key.
-Even if state is reused (e.g. by tricking the wallet to sign a different invalid transaction spending the same UTXO), this will have no meaningful economic consequence to the user.
-
-This also has a benefit for wallet performance. If a wallet can safely assume an address will only be used a few times, the program can get away with much shallower FXMSS trees, and can store much smaller state counters too.
-For example, if a wallet imposes an artificial limit of 4 stateful signatures per keypair, it only needs to generate 4 WOTS+C leaves per key, and only needs to store 2 bits of state per key.
-
 ### Store-then-Sign
 
-To reduce the chance of a state counter being reused, wallets must increment state counters and ensure the change is committed into durable storage *before* invoking SHRINCS' cryptographic signing code.
+Wallets must increment state counters and ensure the change is committed into durable storage *before* invoking SHRINCS' cryptographic signing code.
 
 If the signer creates the signature *before* incrementing the state counter, even if the signer doesn't release the signature outright the signature could still be leaked locally through side-channels or shared memory access.
 
@@ -57,21 +46,12 @@ The signer must never create a signature until it is confident the state counter
 
 If using multiple storage media (see [Redundancy](#redundancy)) then the counter must be fully committed into all available storage media before the signature is issued.
 
-### Compression
+### Offloading
 
 Under typical usage in a Bitcoin wallet, assuming one UXMSS SHRINCS key per address, there could be potentially thousands or millions of used SHRINCS keys whose state must be tracked by the wallet.
 This could result in a disk usage blowup as the state size grows linearly with wallet usage.
 
-Thankfully state counters for UXMSS will follow a consistent distribution with most counters staying between 0 and 2 (inclusive).
-
-This means we can use compression algorithms (e.g. [huffman trees](https://en.wikipedia.org/wiki/Huffman_coding)) to losslessly compress a block of many state counters down to a much smaller size.
-Even an approach as simple as passing the state counters through the [GZip algorithm](https://en.wikipedia.org/wiki/Gzip) before storing them can reduce their combined size by a factor of \~3x.
-
-More elegant compression algorithms can be optimized specifically to compress UXMSS state counters, and this format could be standardized across wallets.
-
-### Offloading
-
-Storing compressed state counters for many SHRINCS keys is sometimes not an option, e.g. on a secure element with tightly limited storage.
+Storing state counters for many SHRINCS keys is sometimes not an option, e.g. on a secure element with tightly limited storage.
 The constrained storage capacity of such devices simply does not permit it.
 The signer device could restrict the number of SHRINCS keys the signer can use, commensurate with the maximum number of state counters that the signing device can store securely.
 However in the case of Bitcoin hardware wallets, we probably do not want to restrict the number of addresses a wallet can create.
@@ -171,12 +151,48 @@ The hardware wallet can either recompute `Z[0]` and `Z[1]` on the fly with two h
 The best state storage medium is not one, but a combination of multiple storage media providing redundancy.
 
 Replicating state in $n$ different storage sites will protect a wallet in the event that up to $n - 1$ state storage sites are compromised or rolled back.
-If the signer finds her state storage media disagree on the counter for a given key, the signer cannot tell which is faulty and so she must use the higher of the two counters, or else use the stateless signing path to be very safe.
+If the signer finds her state storage media disagree on the counter for a given key, the signer cannot tell which is faulty and so she must use the highest of the $n$ counters, or else use the stateless signing path to be very safe.
 At least one of these media should be durable and rollback-resistant (e.g. a TPM).
-
-When replicating state to storage media outside the signer's direct control (e.g. a cloud server; a host laptop), the signer should use authenticated encryption or stateless signatures to ensure state counters on the remote storage medium cannot be incremented adversarially.
 
 [Offloading](#offloading) is an example of a simple double redundancy setup, where one medium (the hardware wallet) stores only a commitment while the host computer stores a redundant copy of the full state.
 If the two media disagree on the current state (e.g. if the hardware wallet is lost), then the stateful path is not usable anymore.
 
 Note that when signing, the wallet must successfully commit the updated state into *all* storage media before creating the signature (see [Store-then-Sign](#store-then-sign)).
+
+#### Remote Media
+
+When replicating state to storage media outside the signer's direct control (e.g. a cloud server; a host laptop), this opens up several risks:
+
+- State counters on the remote storage medium could be incremented by an adversary with write control over the media.
+  This would admit a denial of service attack where the attacker can force the signer to use the larger and more expensive stateless component, or in the case of UXMSS, force the signer to create a larger-than-expected stateful signature.
+- Adversaries with read control over the media can see your current state counters, leaking information about the signer's internal operations.
+
+To mitigate these risks, the signer should use an authenticated encryption scheme[^hmac] to hide, sign, and authenticate the state uploaded to such a medium.
+
+
+With a fully authenticated $n$-redundancy state storage setup, as long as at least one storage medium remains secure, even an adversary who can control $n-1$ state storage media cannot cause a SHRINCS signer to use the wrong state - neither too high nor too low.
+This is because the SHRINCS signer will always use the highest _authentic_ counter across all $n$ redundant media, and will not authorize a new counter unless the previous counter was also authentic.
+
+### Fresh Addresses
+
+**The easiest way for a wallet to avoid state reuse is to avoid address reuse.**
+
+If a consumer wallet only receives one UTXO per address and uses a unique SHRINCS key per address, then state reuse is only possible in rare edgecases when double-signing the same transaction, or RBFing an unconfirmed transaction.
+Once that UTXO is spent and confirmed, if no other UTXOs are ever received, the wallet has no more reason to use the stateful path on that key.
+Even if state is reused (e.g. by tricking the wallet to sign a different invalid transaction spending the same UTXO), this will have no meaningful economic consequence to the user.
+
+This also has a benefit for wallet performance. If a wallet can safely assume an address will only be used a few times, the program can get away with much shallower FXMSS trees, and can store much smaller state counters too.
+For example, if a wallet imposes an artificial limit of 4 stateful signatures per keypair, it only needs to generate 4 WOTS+C leaves per key, and only needs to store 2 bits of state per key.
+
+### Compression
+
+State counters for UXMSS will follow a consistent distribution with most counters staying between 0 and 2 (inclusive).
+
+This means we can use compression algorithms (e.g. [huffman trees](https://en.wikipedia.org/wiki/Huffman_coding)) to losslessly compress a block of many state counters down to a much smaller size.
+Even an approach as simple as passing the state counters through the [GZip algorithm](https://en.wikipedia.org/wiki/Gzip) before storing them can reduce their combined size by a factor of \~3x.
+
+More elegant compression algorithms can be optimized specifically to compress UXMSS state counters, and this format could be standardized across wallets.
+
+## Footnotes
+
+[^authenc]: If hiding is not a required property, a symmetric signature (e.g. HMAC) suffices to authenticate the state.
