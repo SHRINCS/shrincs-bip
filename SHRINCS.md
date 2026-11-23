@@ -1515,7 +1515,7 @@ It can be computed by:
 WOTS_C_CONSTANT_SUM = ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)
 ```
 
-Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup>122</sup> out of the possible 2<sup>128</sup> sets of indexes.  <!-- TODO: template these numbers -->
+Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup><!-- CONST START WOTS_C_CONST_SUM_MESSAGES_LOG -->122<!-- CONST END WOTS_C_CONST_SUM_MESSAGES_LOG --></sup> out of the possible 2<sup>128</sup> sets of indexes.
 To map a given message onto this subset, the signer must _grind_ a hash function applied to the message and a rolling integer counter.
 The hash function ensures the surjective mapping of messages to index-sets is one-way and distributed randomly.
 If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
