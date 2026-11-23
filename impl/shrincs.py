@@ -1226,10 +1226,10 @@ def fxmss_pubkey_from_sig(
   for k in range(leaf_depth):
     parent = FxmssTree(leaf_height + k + 1, leaf_index // 2**(k+1))
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index // 2**k) % 2 == 1:
-      node = H(pk_seed, parent, sibling + node)
-    else:
+    if (leaf_index // 2**k) % 2 == 0:
       node = H(pk_seed, parent, node + sibling)
+    else:
+      node = H(pk_seed, parent, sibling + node)
 
   return node
 
