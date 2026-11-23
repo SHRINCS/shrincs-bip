@@ -443,7 +443,6 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 
 ### Key Generation Inputs
-<!-- TODO (Jonas): What's the purpose of having this section here? Why not explain this in the keygen algorithm section? -->
 
 Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes.
 This is then split into 3 x 16-byte seeds.
