@@ -522,29 +522,41 @@ Unless stated otherwise, all integers are serialized to and parsed from bytes as
 #### `base_2b(...)`
 
 <!-- DOC START base_2b -->
-Decomposes the bytes `x` into `outlen` groups of `b` bits which are each
-parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
+Decomposes the bytes `x` into `outlen` groups of `b` bits, each parsed as a
+big-endian integer in the range `[0, 2**b)`. The leading `outlen * b` bits
 of `x` are parsed. If `x` is shorter than `outlen * b` bits, the missing
-trailing bits are treated as zero.
+trailing bits are treated as zero. Requires `b >= 0` and `outlen >= 0`.
+The result matches FIPS 205 Algorithm 4[^slhdsa] on its input domain.
 
 ```py
 def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
-  baseb = [0] * outlen # output array
-  j = 0                # counts the bytes read from the input x.
-  acc = 0              # accumulator, collects bits from x
-  bits_filled = 0      # counts the bits accumulated
+  assert b >= 0
+  assert outlen >= 0
+
+  digits = [0] * outlen
+  if b == 0:
+    return digits
 
   for i in range(outlen):
-    while bits_filled < b:
-      acc = (acc << 8) + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
-      j += 1
-      bits_filled += 8
+    digit_start_bit = i * b
+    digit_end_bit = digit_start_bit + b
+    first_byte_index = digit_start_bit // 8
+    # Round up without adding to the bit offset.
+    end_byte_index = min(len(x), (digit_end_bit - 1) // 8 + 1)
 
-    bits_filled -= b
-    baseb[i] = acc >> bits_filled
-    acc %= 2**bits_filled # prevent accumulator from overflowing
+    for byte_index in range(first_byte_index, end_byte_index):
+      byte_start_bit = 8 * byte_index
+      # Intersect the digit and byte bit ranges.
+      fragment_start_bit = max(digit_start_bit, byte_start_bit)
+      fragment_end_bit = byte_start_bit + min(8, digit_end_bit - byte_start_bit)
+      fragment_bit_count = fragment_end_bit - fragment_start_bit
 
-  return baseb
+      byte_trailing_bits = 8 - (fragment_end_bit - byte_start_bit)
+      digit_trailing_bits = digit_end_bit - fragment_end_bit
+      fragment_value = (x[byte_index] // 2**byte_trailing_bits) % 2**fragment_bit_count
+      digits[i] += fragment_value * 2**digit_trailing_bits
+
+  return digits
 ```
 <!-- DOC END base_2b -->
 
