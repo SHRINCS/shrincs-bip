@@ -101,14 +101,19 @@ class StatefulParameterSet:
     Average SHA256 compressions to sign with UXMSS (unbalanced stateful tree) at `depth`,
     assuming a 32-byte message.
     """
+    # 2 bytes context string, 16 byte complementary root, 32 byte actual message.
+    ctx_msg_size = 2 + 16 + 32
+
     return round(
-      1 + sha256_compressions(2 + 16 + 16 + 32) +   # PRF_msg_sf + H_msg_sf
-      4 +
-      self.expected_grinding_attempts() +           # grinding
-      self.constant_sum() +                         # WOTS+C checksum chains
-      self.chain_count() +                          # WOTS+C message chains
-      depth * self.wots_keygen_cost() +             # regenerating other leaves
-      depth * (depth - 1) / (2 * (depth + 1))       # merkle nodes (averaged over all leaves)
+      + sha256_compressions(16 + 16 + 16 + 9 + ctx_msg_size)  # H_msg_sf inner
+      + sha256_compressions(16 + 16 + 32 + 9)      # H_msg_sf outer
+      + sha256_compressions(16 + 9 + ctx_msg_size) # PRF_msg_sf HMAC inner
+      + sha256_compressions(32)                    # PRF_msg_sf HMAC outer
+      + self.expected_grinding_attempts()          # grinding
+      + self.constant_sum()                        # WOTS+C checksum chains
+      + self.chain_count()                         # WOTS+C message chains
+      + depth * self.wots_keygen_cost()            # regenerating other leaves
+      + depth * (depth - 1) / (2 * (depth + 1))    # merkle nodes (averaged over all leaves)
     )
 
   def bxmss_sign_compressions(self, depth: int) -> int:
@@ -116,14 +121,19 @@ class StatefulParameterSet:
     SHA256 compressions to sign with BXMSS (balanced stateful tree) at `depth`,
     assuming a 32-byte message.
     """
+    # 2 bytes context string, 16 byte complementary root, 32 byte actual message.
+    ctx_msg_size = 2 + 16 + 32
+
     return round(
-      1 + sha256_compressions(2 + 16 + 16 + 32) +   # PRF_msg_sf + H_msg_sf
-      4 +
-      self.expected_grinding_attempts() +           # grinding
-      self.constant_sum() +                         # WOTS+C checksum chains
-      self.chain_count() +                          # WOTS+C message chains
-      (2**depth - 1) * self.wots_keygen_cost() +    # regenerating other leaves
-      2**depth - 1 - depth                          # merkle nodes
+      + sha256_compressions(16 + 16 + 16 + 9 + ctx_msg_size)  # H_msg_sf inner
+      + sha256_compressions(16 + 16 + 32 + 9)      # H_msg_sf outer
+      + sha256_compressions(16 + 9 + ctx_msg_size) # PRF_msg_sf HMAC inner
+      + sha256_compressions(32)                    # PRF_msg_sf HMAC outer
+      + self.expected_grinding_attempts()          # grinding
+      + self.constant_sum()                        # WOTS+C checksum chains
+      + self.chain_count()                         # WOTS+C message chains
+      + (2**depth - 1) * self.wots_keygen_cost()   # regenerating other leaves
+      + 2**depth - 1 - depth                       # merkle nodes
     )
 
   def uxmss_keygen_compressions(self, depth: int) -> int:
