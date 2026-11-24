@@ -1,5 +1,5 @@
 from random import randbytes
-from typing import get_args, get_type_hints
+from typing import Protocol, get_args, get_type_hints
 from unittest import TestCase
 from unittest.mock import call, patch
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
@@ -8,7 +8,7 @@ from shrincs import BXMSS_MAX_DEPTH, H, shrincs_sf_leaf_select, wots_c_pubkey_ge
 from shrincs import WOTS_C_CHAINS_SIZE, fxmss_pubkey_from_sig
 from shrincs import LEN, UINT, SHRINCS_SL_SIGNATURE_SIZE, SPHX_SIGNATURE_SIZE
 from shrincs import wots_c_chain_iter, wots_tw_chain_iter
-from shrincs import Address, WotsTwHash, WotsTwPrf, WotsTwPk, XmssTree
+from shrincs import WotsTwHash, WotsTwPrf, WotsTwPk, XmssTree
 from shrincs import ForsTree, ForsRoots, ForsPrf
 from shrincs import WotsCHash, WotsCPrf, WotsCPk, WotsCGrind, FxmssTree
 from shrincs import SL_WOTS_TW_HASH, SL_WOTS_TW_PRF, SL_WOTS_TW_PK, SL_XMSS_TREE
@@ -27,7 +27,17 @@ def find_metadata(annotation, metadata_type):
   ]
 
 
-def assert_address_serializes_to(address: Address, address_type: int, payload: bytes):
+class SerializableAddress(Protocol):
+  @property
+  def height(self) -> int: ...
+
+  @property
+  def index(self) -> int: ...
+
+  def to_bytes(self) -> bytes: ...
+
+
+def assert_address_serializes_to(address: SerializableAddress, address_type: int, payload: bytes):
   assert len(payload) == 12
   expected = (
     address.height.to_bytes(1)
@@ -270,6 +280,7 @@ if __name__ == "__main__":
     msg = b"foobar!"
     for j in range(stateful_signature_count):
       sig = shrincs_sign(msg, b"", sk, j, None)
+      assert sig is not None
       assert shrincs_verify(msg, sig, b"", pk)
       if sf_structure == bytes([FXMSS_SHAPE_BALANCED, 4]) and j == 0:
         invalid_index_sig = sig[:17] + bytes([16]) + sig[18:]
@@ -278,6 +289,7 @@ if __name__ == "__main__":
 
     if i == len(structures) - 1:
       sig = shrincs_sign(msg, b"", sk, None, None)
+      assert sig is not None
       assert shrincs_verify(msg, sig, b"", pk)
       assert len(sig) == SHRINCS_SL_SIGNATURE_SIZE
       print(f'verified stateless signature')
