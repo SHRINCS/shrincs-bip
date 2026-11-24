@@ -9,7 +9,7 @@ Many of the principles and techniques we use here extend to other use-cases wher
 
 As a reminder, SHRINCS has a stateful signing component which uses FXMSS.
 Each SHRINCS key must track an accompanying *state counter* that is the number of signatures previously issued by that key.
-The counter is incremented for every signature issued and stored in some persistent, durable, rollback-resistant and tamper-proof storage medium.
+The counter or a record of exhaustion is stored in a persistent, durable, rollback-resistant and tamper-proof storage medium.
 The cryptographic interface of SHRINCS signer detailed in [the reference implementation](./impl/shrincs.py) does not provide any concrete state storage or management solution.
 This complexity is instead offloaded to the caller, which in the case of Bitcoin, would be wallet and SDK developers.
 
@@ -35,7 +35,7 @@ It is possible to combine multiple unsafe state storage media into a cohesive re
 
 ### Store-then-Sign
 
-Wallets must increment state counters and ensure the change is committed into durable storage *before* invoking SHRINCS' cryptographic signing code.
+If the next counter is within the wallet's supported counter range, the wallet must commit it to durable storage *before* invoking SHRINCS' stateful signing code. If incrementing the last usable counter would exceed that range, the wallet must commit a record of exhaustion before signing with that counter. Subsequent calls pass `None` to sign statelessly.
 
 If the signer creates the signature *before* incrementing the state counter, even if the signer doesn't release the signature outright the signature could still be leaked locally through side-channels or shared memory access.
 
@@ -69,7 +69,7 @@ A simple way to think of this is as a Merkle tree where the leaves are counters.
 ```
 
 When signing, the hardware wallet expects the host to provide the correct counter for the chosen signing key, along with an opening proof to show the state is valid and corresponds to the commitment stored on the hardware wallet.
-The hardware wallet must then increment the state and update its commitment in its non-volatile storage *before* creating the signature (see [Store-then-Sign](#store-then-sign)).
+The hardware wallet must then update its commitment in non-volatile storage with the next counter or the record of exhaustion *before* creating the signature (see [Store-then-Sign](#store-then-sign)).
 
 Let's say we sign with the third key and use state 5. The host provides the following values to the hardware wallet:
 
@@ -152,6 +152,7 @@ The best state storage medium is not one, but a combination of multiple storage 
 
 Replicating state in $n$ different storage sites will protect a wallet in the event that up to $n - 1$ state storage sites are compromised or rolled back.
 If the signer finds her state storage media disagree on the counter for a given key, the signer cannot tell which is faulty and so she must use the highest of the $n$ counters, or else use the stateless signing path to be very safe.
+An authenticated record of exhaustion takes precedence over every counter.
 At least one of these media should be durable and rollback-resistant (e.g. a TPM).
 
 [Offloading](#offloading) is an example of a simple double redundancy setup, where one medium (the hardware wallet) stores only a commitment while the host computer stores a redundant copy of the full state.
@@ -171,7 +172,7 @@ To mitigate these risks, the signer should use an authenticated encryption schem
 
 
 With a fully authenticated $n$-redundancy state storage setup, as long as at least one storage medium remains secure, even an adversary who can control $n-1$ state storage media cannot cause a SHRINCS signer to use the wrong state - neither too high nor too low.
-This is because the SHRINCS signer will always use the highest _authentic_ counter across all $n$ redundant media, and will not authorize a new counter unless the previous counter was also authentic.
+When there is no authenticated record of exhaustion, the signer uses the highest _authentic_ counter across all $n$ redundant media. The signer authorizes a new counter only if the previous counter was authentic.
 
 ### Fresh Addresses
 
