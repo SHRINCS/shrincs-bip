@@ -43,7 +43,7 @@ The minimum combined size of a SHRINCS public key and stateful signature is roug
 
 At a high level, a SHRINCS instance combines two hash-based signature schemes:
 
-1. A **stateful** component — a flexible XMSS (FXMSS) tree of WOTS+C[^sphincs+c] one-time signatures.
+1. A **stateful** component — a flexible XMSS (FXMSS) tree of one-time signatures.
 2. A **stateless** component — SLH-DSA[^slhdsa], the NIST-standardized variant of SPHINCS+[^sphincs+], with a non-standard parameter set.
 
 A signature from either component is sufficient to pass verification.
@@ -53,17 +53,22 @@ The **stateful** component, FXMSS, generates small signatures.
 It is a variant of XMSS[^xmss].
 In XMSS, the public key is the root of a Merkle tree whose leaves are one-time-signature public keys, and each signature is a single one-time signature together with the Merkle authentication path from its leaf to the root.
 The signer must maintain state so that no leaf is used to sign more than once.
+See [On Managing State](#on-managing-state) for the exact requirements a secure stateful signer implementation must satisfy.
 
 FXMSS is _flexible_ in that the signer chooses the shape of the tree.
-An _unbalanced_ tree minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures.
-A _balanced_ tree instead produces constant-size signatures.
+An _unbalanced_ tree (UXMSS) minimizes the size of the first few signatures but makes each subsequent signature larger, suiting signers that produce few signatures.
+A _balanced_ tree (BXMSS) instead produces larger constant-size signatures, but can accommodate a greater total budget.
 
 The **stateless** component generates larger signatures, but does not require the signer to manage state.
-An SLH-DSA parameter set determines its _signature budget_: the maximum number of signatures that may be produced under one public key while retaining the targeted security level.
+An SLH-DSA parameter set determines the _signature budget_ of the stateless component: the maximum number of signatures that may be produced under one public key while retaining the targeted security level.
 Standardized SLH-DSA supports a budget of 2<sup>64</sup> signatures; the non-standard parameter set used here reduces this to 2<sup>40</sup>, which in turn yields signatures smaller than SLH-DSA-SHA2-128s.
+See [this rationale section](#why-not-use-a-standardized-slh-dsa-parameter-set) for an explanation of why this is safe.
+
+The stateful and stateless components can be viewed as distinct sub-schemes, with their own security properties, signature budgets, and performance profiles.
+SHRINCS binds the two components together into a single composite signature scheme, such that a signature from either component suffices to satisfy a verifier.
 
 Each component produces a 16-byte root hash as part of its public key.
-These two roots, together with a 16-byte seed value, form the 48-byte SHRINCS public key:
+These two roots, together with a common 16-byte seed value, form the 48-byte SHRINCS public key:
 
 ```py
 PK = pk_seed || sl_root || sf_root
@@ -273,7 +278,7 @@ The stateful path instead uses WOTS+C,[^sphincs+c] a variant that produces small
 WOTS+C is not compatible with SLH-DSA, so it is used only on the stateful path, where compatibility is not required.
 
 An alternative choice would be to use WOTS-TW in the stateful path too, which would reduce code surface at the cost of signature size and verification time.
-With the parameter set specified here, this would result in stateful signatures up to approximately <!-- CONST START STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->8<!-- CONST END STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->% larger and require more hash computations for verification on average, although the exact number would depend on the signed message.
+With the parameter set specified here, this would result in stateful signatures up to approximately <!-- CONST START STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->8<!-- CONST END STATEFUL_WOTS_TW_SIZE_INCREASE_PERCENT -->% larger and require more hash computations for verification on average, although the exact number would depend on the signed message (which could be controlled by a malicious signer).
 The additional code complexity appears to be worth the efficiency gains in this case:
 The stateful component exists to reduce signature size and verification cost, and thus the WOTS+C optimization is warranted.
 
@@ -296,11 +301,6 @@ Implementations can prevent such reuse by enforcing the invariants specified in 
 Implementations that cannot safely manage state can still generate valid SHRINCS key pairs and sign using the stateless component.
 If a key pair's state counter is lost, corrupted, or otherwise uncertain, an implementation MUST refuse stateful signing.
 The stateless component allows the implementation to do so while always maintaining the ability to sign with that key pair.
-
-State reuse can be detected before publication by comparing a stateful signature with earlier signatures, providing defense in depth against failures in the signer's state management.
-Each stateful signature reveals the WOTS+C leaf it uses and can be rejected if the same leaf identifier has previously been observed under the same key pair.
-This defense assumes that an honest party performs the check and has access to the earlier signature.
-It therefore does not replace the signer's state-management requirements.
 
 ### Why does the stateful path use "flexible" XMSS?
 
@@ -338,7 +338,7 @@ This is because all WOTS+C keys in FXMSS must be arranged into a single merkle t
 Assuming an extremely well-optimized and highly-parallel GPU implementation of WOTS+C key-generation which can execute one SHA256 compression per nanosecond on average, the most WOTS+C keys this signer could generate per second would be about 2<sup>21</sup>, or about 2<sup>32</sup> WOTS+C keys per hour.
 Only after generating a suitable number of these WOTS+C keys can SHRINCS key-generation be completed.
 
-Let's be optimistic and assume this high-speed signer allocates one minute for key generation.
+Let's be optimistic and assume this high-speed signer allocates one minute for stateful key generation.
 She would produce about 115 million WOTS+C keys.
 She spends an extra tenth of a second computing the merkle root of all these WOTS+C leaves.
 Her FXMSS signature budget would be about 115,000,000.
@@ -444,7 +444,7 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 ### Key Generation Inputs
 
-Generating a SHRINCS key is straightforward and consists only of generating 48 random bytes.
+Generating a SHRINCS key consists only of generating 48 random bytes.
 This is then split into 3 x 16-byte seeds.
 
 - `sk_seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
@@ -1166,6 +1166,7 @@ Both WOTS-TW and WOTS+C are variants of the original _Winternitz one-time signat
 WOTS-TW is standardized in SLH-DSA[^slhdsa] and so we use it to preserve compatibility.
 WOTS+C produces shorter signatures with faster and constant-work verification, but is not compatible with SLH-DSA and so we only use it on the stateful path where compatibility is not a concern.
 WOTS+C can also technically fail when signing, a rare edge case which parameters must be carefully engineered to avoid.
+See [On Signing Fallibility](#on-signing-fallibility).
 
 
 #### Informal Description
