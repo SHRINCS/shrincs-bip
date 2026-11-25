@@ -1199,7 +1199,7 @@ If the signer revealed the correct nodes, then the verifier will have recomputed
 <sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
 
 As written, this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes.
-WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a two-byte counter which the signer must grind to find a set of indexes which sum to a specific constant.
+WOTS-TW uses additional checksum hash chains. WOTS+C instead prefixes the signature with a two-byte counter that maps the message to indexes that sum to a specific constant.
 
 
 ### WOTS Algorithm
@@ -1532,7 +1532,7 @@ The hash function ensures the surjective mapping of messages to index-sets is on
 If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
 Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`.
-This counter is appended to the WOTS+C signature.
+The signer writes this counter in the first two bytes of the WOTS+C signature, before the hash chain values.
 The verifier rejects counters which don't map the message to a constant-sum index-set.
 
 
