@@ -1460,8 +1460,8 @@ def slh_dsa_sign(
   uses `pk_seed` as the public seed, derives the randomizer from `sk_prf`/`opt_rand`, and binds the
   signature to `sl_root`. Verifiers must use `slh_dsa_verify` with the same `ctx`.
 
-  When provided, `opt_rand` supplies the additional randomness used to derive the randomizer. If omitted,
-  the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
+  When `opt_rand` is `None`, the algorithm uses `pk_seed` in its place, resulting in the
+  _deterministic variant_ of SLH-DSA.
 
   The resulting signature is composed of (1) a randomizer, (2) a FORS signature, and (3) a
   hypertree signature, all concatenated together.
@@ -1473,7 +1473,7 @@ def slh_dsa_sign(
     - `sk_prf`: a 16-byte secret.
     - `pk_seed`: a 16-byte public seed.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
-    - `opt_rand`: optional 16-byte additional randomness.
+    - `opt_rand`: 16 bytes of additional randomness, or `None` for deterministic signing.
   - Output:
     - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
@@ -1646,8 +1646,8 @@ def shrincs_sign(
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
       previously issued, or `None` to sign statelessly.
-    - `opt_rand`: optional 16-byte additional randomness for SLH-DSA (unused in the stateful path;
-      if omitted, the stateless path uses the deterministic variant of SLH-DSA).
+    - `opt_rand`: 16 bytes of additional randomness, or `None` for deterministic SLH-DSA signing.
+      The stateful path ignores this argument.
   - Output:
     - a `SHRINCS_SL_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
       `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes,
