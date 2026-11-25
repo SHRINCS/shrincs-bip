@@ -927,8 +927,8 @@ def H(pk_seed: Bytes[16], ADRS: Union[XmssTree, FxmssTree, ForsTree], M_2: Bytes
 ##### `H_grind(...)`
 
 <!-- DOC START H_grind -->
-The `H_grind` tweaked hash function. Maps a 32-byte `digest` and grinding `counter` into the
-constant-sum message space for WOTS+C.
+The `H_grind` tweaked hash function. Hashes a 32-byte `digest` and a grinding `counter` to produce
+a candidate for WOTS+C.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
@@ -1064,7 +1064,7 @@ This ensures domain separation between stateful and stateless paths.
 
 We remove the randomization input option for the stateful path compared to `PRF_msg_sl` as the same WOTS+C instance can sign a message only once, but in a misuse scenario where the same message is queried for a signature under the same state, producing exactly the same signature will not constitute a forgery.
 
-We only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
+The leaf position is encoded as one byte of height followed by eight bytes of index, matching the prefix of a [stateful address](#stateful-adrs-format).
 
 
 #### Message Digest Functions
@@ -1073,7 +1073,7 @@ Signing does not hash the user's message directly.
 Instead, the message is compressed together with a randomizer `R` into a short digest, which the one-time and few-time signatures then sign.
 SHRINCS uses a different digest function on each path.
 The stateless `H_msg_sl` is a keyed hash function, keyed by `R`.
-The stateful `H_msg_sf` additionally binds the position of the signing leaf, and so takes a tweak (the `ADRS`) in addition to `R`; it is therefore a tweakable hash function rather than a plain keyed hash.
+The stateful `H_msg_sf` is a tweakable hash function that takes the signing leaf's height and index as its tweak.
 
 ##### `H_msg_sl(...)`
 
@@ -1135,14 +1135,14 @@ def H_msg_sf(
 ```
 <!-- DOC END H_msg_sf -->
 
-Notice we only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
+The leaf position is encoded as one byte of height followed by eight bytes of index, matching the prefix of a [stateful address](#stateful-adrs-format).
 
 Unlike `H_msg_sl`, `H_msg_sf` is specific to the stateful component and therefore need not match the definition of `H_msg` in FIPS-205[^slhdsa].
 This accounts for two intentional differences from `H_msg_sl`:
 
 - There is no trailing 4-byte zero-padding on the outer hash.
   That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
-- The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs.
+- The WOTS+C leaf position is bound into both the inner and outer hash inputs.
   This domain-separates the stateful digest by the leaf used to sign it.
 
 

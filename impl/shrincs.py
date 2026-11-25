@@ -406,8 +406,8 @@ def H(pk_seed: Bytes[16], ADRS: Union[XmssTree, FxmssTree, ForsTree], M_2: Bytes
 
 def H_grind(pk_seed: Bytes[16], ADRS: WotsCGrind, digest: Bytes[32], counter: UInt16) -> Bytes[16]:
   """
-  The `H_grind` tweaked hash function. Maps a 32-byte `digest` and grinding `counter` into the
-  constant-sum message space for WOTS+C.
+  The `H_grind` tweaked hash function. Hashes a 32-byte `digest` and a grinding `counter` to produce
+  a candidate for WOTS+C.
 
   - Inputs:
     - `pk_seed`: a 16-byte public seed.
