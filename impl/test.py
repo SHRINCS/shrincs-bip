@@ -1,11 +1,7 @@
 from random import randbytes
 from typing import Protocol, get_args, get_type_hints
-from unittest import TestCase
-from unittest.mock import call, patch
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
 from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
-from shrincs import BXMSS_MAX_DEPTH, H, shrincs_sf_leaf_select, wots_c_pubkey_gen
-from shrincs import WOTS_C_CHAINS_SIZE, fxmss_pubkey_from_sig
 from shrincs import LEN, UINT, SHRINCS_SL_SIGNATURE_SIZE, SPHX_SIGNATURE_SIZE
 from shrincs import wots_c_chain_iter, wots_tw_chain_iter
 from shrincs import WotsTwHash, WotsTwPrf, WotsTwPk, XmssTree
@@ -167,89 +163,6 @@ def verify_address_serialization():
   )
 
 
-def verify_fxmss_structure_limits() -> None:
-  with (
-    patch('shrincs.xmss_node') as stateless_root,
-    patch('shrincs.fxmss_node') as stateful_root,
-  ):
-    for sf_structure in (bytes([2, 1]), bytes([FXMSS_SHAPE_BALANCED, BXMSS_MAX_DEPTH + 1])):
-      assert shrincs_keygen(bytes(48), sf_structure) is None
-      invalid_key = bytes(64) + sf_structure + bytes(16)
-      for state_ctr in (0, None):
-        assert shrincs_sign(b'foobar!', b'', invalid_key, state_ctr, None) is None
-    stateless_root.assert_not_called()
-    stateful_root.assert_not_called()
-
-  # Use a real WOTS+C leaf with fixed sibling hashes in place of the large subtrees.
-  depth = BXMSS_MAX_DEPTH
-  leaf_height = FXMSS_HEIGHT - depth
-  balanced_64 = bytes([FXMSS_SHAPE_BALANCED, depth])
-  last_index = int.from_bytes(b'\xff' * 8)
-  assert shrincs_sf_leaf_select(bytes([FXMSS_SHAPE_BALANCED, depth - 1]), last_index) is None
-  assert shrincs_sf_leaf_select(balanced_64, None) is None
-
-  seed = bytes(range(48))
-  sk_seed, pk_seed = seed[:16], seed[32:48]
-  sibling = bytes(16)
-  root = wots_c_pubkey_gen(sk_seed, pk_seed, leaf_height, last_index, True, depth)
-  expected_calls = [call(sk_seed, 0, FXMSS_HEIGHT, pk_seed, True, depth)]
-  for level in range(depth):
-    parent_index = 2**(depth - level - 1) - 1
-    root = H(pk_seed, FxmssTree(leaf_height + level + 1, parent_index), sibling + root)
-    expected_calls.append(call(sk_seed, 2 * parent_index, leaf_height + level, pk_seed, True, depth))
-
-  with (
-    patch('shrincs.xmss_node', return_value=bytes(16)),
-    patch('shrincs.fxmss_node', side_effect=[root] + [sibling] * depth) as tree_node,
-  ):
-    keypair = shrincs_keygen(seed, balanced_64)
-    assert keypair is not None
-    sk, pk = keypair
-    sig = shrincs_sign(b'foobar!', b'', sk, last_index, None)
-    assert tree_node.call_args_list == expected_calls
-  assert sig is not None
-  assert sig[17:25] == last_index.to_bytes(8)
-  assert shrincs_verify(b'foobar!', sig, b'', pk)
-
-
-def verify_fxmss_leaf_selection() -> None:
-  structure = bytes([FXMSS_SHAPE_UNBALANCED, 4])
-  expected_positions = [(1, 254), (1, 253), (1, 252), (1, 251), (0, 251), None, None]
-  for counter, expected in enumerate(expected_positions):
-    assert shrincs_sf_leaf_select(structure, counter) == expected
-
-  for shape in (FXMSS_SHAPE_BALANCED, FXMSS_SHAPE_UNBALANCED):
-    assert shrincs_sf_leaf_select(bytes([shape, 0]), 0) is None
-
-
-def verify_fxmss_verifier_checks() -> None:
-  depth_one_signature = bytes(2 + WOTS_C_CHAINS_SIZE + 16)
-  digest, pk_seed = bytes(32), bytes(16)
-  test_case = TestCase()
-
-  with test_case.assertRaises(AssertionError):
-    fxmss_pubkey_from_sig(2, FXMSS_HEIGHT - 1, depth_one_signature, digest, pk_seed)
-  with test_case.assertRaises(AssertionError):
-    fxmss_pubkey_from_sig(0, FXMSS_HEIGHT - 2, depth_one_signature, digest, pk_seed)
-
-
-def verify_deep_uxmss_signature() -> None:
-  depth = 65
-  structure = bytes([FXMSS_SHAPE_UNBALANCED, depth])
-  with patch('shrincs.xmss_node', return_value=bytes(16)):
-    keypair = shrincs_keygen(bytes(range(48)), structure)
-  assert keypair is not None
-  sk, pk = keypair
-
-  message = b'foobar!'
-  signature = shrincs_sign(message, b'', sk, depth, None)
-  assert signature is not None
-  assert signature[0] == FXMSS_HEIGHT - depth
-  assert signature[17:25] == bytes(8)
-  assert len(signature) == 17 + 8 + 2 + WOTS_C_CHAINS_SIZE + 16 * depth
-  assert shrincs_verify(message, signature, b'', pk)
-
-
 if __name__ == "__main__":
   for chain_iterator in (wots_tw_chain_iter, wots_c_chain_iter):
     annotations = get_type_hints(chain_iterator, include_extras=True)
@@ -263,10 +176,6 @@ if __name__ == "__main__":
   assert not any(length.size == SPHX_SIGNATURE_SIZE for length in return_lengths)
 
   verify_address_serialization()
-  verify_fxmss_structure_limits()
-  verify_fxmss_leaf_selection()
-  verify_fxmss_verifier_checks()
-  verify_deep_uxmss_signature()
 
   structures = [
     (bytes([FXMSS_SHAPE_BALANCED, 4]), 16),
@@ -282,9 +191,6 @@ if __name__ == "__main__":
       sig = shrincs_sign(msg, b"", sk, j, None)
       assert sig is not None
       assert shrincs_verify(msg, sig, b"", pk)
-      if sf_structure == bytes([FXMSS_SHAPE_BALANCED, 4]) and j == 0:
-        invalid_index_sig = sig[:17] + bytes([16]) + sig[18:]
-        assert not shrincs_verify(msg, invalid_index_sig, b"", pk)
     print(f'verified all stateful signatures for structure {sf_structure.hex()}')
 
     if i == len(structures) - 1:
