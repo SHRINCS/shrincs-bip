@@ -2183,7 +2183,7 @@ The FXMSS internal node computation function. Recursively computes the FXMSS nod
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
-  - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
+  - `node_height`: an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the node.
   - `pk_seed`: a 16-byte public seed.
   - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
     unbalanced (UXMSS) tree.
@@ -2236,7 +2236,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
   - `message_digest`: a 32-byte message digest.
   - `sk_seed`: a 16-byte secret.
   - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
-  - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
+  - `leaf_height`: an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the signing leaf.
   - `pk_seed`: a 16-byte public seed.
   - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
     unbalanced (UXMSS) tree.
@@ -2879,7 +2879,7 @@ next WOTS+C leaf for the given `sf_structure` and `state_ctr`.
     previously issued, or `None`.
 - Outputs:
   - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
-  - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
+  - an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the next WOTS+C leaf.
 
 Returns `None` if `state_ctr` is `None`, or if it is at least the number of WOTS+C leaves in the
 FXMSS tree (as defined by its structure). A depth-zero tree has no usable leaf, so a depth-zero
