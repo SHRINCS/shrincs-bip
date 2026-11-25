@@ -9,7 +9,7 @@ all: test mypy template vectors
 fuzz:
 	./run_tests.sh fuzz
 
-mypy:
+lint:
 	$(MYPY) $(MYPY_TARGETS)
 
 template:
