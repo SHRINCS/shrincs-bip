@@ -143,7 +143,7 @@ def generate_signatures_valid_test_vectors():
         inp.state_ctr,
         inp.opt_rand
       )
-      pubkey = shrincs.shrincs_extract_pubkey(inp.seckey)
+      pubkey = inp.seckey[32:64] + inp.seckey[66:82]
 
       assert shrincs.shrincs_verify(inp.message, signature, inp.ctx, pubkey)
 
