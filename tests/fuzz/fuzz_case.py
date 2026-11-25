@@ -53,6 +53,6 @@ def fuzz(cases: int) -> Callable:
       for case in range(cases * FUZZ_ITERS):
         case_seed = derive_seed(test_seed, f"case {case}")
         with self.subTest(case=case, case_seed=hex(case_seed)):
-          body(self, random.Random(case_seed), case)
+          body(self, random.Random(case_seed), case % cases)
     return wrapper
   return decorator
