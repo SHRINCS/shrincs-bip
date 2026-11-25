@@ -19,7 +19,7 @@ This document specifies SHRINCS (_Shrunken SPHINCS_), a hash-based post-quantum 
 
 SHRINCS combines stateless hash-based signatures with compact stateful signatures[^hbsb].
 It is instantiated with SHA256, targeting NIST security category 1: 128 bits of classical and 64 bits of quantum security.
-A security proof is TODO.
+A [work-in-progress security proof](https://github.com/SHRINCS/Security-Analysis) is available.
 
 This specification describes the key generation, signing, and verification algorithms of SHRINCS.
 
