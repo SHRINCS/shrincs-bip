@@ -1639,7 +1639,7 @@ def shrincs_sf_leaf_select(
       return (0, FXMSS_HEIGHT - tree_depth)
     elif state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
-  else:
+  elif tree_shape == FXMSS_SHAPE_BALANCED:
     # At the index width, every counter selects a leaf and the leaf count would overflow.
     if tree_depth >= FXMSS_INDEX_BITS or state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
@@ -1733,6 +1733,7 @@ def shrincs_sign(
     return None # practically impossible
 
   leaf_depth = FXMSS_HEIGHT - leaf_height
+  # Encode the leaf index using the byte width of 2**min(leaf_depth, FXMSS_INDEX_BITS) - 1.
   leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8))
 
   return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature

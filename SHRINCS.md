@@ -330,7 +330,9 @@ Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox 
 
 ### Does FXMSS have a big enough signature budget?
 
-FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->. A BXMSS tree of depth <!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --> contains 2<sup><!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --></sup> WOTS+C leaves.
+FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->.
+FXMSS node indices are at most <!-- CONST START FXMSS_INDEX_BITS -->64<!-- CONST END FXMSS_INDEX_BITS --> bits wide, so BXMSS trees are limited to depth <!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH -->.
+A BXMSS tree at that depth contains 2<sup><!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --></sup> WOTS+C leaves.
 However, this is impractical because FXMSS is a single-tree design XMSS-variant.
 A single-tree design puts a fundamental limit on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
 This is because all WOTS+C keys in FXMSS must be arranged into a single merkle tree, whose root must be known before the SHRINCS public key can be fully computed.
@@ -386,7 +388,7 @@ Here follow the parameters of the stateful and stateless components.
 | `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
 | `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The maximum FXMSS leaf depth, also used as the fixed root height. |
 | `BXMSS_MAX_DEPTH` | <!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --> | The maximum FXMSS leaf depth for balanced trees. |
-| `FXMSS_INDEX_BITS` | <!-- CONST START FXMSS_INDEX_BITS -->64<!-- CONST END FXMSS_INDEX_BITS --> | The fixed width in bits of the eight-byte FXMSS node index. |
+| `FXMSS_INDEX_BITS` | <!-- CONST START FXMSS_INDEX_BITS -->64<!-- CONST END FXMSS_INDEX_BITS --> | The maximum width in bits of the FXMSS node index. |
 
 #### Stateless Parameters
 
@@ -2079,7 +2081,8 @@ The two shapes are identified by their respective constants.
 | ... | 2...255 | Reserved. |
 
 We leave open the possibility to define new shape flags for new XMSS tree structures, but we encourage signers to utilize the recommended shapes wherever possible, for the sake of security and anonymity.
-The reference signer rejects keys with reserved shape flags on both signing paths. Verification is agnostic to the tree shape.
+The reference signing code rejects keys with reserved shape flags on both signing paths.
+Verification is agnostic to the tree shape.
 
 The following sections describe the usage properties of the two shapes, and we let the variable `depth` represent the depth byte as a parameter of the shape.
 
@@ -2924,7 +2927,7 @@ def shrincs_sf_leaf_select(
       return (0, FXMSS_HEIGHT - tree_depth)
     elif state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
-  else:
+  elif tree_shape == FXMSS_SHAPE_BALANCED:
     # At the index width, every counter selects a leaf and the leaf count would overflow.
     if tree_depth >= FXMSS_INDEX_BITS or state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
@@ -3024,6 +3027,7 @@ def shrincs_sign(
     return None # practically impossible
 
   leaf_depth = FXMSS_HEIGHT - leaf_height
+  # Encode the leaf index using the byte width of 2**min(leaf_depth, FXMSS_INDEX_BITS) - 1.
   leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8))
 
   return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
