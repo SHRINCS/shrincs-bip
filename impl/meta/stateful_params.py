@@ -118,7 +118,7 @@ class StatefulParameterSet:
 
   def bxmss_sign_compressions(self, depth: int) -> int:
     """
-    SHA256 compressions to sign with BXMSS (balanced stateful tree) at `depth`,
+    Average SHA256 compressions to sign with BXMSS (balanced stateful tree) at `depth`,
     assuming a 32-byte message.
     """
     # 2 bytes context string, 16 byte complementary root, 32 byte actual message.
