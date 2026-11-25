@@ -15,8 +15,8 @@ STATELESS = StatelessParameterSet(
   a     = SPHX_FORS_HEIGHT,
   k     = SPHX_FORS_COUNT,
   log_w = WOTS_TW_CHAIN_BITS,
-  qs    = 2**40, # signature budget
-  tsec  = 128,   # target security level
+  qs    = STATELESS_SIGNATURE_BUDGET,
+  tsec  = SHRINCS_SECURITY_BITS,
 )
 
 # The stateful (WOTS+C + FXMSS) parameter set, used to populate the stateful
