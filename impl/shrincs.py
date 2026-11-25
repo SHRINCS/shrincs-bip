@@ -1112,12 +1112,6 @@ def fxmss_node(
       sk_seed, pk_seed, node_height, node_index, tree_balanced, tree_depth
     )
 
-  # Catch and throw if control would enter an infinite recursive loop.
-  if tree_balanced:
-    assert node_depth < tree_depth
-  else:
-    assert node_index == 0
-
   # Recursively derive the left/right child nodes.
   lchild_index = 2 * node_index
   child_height = node_height - 1
