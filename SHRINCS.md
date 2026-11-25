@@ -444,14 +444,14 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 ### Key Generation Inputs
 
-Generating a SHRINCS key consists only of generating 48 random bytes.
-This is then split into 3 x 16-byte seeds.
+Generating a SHRINCS key requires a 48-byte random seed and a valid two-byte [FXMSS tree structure](#fxmss).
+The structure encodes a [shape flag](#tree-shapes) followed by a depth byte subject to the [FXMSS addressing limits](#caveats).
+The random seed is split into three 16-byte seeds.
 
 - `sk_seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
 - `sk_prf` is a secret value used to derive per-message randomness.
 - `pk_seed` is the public seed included in the public key.
 
-Note this is the bare minimum needed to generate a full SHRINCS public key.
 More performant (but larger) secret key representations are possible.
 
 
