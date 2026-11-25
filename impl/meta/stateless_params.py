@@ -107,6 +107,12 @@ class StatelessParameterSet:
   qs: int    # Signature budget
   tsec: int  # Security level
 
+  def __post_init__(self):
+    if self.h <= 0 or self.d <= 0:
+      raise ValueError("h and d must be positive")
+    if self.h % self.d != 0:
+      raise ValueError("d must divide h")
+
   def sigma(self):
     return compute_sigma(2**self.h, self.a, self.k, self.qs, self.tsec)
 
