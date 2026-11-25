@@ -1,4 +1,4 @@
-from decimal import Decimal, getcontext
+from decimal import Context, Decimal, localcontext
 from math import log10, comb
 from functools import lru_cache
 from collections.abc import Hashable
@@ -64,7 +64,7 @@ def wots_tw_checksum_index_avg(w: int, l1: int, l2: int) -> float:
     checksum_index_acc += sum(encode_checksum(checksum, w, l2)) * weight
   return checksum_index_acc / (w**l1) / l2
 
-getcontext().prec = int(log10(2**768)) + 1
+sigma_context = Context(prec=int(log10(2**768)) + 1)
 
 # Pr[attacker H_msg call is covered by `sigs` FORS signatures among `leaves` keys]
 #   = sum(
@@ -78,22 +78,23 @@ getcontext().prec = int(log10(2**768)) + 1
 #
 # TODO: link to paper once published
 #
-# Cached: sigma depends only on (leaves, a, k, sigs), and needs the full
-# precision set above, so a search that sweeps d and log_w over the same
-# (h, a, k) would otherwise recompute the same expensive value per candidate.
+# Cached: sigma depends only on (leaves, a, k, sigs), so a search that sweeps d
+# and log_w over the same (h, a, k) would otherwise recompute the same expensive
+# value per candidate.
 @lru_cache(maxsize=1 << 16)
 def compute_sigma(leaves, a, k, sigs, tsec):
-  q = Decimal(1) / Decimal(2)**a
-  one = Decimal(1)
-  sigma = Decimal(0)
-  for j in range(k + 1):
-    t = (one - q)**j
-    pgf = (one - (one - t) / Decimal(leaves))**sigs
-    sigma += comb(k, j) * ((-1)**j) * pgf
+  with localcontext(sigma_context):
+    q = Decimal(1) / Decimal(2)**a
+    one = Decimal(1)
+    sigma = Decimal(0)
+    for j in range(k + 1):
+      t = (one - q)**j
+      pgf = (one - (one - t) / Decimal(leaves))**sigs
+      sigma += comb(k, j) * ((-1)**j) * pgf
 
-  # Below the precision floor this sum leaves cancellation residue,
-  # which can be negative.
-  return max(sigma, Decimal(0))
+    # Below the precision floor this sum leaves cancellation residue,
+    # which can be negative.
+    return max(sigma, Decimal(0))
 
 
 @dataclass
