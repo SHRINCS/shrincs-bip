@@ -3012,8 +3012,7 @@ def shrincs_sign(
 
 <!-- DOC START shrincs_verify -->
 The SHRINCS verification function. Returns true iff `signature` is a valid stateful or stateless
-SHRINCS signature on `message` under `shrincs_pubkey`. Signatures must be produced via
-`shrincs_sign` with the same `ctx`.
+SHRINCS signature on `message` under `shrincs_pubkey` and the same `ctx` used for signing.
 
 The first byte of `signature` is called the _indicator byte_ and it tells the verifier which signing
 component to use: Byte `b == FXMSS_HEIGHT` indicates a stateless signature, any other byte `b < FXMSS_HEIGHT`
