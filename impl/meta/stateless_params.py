@@ -97,7 +97,7 @@ def compute_sigma(leaves, a, k, sigs, tsec):
     return max(sigma, Decimal(0))
 
 
-@dataclass
+@dataclass(frozen=True)
 class StatelessParameterSet:
   h: int     # SPHX_XMSS_HEIGHT * SPHX_LAYER_COUNT
   d: int     # SPHX_LAYER_COUNT

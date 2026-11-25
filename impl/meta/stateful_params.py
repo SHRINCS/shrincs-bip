@@ -30,7 +30,7 @@ def target_sum_fail_probability_log2(n: int, s: int, p: int, tries: int) -> floa
   return log2(r) * tries
 
 
-@dataclass
+@dataclass(frozen=True)
 class StatefulParameterSet:
   log_w: int  # WOTS_C_CHAIN_BITS
 
