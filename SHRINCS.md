@@ -94,7 +94,7 @@ The exact correspondence between parameters common between this document and FIP
 ## Performance
 
 SHRINCS performance during key generation, signing, and verification is dominated by hash function calls.
-The tables below therefore report SHA256 compression counts computed by [`impl/meta.py`](./impl/meta.py).
+The tables below therefore report SHA256 compression counts computed by [`impl/meta`](./impl/meta).
 The signing and verification counts assume a 32-byte caller-supplied message and an empty context.
 Actual runtimes depend on the implementation, including its use of SHA256 hardware acceleration.[^sha_ni_bench]
 
