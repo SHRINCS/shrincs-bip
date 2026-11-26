@@ -380,13 +380,12 @@ Here follow the parameters of the stateful and stateless components.
 
 #### Stateful Parameters
 
-<!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
-
 | Parameter | Value | Description |
 |:-:|:-:|:--|
 | `WOTS_C_CHAIN_BITS` | <!-- CONST START WOTS_C_CHAIN_BITS -->4<!-- CONST END WOTS_C_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
 | `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
 | `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+| `BXMSS_MAX_DEPTH` | <!-- CONST START BXMSS_MAX_DEPTH -->63<!-- CONST END BXMSS_MAX_DEPTH --> | The maximum depth byte allowed for BXMSS. |
 
 #### Stateless Parameters
 
@@ -2148,7 +2147,7 @@ The `depth` of the BXMSS tree at key generation time has a significant impact on
 The exact size of the constant-size signatures is also dictated by `depth`: each step further from the root node we take, we must add 16 bytes to the FXMSS signature.
 Furthermore, each step doubles the number of leaf nodes, and so doubles the signature budget, but also doubles the amount of computational work needed for BXMSS key generation and/or signing.
 
-Signer implementations may specify any height for BXMSS trees depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
+Signer implementations may specify any height of at most <!-- CONST START BXMSS_MAX_DEPTH -->63<!-- CONST END BXMSS_MAX_DEPTH --> for BXMSS trees[^bxmss_max_depth] depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
 
 
 ##### Custom Shapes
@@ -2832,7 +2831,7 @@ and the stateful tree `sf_structure`.
   - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
   - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
     must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
-    depths for each shape in [Tree Shapes](#tree-shapes).
+    and maximum depths for each shape in [Tree Shapes](#tree-shapes).
 - Outputs:
   - an 82-byte SHRINCS secret key.
   - a 48-byte SHRINCS public key.
@@ -2848,7 +2847,9 @@ This function is used only during key generation.
 
 ```py
 def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
-  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or (
+    sf_structure[0] == FXMSS_SHAPE_BALANCED and sf_structure[1] <= BXMSS_MAX_DEPTH
+  )
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
@@ -2925,6 +2926,8 @@ def shrincs_sf_leaf_select(
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
 
   elif tree_shape == FXMSS_SHAPE_BALANCED:
+    if state_ctr >= 2**BXMSS_MAX_DEPTH:
+      return None
     if state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
@@ -3200,3 +3203,4 @@ This document and the SHRINCS reference code are licensed under either the CC0-1
 [^fxmss_node_index]: The key requirement for a valid FXMSS tree shape is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable. This provides plenty of space while maintaining a fixed max-length encoding for node indexes.
 [^last_two_sigs]: The last two UXMSS leaves are both at equal depth, and so their signatures both have the same length.
 [^bip340_sha256_bench]: https://github.com/mjthatch/bip340-vs-sha256
+[^bxmss_max_depth]: BXMSS depth is limited to <!-- CONST START BXMSS_MAX_DEPTH -->63<!-- CONST END BXMSS_MAX_DEPTH --> to prevent leaf indexes and state counters from overflowing 64 bit integers.
