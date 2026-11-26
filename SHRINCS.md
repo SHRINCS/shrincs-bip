@@ -71,7 +71,7 @@ Each component produces a 16-byte root hash as part of its public key.
 These two roots, together with a common 16-byte seed value, form the 48-byte SHRINCS public key:
 
 ```py
-PK = pk_seed || sl_root || sf_root
+PK = pk_seed + sl_root + sf_root
 ```
 
 The SHRINCS verification algorithm consists mostly of evaluating a series of hash functions on elements of the signature to recompute a certain hash.
@@ -493,28 +493,36 @@ Writing one into a narrower field is an error rather than a value reduced to fit
 
 ### Utilities
 
-We make use of the following utility helper functions in specifying SHRINCS.
+The specification uses the following operations and helper functions.
 
-- `a // b`: divides the integer `a` by the integer `b`, rounding the quotient down.
-- `ceildiv(a, b)`: divides the integer `a` by the integer `b`, rounding the quotient up.
+- `a**n` is the product of `n` copies of the integer `a`, for a non-negative integer `n`. `a**0` equals `1`.
+- `a // b` divides the integer `a` by the positive integer `b`, rounding the quotient down.
+- `ceildiv(a, b)` divides the integer `a` by the positive integer `b`, rounding the quotient up.
+- `a % b` is the remainder `a - b * (a // b)` for a positive integer `b`.
+- `x.bit_length()` is the least non-negative integer `k` such that `x < 2**k`, for a non-negative integer `x`.
 - `sum(x)`: sums a sequence of numbers `x`.
 - `replicate(b, n)`: returns a bytestring of length `n` containing only the repeated byte `b`.
 - `zeros(n)`: returns a bytestring of length `n` containing only repeated zero bytes.
 - `range(start, end)`: returns the ascending sequence of all integers `i` such that `start <= i < end`.
+  `range(end)` means `range(0, end)`.
+- `+` also denotes concatenation for byte strings and lists.
+- `xs * n` also repeats the list `xs` `n` times, for `n >= 0`.
 - `concat(array)`: concatenates an array of byte strings.
+
+For a local variable `x` holding an integer or a byte string, `x op= y` assigns the result of `x op y` to `x`.
 
 Every algorithm and every derived constant in this specification is computed with exact integer arithmetic.
 Division in them appears only in the two integer forms above, so the specification never leaves a rounding decision to the implementation.
 Note that `ceildiv(a, b)` must round up for every `a` it is given: writing it as a division that rounds toward zero, which is what the division operator does in most languages, would silently round down instead.
 
 Every quantity in this specification denotes a mathematical integer, and every operation on one is exact.
-Nothing overflows, underflows, wraps, is reduced modulo a word size, saturates, or is truncated; a difference is never clamped at zero, and the only rounding is that of the two division forms above.
+Arithmetic never wraps at a machine word boundary, saturates, or implicitly truncates its result.
+Subtraction computes the exact difference, and division rounds as defined above.
 If an operation would produce a result outside the range specified for that value, the operation violates the specification.
 It does not produce a different value within the range.
 
 The [value types](#value-types) above are therefore refinements, not representations.
 `UInt8` through `UInt64` assert that a value lies in `[0, 2**8)` through `[0, 2**64)`.
-They do not make it a machine word, and no arithmetic is ever performed modulo `2**bits`.
 
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 

@@ -129,7 +129,7 @@ As an example, if we have a packing rate of $p = 32$ counters per leaf, a wallet
 #### Sparse State Trees
 
 Note that in such a use-case, many SHRINCS keys may have the same state counter, namely zero, so the merkle tree is *sparse*: Many of its leaves are a hash of the same data, e.g. `Z[0] = H(0x000000...)`
-This admits an easy host-side optimization because we can recursively compute `Z[i] = H(Z[i - 1] || Z[i - 1])`, where each `Z[i]` is the root of a height-`i` merkle tree whose leaves are all zero state counters.
+This admits an easy host-side optimization because we can recursively compute `Z[i] = H(Z[i - 1] + Z[i - 1])`, where `+` concatenates the two hashes and each `Z[i]` is the root of a height-`i` merkle tree whose leaves are all zero state counters.
 We can then refer to these roots by referencing an index `i` rather than sending the full hash over the wire between host and device.
 
 Consider a state counter merkle tree like this:
@@ -143,7 +143,7 @@ Consider a state counter merkle tree like this:
 [3, 1, 6, ...]     [0, 0, 0, ...]       [0, 0, 0, ...]     [0, 0, 0, ...]
 ```
 
-Instead of sending `Z[0] = H([0, 0, 0, ...])` and `Z[1] = H(Z[0] || Z[0])` in full over the wire, the host can simply send pointers `0` and `1`.
+Instead of sending `Z[0] = H([0, 0, 0, ...])` and `Z[1] = H(Z[0] + Z[0])` in full over the wire, the host can simply send pointers `0` and `1`.
 The hardware wallet can either recompute `Z[0]` and `Z[1]` on the fly with two hash invocations, or pull them from a cache.
 
 ### Redundancy
