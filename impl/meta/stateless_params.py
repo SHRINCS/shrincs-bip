@@ -1,0 +1,291 @@
+from decimal import Context, Decimal, localcontext
+from math import log10, comb
+from functools import lru_cache
+from collections.abc import Hashable
+from dataclasses import dataclass
+
+from ..shrincs import ceildiv, base_2b, SHRINCS_SECURITY_BITS
+from .common import num_messages_sum, sha256_compressions
+
+
+@lru_cache(maxsize=None)
+def wots_tw_chain_counts(log_w: int) -> tuple[int, int, int]:
+  """Returns (count1, count2, checksum_max) for a WOTS-TW message of 128 bits."""
+  count1 = ceildiv(128, log_w)
+  checksum_max = count1 * (2**log_w - 1)
+  count2 = ceildiv(checksum_max.bit_length(), log_w)
+  return count1, count2, checksum_max
+
+def wots_tw_message_to_indexes(message: bytes, log_w: int) -> list[int]:
+  """Converts a 16-byte message into a checksummed array of WOTS-TW chain indexes."""
+  count1, count2, checksum_max = wots_tw_chain_counts(log_w)
+  msg_indexes = base_2b(message, log_w, count1)
+  checksum = checksum_max - sum(msg_indexes)
+  checksum_indexes = [0] * count2
+  for i in range(count2):
+    checksum_indexes[count2 - 1 - i] = (checksum // 2**(log_w * i)) % 2**log_w
+  return msg_indexes + checksum_indexes
+
+# Cached: the metric formulas ask for the two extreme messages (all-0xFF and
+# all-0x00) once per evaluated parameter set, and only the chain width changes
+# between sets.
+@lru_cache(maxsize=256)
+def wots_tw_chain_costs(message: bytes, log_w: int) -> int:
+  """The WOTS-TW chain iterations needed to verify a signature over `message`."""
+  return sum((2**log_w - i - 1 for i in wots_tw_message_to_indexes(message, log_w)))
+
+def encode_checksum(checksum: int, w: int, count2: int) -> list[int]:
+  """Encodes a checksum into `count2` WOTS-TW chain indexes, each in [0, w)."""
+  checksum_indexes = [0] * count2
+  for i in range(count2):
+    checksum_indexes[count2 - 1 - i] = checksum % w
+    checksum //= w
+  return checksum_indexes
+
+@lru_cache(maxsize=None)
+def wots_tw_checksum_index_avg(log_w: int, l1: int, l2: int) -> float:
+  """
+  Average WOTS-TW checksum index for uniformly random 128-bit messages.
+  Cached, but expensive to compute for `log_w > 10`.
+  """
+  w = 2**log_w
+  trail_bits = SHRINCS_SECURITY_BITS - (l1 - 1) * log_w
+  pad_bits = log_w - trail_bits
+
+  # Count the number of ways the first `l1 - 1` indices can sum to `s`.
+  base_counts = [
+    num_messages_sum(w, l1 - 1, s)
+    for s in range((l1 - 1) * (w - 1) + 1)
+  ]
+
+  # For each possible trailing index `v` in `[0, 1<<pad_bits, 2<<pad_bits, ...]`,
+  # and each possible sum `s`, tally the number of possible ways to arrive at the
+  # sum `s + v`.
+  msg_sum_counts = [0] * (l1 * (w - 1) + 1)
+  for i in range(2**trail_bits):
+    v = i << pad_bits
+    for s, count in enumerate(base_counts):
+      msg_sum_counts[s + v] += count
+
+  # The result should sum to the total number of possible messages, 2**128
+  total = 2 ** SHRINCS_SECURITY_BITS
+  assert sum(msg_sum_counts) == total
+
+  checksum_index_acc = 0
+  for msg_sum, weight in enumerate(msg_sum_counts):
+    checksum = l1 * (w - 1) - msg_sum
+    checksum_index_acc += sum(encode_checksum(checksum, w, l2)) * weight
+  return checksum_index_acc / total / l2
+
+sigma_context = Context(prec=int(log10(2**768)) + 1)
+
+# Pr[attacker H_msg call is covered by `sigs` FORS signatures among `leaves` keys]
+#   = sum(
+#       Pr[i signatures hit a leaf] * Pr[leaf is selected for exactly i signatures]
+#       for i in range(1, sigs + 1)
+#     )
+#
+# The above formula is defined in the SPHINCS+ paper, section 5. This
+# formula below is a more efficient rewrite that computes the exact
+# same quantity without summing such an enormous number of terms.
+#
+# TODO: link to paper once published
+#
+# Cached: sigma depends only on (leaves, a, k, sigs), so a search that sweeps d
+# and log_w over the same (h, a, k) would otherwise recompute the same expensive
+# value per candidate.
+@lru_cache(maxsize=1 << 16)
+def compute_sigma(leaves, a, k, sigs, tsec):
+  with localcontext(sigma_context):
+    q = Decimal(1) / Decimal(2)**a
+    one = Decimal(1)
+    sigma = Decimal(0)
+    for j in range(k + 1):
+      t = (one - q)**j
+      pgf = (one - (one - t) / Decimal(leaves))**sigs
+      sigma += comb(k, j) * ((-1)**j) * pgf
+
+    # Below the precision floor this sum leaves cancellation residue,
+    # which can be negative.
+    return max(sigma, Decimal(0))
+
+
+@dataclass(frozen=True)
+class StatelessParameterSet:
+  h: int     # SPHX_XMSS_HEIGHT * SPHX_LAYER_COUNT
+  d: int     # SPHX_LAYER_COUNT
+  a: int     # SPHX_FORS_HEIGHT
+  k: int     # SPHX_FORS_COUNT
+  log_w: int # WOTS_TW_CHAIN_BITS
+  qs: int    # Signature budget
+  tsec: int  # Security level
+
+  def __post_init__(self):
+    if self.h <= 0 or self.d <= 0:
+      raise ValueError("h and d must be positive")
+    if self.h % self.d != 0:
+      raise ValueError("d must divide h")
+
+  def sigma(self):
+    return compute_sigma(2**self.h, self.a, self.k, self.qs, self.tsec)
+
+  def __str__(self):
+    return (f"h={self.h} d={self.d} a={self.a} k={self.k} w={2**self.log_w}")
+
+  def trailing_index_max(self) -> int:
+    """
+    Maximum of the last WOTS-TW index digit. May be less than `w-1` for
+    `log_w` parameters which do not divide `SHRINCS_SECURITY_BITS`.
+    """
+    chains, _, _ = wots_tw_chain_counts(self.log_w)
+    pad_bits = chains * self.log_w - SHRINCS_SECURITY_BITS
+    return 2**self.log_w - 2**pad_bits
+
+  def _metrics(self):
+    """
+    Computes and caches every stateless performance metric for this parameter set.
+    """
+    cache = self.__dict__.get("_metrics_cache")
+    if cache is not None:
+      return cache
+
+    log_w = self.log_w
+    w = 2**log_w # WOTS chain length
+    count1, count2, _ = wots_tw_chain_counts(log_w)
+    count = count1 + count2
+    chains_size = count * 16
+    xmss_height = self.h // self.d
+
+    # Average WOTS-TW chain indexes over a uniform distribution of messages.
+    avg_msg_idx = ((count1 - 1) * (w - 1) + self.trailing_index_max()) / 2 / count1
+    avg_check_idx = wots_tw_checksum_index_avg(self.log_w, count1, count2)
+
+    # Combining WOTS-TW chain tips into a T_sl root.
+    combine = sha256_compressions(22 + chains_size)
+
+    # WOTS-TW keygen: every chain iterated to the top, plus combining.
+    wots_keygen = count * w + combine
+
+    # WOTS-TW signing, averaged over messages.
+    wots_sign_avg = count + count1 * avg_msg_idx + count2 * avg_check_idx
+
+    # XMSS signing/verification, averaged over messages.
+    xmss_sign_avg = ((2**xmss_height - 1) * wots_keygen
+                     + wots_sign_avg
+                     + 2**xmss_height - 1 - xmss_height)
+    xmss_verify_avg = (count1 * (w - 1 - avg_msg_idx)
+                       + count2 * (w - 1 - avg_check_idx)
+                       + combine + xmss_height)
+
+    # XMSS verification in the best (all-0xFF message) and worst (all-0x00) cases.
+    xmss_verify_min = (wots_tw_chain_costs(bytes([0xFF]) * 16, log_w)
+                       + combine + xmss_height)
+    xmss_verify_max = (wots_tw_chain_costs(bytes(16), log_w)
+                       + combine + xmss_height)
+
+    # FORS cost: one F per leaf used, one H per sibling, plus combining roots.
+    fors_verify = self.k + self.k * self.a + sha256_compressions(22 + self.k * 16)
+    # Generating one FORS tree: 2**(a+1) - 1 F/H calls over its leaves and nodes.
+    fors_tree_gen = 3 * 2**self.a - 1
+
+    # Signature sizes.
+    xmss_sig_size = chains_size + 16 * xmss_height
+    hypertree_sig_size = self.d * xmss_sig_size
+    fors_sig_size = 16 * self.k * (self.a + 1)
+    sphx_sig_size = 16 + fors_sig_size + hypertree_sig_size
+    sl_sig_size = 1 + sphx_sig_size # indicator byte
+
+    # 2 bytes SLH-DSA context, 16 byte complementary root, 32 byte actual message.
+    ctx_msg_size = 2 + 16 + 32
+
+    sign_avg = round(
+      + sha256_compressions(16 + 16 + 16 + ctx_msg_size)     # H_msg_sl inner
+      + sha256_compressions(16 + 16 + 32)                    # H_msg_sl outer
+      + sha256_compressions(16 + ctx_msg_size)               # PRF_msg_sl HMAC inner
+      + sha256_compressions(32)                              # PRF_msg_sl HMAC outer
+      + self.k * fors_tree_gen                               # FORS trees
+      + sha256_compressions(22 + self.k * 16)                # combining FORS roots
+      + (self.d - 1) * (xmss_sign_avg + xmss_verify_avg)     # intermediate layers
+      + xmss_sign_avg                            # top layer
+    )
+
+    # Generating the stateless root tree of 2**xmss_height XMSS leaves.
+    keygen = 2**xmss_height * wots_keygen + 2**xmss_height - 1
+
+    verify_min = 4 + fors_verify + self.d * xmss_verify_min
+    verify_max = 4 + fors_verify + self.d * xmss_verify_max
+    verify_avg = 4 + fors_verify + self.d * xmss_verify_avg
+
+    self.__dict__["_metrics_cache"] = cache = {
+      "sign_avg": sign_avg,
+      "verify_min": verify_min,
+      "verify_max": verify_max,
+      "verify_avg": verify_avg,
+      "keygen": keygen,
+      "sig_size": sl_sig_size,
+      "verify_per_byte_max": round(verify_max / sl_sig_size, 3),
+    }
+    return cache
+
+  def sign_compressions_avg(self):
+    """The average number of SHA256 compressions needed for signing."""
+    return self._metrics()["sign_avg"]
+
+  def verify_compressions_min(self):
+    """The minimum number of SHA256 compressions needed for signature verification."""
+    return self._metrics()["verify_min"]
+
+  def verify_compressions_max(self):
+    """The maximum number of SHA256 compressions needed for signature verification."""
+    return self._metrics()["verify_max"]
+
+  def verify_compressions_avg(self):
+    """The average number of SHA256 compressions needed for signature verification."""
+    return self._metrics()["verify_avg"]
+
+  def keygen_compressions(self):
+    """The number of SHA256 compressions needed for keygen."""
+    return self._metrics()["keygen"]
+
+  def signature_size(self):
+    """The size of the signature in bytes."""
+    return self._metrics()["sig_size"]
+
+  def verify_compressions_per_byte(self):
+    """
+    The number of SHA256 compressions per byte of the signature size
+    needed to verify the signature in the worst case.
+    (i.e. max verify compressions / sig size)
+    """
+    return self._metrics()["verify_per_byte_max"]
+
+
+
+#### SPHINCS+ security analysis, kept for reference
+# Logic originally from https://sphincs.org/data/spx_parameter_exploration.sage
+
+# Pr[exactly r sigs hit the leaf targeted by this forgery attempt]
+def qhitprob(leaves, qs, r):
+  p = 1 / Decimal(leaves)
+  return comb(qs, r) * p**r * (1 - p)**(qs - r)
+
+# Pr[FORS forgery given that exactly r sigs hit the leaf] = (1-(1-1/(2^a))^r)^k
+def forgeryprob(a, r, k):
+  if k == 1: return 1 - (1 - 1 / Decimal(2**a))**r
+  return forgeryprob(a, r, 1) * forgeryprob(a, r, k-1)
+
+def sigmalimit(tsec):
+  return 1 / Decimal(2**tsec)
+
+def donelimit(tsec):
+  return 1 - sigmalimit(tsec) / Decimal(2**20)
+
+def compute_sigma_bhk19(leaves, a, k, sigs, tsec):
+  sigma = 0
+  done = qhitprob(leaves, sigs, 0)
+  for r in range(1, sigs):
+    t = qhitprob(leaves, sigs, r)
+    sigma += t * forgeryprob(a, r, k)
+    done += t
+    if done >= donelimit(tsec): break
+  return sigma
