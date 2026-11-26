@@ -1577,9 +1577,15 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   shrincs_pubkey = pk_seed + sl_root + sf_root
   return (shrincs_seckey, shrincs_pubkey)
 
-def shrincs_extract_pubkey(shrincs_seckey: Bytes[82]) -> Bytes[48]:
+def shrincs_pubkey_from_seckey(shrincs_seckey: Bytes[82]) -> Bytes[48]:
   """
-  Extract a SHRINCS public key from a SHRINCS secret key.
+  Extracts the public key from a serialized SHRINCS secret key by concatenating the stored
+  `pk_seed`, `sl_root`, and `sf_root` fields in that order.
+
+  - Inputs:
+    - `shrincs_seckey`: an 82-byte serialized SHRINCS secret key.
+  - Output:
+    - the corresponding 48-byte SHRINCS public key.
   """
   return shrincs_seckey[32:64] + shrincs_seckey[66:82]
 
