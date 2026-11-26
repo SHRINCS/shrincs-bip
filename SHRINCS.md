@@ -444,14 +444,14 @@ The FIPS-205 column gives the name of the parameter in FIPS-205.
 
 ### Key Generation Inputs
 
-Generating a SHRINCS key consists only of generating 48 random bytes.
-This is then split into 3 x 16-byte seeds.
+Generating a SHRINCS key requires a 48-byte random seed and a valid two-byte [FXMSS tree structure](#fxmss).
+The structure encodes a [shape flag](#tree-shapes) followed by a depth byte subject to the [FXMSS addressing limits](#caveats).
+The random seed is split into three 16-byte seeds.
 
 - `sk_seed` is the core component of the secret key. Exposing this compromises the security of the keypair.
 - `sk_prf` is a secret value used to derive per-message randomness.
 - `pk_seed` is the public seed included in the public key.
 
-Note this is the bare minimum needed to generate a full SHRINCS public key.
 More performant (but larger) secret key representations are possible.
 
 
@@ -927,8 +927,8 @@ def H(pk_seed: Bytes[16], ADRS: Union[XmssTree, FxmssTree, ForsTree], M_2: Bytes
 ##### `H_grind(...)`
 
 <!-- DOC START H_grind -->
-The `H_grind` tweaked hash function. Maps a 32-byte `digest` and grinding `counter` into the
-constant-sum message space for WOTS+C.
+The `H_grind` tweaked hash function. Hashes a 32-byte `digest` and a grinding `counter` to produce
+a candidate for WOTS+C.
 
 - Inputs:
   - `pk_seed`: a 16-byte public seed.
@@ -1064,7 +1064,7 @@ This ensures domain separation between stateful and stateless paths.
 
 We remove the randomization input option for the stateful path compared to `PRF_msg_sl` as the same WOTS+C instance can sign a message only once, but in a misuse scenario where the same message is queried for a signature under the same state, producing exactly the same signature will not constitute a forgery.
 
-We only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
+The leaf position is encoded as one byte of height followed by eight bytes of index, matching the prefix of a [stateful address](#stateful-adrs-format).
 
 
 #### Message Digest Functions
@@ -1073,7 +1073,7 @@ Signing does not hash the user's message directly.
 Instead, the message is compressed together with a randomizer `R` into a short digest, which the one-time and few-time signatures then sign.
 SHRINCS uses a different digest function on each path.
 The stateless `H_msg_sl` is a keyed hash function, keyed by `R`.
-The stateful `H_msg_sf` additionally binds the position of the signing leaf, and so takes a tweak (the `ADRS`) in addition to `R`; it is therefore a tweakable hash function rather than a plain keyed hash.
+The stateful `H_msg_sf` is a tweakable hash function that takes the signing leaf's height and index as its tweak.
 
 ##### `H_msg_sl(...)`
 
@@ -1135,14 +1135,14 @@ def H_msg_sf(
 ```
 <!-- DOC END H_msg_sf -->
 
-Notice we only use the first 9 bytes of `ADRS`, because these bytes encode the position of the WOTS+C leaf in the FXMSS tree.
+The leaf position is encoded as one byte of height followed by eight bytes of index, matching the prefix of a [stateful address](#stateful-adrs-format).
 
 Unlike `H_msg_sl`, `H_msg_sf` is specific to the stateful component and therefore need not match the definition of `H_msg` in FIPS-205[^slhdsa].
 This accounts for two intentional differences from `H_msg_sl`:
 
 - There is no trailing 4-byte zero-padding on the outer hash.
   That padding exists only to make `H_msg_sl` match the MGF1-SHA-256[^mgf1] definition mandated by FIPS-205, which does not apply here.
-- The WOTS+C leaf position given by `ADRS` is bound into both the inner and outer hash inputs.
+- The WOTS+C leaf position is bound into both the inner and outer hash inputs.
   This domain-separates the stateful digest by the leaf used to sign it.
 
 
@@ -1199,7 +1199,7 @@ If the signer revealed the correct nodes, then the verifier will have recomputed
 <sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
 
 As written, this would be insecure: Adversaries could forge signatures by finding a message which maps to a higher set of indexes.
-WOTS-TW and WOTS+C differ only in their solutions to this problem: WOTS-TW appends additional "checksum" hash chains, while WOTS+C appends a two-byte counter which the signer must grind to find a set of indexes which sum to a specific constant.
+WOTS-TW uses additional checksum hash chains. WOTS+C instead prefixes the signature with a two-byte counter that maps the message to indexes that sum to a specific constant.
 
 
 ### WOTS Algorithm
@@ -1532,7 +1532,7 @@ The hash function ensures the surjective mapping of messages to index-sets is on
 If the mapping were not one-way, an attacker could work backwards to find other messages valid under the same signature.
 
 Eventually the signer finds a counter which maps the message to a set of indexes that sum to `WOTS_C_CONSTANT_SUM`.
-This counter is appended to the WOTS+C signature.
+The signer writes this counter in the first two bytes of the WOTS+C signature, before the hash chain values.
 The verifier rejects counters which don't map the message to a constant-sum index-set.
 
 
@@ -2183,7 +2183,7 @@ The FXMSS internal node computation function. Recursively computes the FXMSS nod
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
-  - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
+  - `node_height`: an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the node.
   - `pk_seed`: a 16-byte public seed.
   - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
     unbalanced (UXMSS) tree.
@@ -2236,7 +2236,7 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
   - `message_digest`: a 32-byte message digest.
   - `sk_seed`: a 16-byte secret.
   - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
-  - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
+  - `leaf_height`: an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the signing leaf.
   - `pk_seed`: a 16-byte public seed.
   - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
     unbalanced (UXMSS) tree.
@@ -2646,8 +2646,8 @@ The SLH-DSA signing function. Signs `message` with `sk_seed`, prepending the con
 uses `pk_seed` as the public seed, derives the randomizer from `sk_prf`/`opt_rand`, and binds the
 signature to `sl_root`. Verifiers must use `slh_dsa_verify` with the same `ctx`.
 
-When provided, `opt_rand` supplies the additional randomness used to derive the randomizer. If omitted,
-the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
+When `opt_rand` is `None`, the algorithm uses `pk_seed` in its place, resulting in the
+_deterministic variant_ of SLH-DSA.
 
 The resulting signature is composed of (1) a randomizer, (2) a FORS signature, and (3) a
 hypertree signature, all concatenated together.
@@ -2659,7 +2659,7 @@ hypertree signature, all concatenated together.
   - `sk_prf`: a 16-byte secret.
   - `pk_seed`: a 16-byte public seed.
   - `sl_root`: the 16-byte root hash of the stateless root tree.
-  - `opt_rand`: optional 16-byte additional randomness.
+  - `opt_rand`: 16 bytes of additional randomness, or `None` for deterministic signing.
 - Output:
   - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
@@ -2879,7 +2879,7 @@ next WOTS+C leaf for the given `sf_structure` and `state_ctr`.
     previously issued, or `None`.
 - Outputs:
   - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
-  - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
+  - an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the next WOTS+C leaf.
 
 Returns `None` if `state_ctr` is `None`, or if it is at least the number of WOTS+C leaves in the
 FXMSS tree (as defined by its structure). A depth-zero tree has no usable leaf, so a depth-zero
@@ -2930,8 +2930,8 @@ falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` wi
   - `shrincs_seckey`: an 82-byte SHRINCS secret key.
   - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
     previously issued, or `None` to sign statelessly.
-  - `opt_rand`: optional 16-byte additional randomness for SLH-DSA (unused in the stateful path;
-    if omitted, the stateless path uses the deterministic variant of SLH-DSA).
+  - `opt_rand`: 16 bytes of additional randomness, or `None` for deterministic SLH-DSA signing.
+    The stateful path ignores this argument.
 - Output:
   - a `SHRINCS_SL_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
     `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes,
@@ -3012,8 +3012,7 @@ def shrincs_sign(
 
 <!-- DOC START shrincs_verify -->
 The SHRINCS verification function. Returns true iff `signature` is a valid stateful or stateless
-SHRINCS signature on `message` under `shrincs_pubkey`. Signatures must be produced via
-`shrincs_sign` with the same `ctx`.
+SHRINCS signature on `message` under `shrincs_pubkey` and the same `ctx` used for signing.
 
 The first byte of `signature` is called the _indicator byte_ and it tells the verifier which signing
 component to use: Byte `b == FXMSS_HEIGHT` indicates a stateless signature, any other byte `b < FXMSS_HEIGHT`

@@ -406,8 +406,8 @@ def H(pk_seed: Bytes[16], ADRS: Union[XmssTree, FxmssTree, ForsTree], M_2: Bytes
 
 def H_grind(pk_seed: Bytes[16], ADRS: WotsCGrind, digest: Bytes[32], counter: UInt16) -> Bytes[16]:
   """
-  The `H_grind` tweaked hash function. Maps a 32-byte `digest` and grinding `counter` into the
-  constant-sum message space for WOTS+C.
+  The `H_grind` tweaked hash function. Hashes a 32-byte `digest` and a grinding `counter` to produce
+  a candidate for WOTS+C.
 
   - Inputs:
     - `pk_seed`: a 16-byte public seed.
@@ -1105,7 +1105,7 @@ def fxmss_node(
   - Inputs:
     - `sk_seed`: a 16-byte secret.
     - `node_index`: a 64-bit unsigned integer, the index (from the left) of the node in the FXMSS layer.
-    - `node_height`: an 8-bit unsigned integer, the height (from the bottom) of the node in the FXMSS tree.
+    - `node_height`: an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the node.
     - `pk_seed`: a 16-byte public seed.
     - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
       unbalanced (UXMSS) tree.
@@ -1153,7 +1153,7 @@ def fxmss_sign(
     - `message_digest`: a 32-byte message digest.
     - `sk_seed`: a 16-byte secret.
     - `leaf_index`: a 64-bit unsigned integer, the index (from the left) of the signing leaf in the FXMSS layer.
-    - `leaf_height`: an 8-bit unsigned integer, the height (from the bottom) of the signing leaf in the FXMSS tree.
+    - `leaf_height`: an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the signing leaf.
     - `pk_seed`: a 16-byte public seed.
     - `tree_balanced`: a boolean, true for a balanced (BXMSS) tree and false for an
       unbalanced (UXMSS) tree.
@@ -1460,8 +1460,8 @@ def slh_dsa_sign(
   uses `pk_seed` as the public seed, derives the randomizer from `sk_prf`/`opt_rand`, and binds the
   signature to `sl_root`. Verifiers must use `slh_dsa_verify` with the same `ctx`.
 
-  When provided, `opt_rand` supplies the additional randomness used to derive the randomizer. If omitted,
-  the algorithm uses `pk_seed` in its place, resulting in the _deterministic variant_ of SLH-DSA.
+  When `opt_rand` is `None`, the algorithm uses `pk_seed` in its place, resulting in the
+  _deterministic variant_ of SLH-DSA.
 
   The resulting signature is composed of (1) a randomizer, (2) a FORS signature, and (3) a
   hypertree signature, all concatenated together.
@@ -1473,7 +1473,7 @@ def slh_dsa_sign(
     - `sk_prf`: a 16-byte secret.
     - `pk_seed`: a 16-byte public seed.
     - `sl_root`: the 16-byte root hash of the stateless root tree.
-    - `opt_rand`: optional 16-byte additional randomness.
+    - `opt_rand`: 16 bytes of additional randomness, or `None` for deterministic signing.
   - Output:
     - a `SPHX_SIGNATURE_SIZE`-byte signature.
 
@@ -1596,7 +1596,7 @@ def shrincs_sf_leaf_select(
       previously issued, or `None`.
   - Outputs:
     - a 64-bit unsigned integer, the left-to-right index of the next WOTS+C leaf in the FXMSS tree.
-    - an 8-bit unsigned integer, the bottom-to-top height of the next WOTS+C leaf in the FXMSS tree.
+    - an 8-bit unsigned integer, equal to `FXMSS_HEIGHT` minus the depth of the next WOTS+C leaf.
 
   Returns `None` if `state_ctr` is `None`, or if it is at least the number of WOTS+C leaves in the
   FXMSS tree (as defined by its structure). A depth-zero tree has no usable leaf, so a depth-zero
@@ -1646,8 +1646,8 @@ def shrincs_sign(
     - `shrincs_seckey`: an 82-byte SHRINCS secret key.
     - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
       previously issued, or `None` to sign statelessly.
-    - `opt_rand`: optional 16-byte additional randomness for SLH-DSA (unused in the stateful path;
-      if omitted, the stateless path uses the deterministic variant of SLH-DSA).
+    - `opt_rand`: 16 bytes of additional randomness, or `None` for deterministic SLH-DSA signing.
+      The stateful path ignores this argument.
   - Output:
     - a `SHRINCS_SL_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
       `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes,
@@ -1715,8 +1715,7 @@ def shrincs_verify(
 ) -> bool:
   """
   The SHRINCS verification function. Returns true iff `signature` is a valid stateful or stateless
-  SHRINCS signature on `message` under `shrincs_pubkey`. Signatures must be produced via
-  `shrincs_sign` with the same `ctx`.
+  SHRINCS signature on `message` under `shrincs_pubkey` and the same `ctx` used for signing.
 
   The first byte of `signature` is called the _indicator byte_ and it tells the verifier which signing
   component to use: Byte `b == FXMSS_HEIGHT` indicates a stateless signature, any other byte `b < FXMSS_HEIGHT`
