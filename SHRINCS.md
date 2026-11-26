@@ -412,7 +412,7 @@ We show formulas for how these are computed, using the integer operations define
 | Constant | Value | Formula | Description |
 |:-:|:-:|:-:|:-:|
 | `WOTS_C_CHAINS_SIZE` | <!-- CONST START WOTS_C_CHAINS_SIZE -->512<!-- CONST END WOTS_C_CHAINS_SIZE --> | `WOTS_C_CHAIN_COUNT * 16` | The byte size of a full set of concatenated WOTS chain hashes. |
-| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)` | The most likely sum for Winternitz hash chain indexes. |
+| `WOTS_C_CONSTANT_SUM` | <!-- CONST START WOTS_C_CONSTANT_SUM -->240<!-- CONST END WOTS_C_CONSTANT_SUM --> | `ceildiv((WOTS_C_CHAIN_COUNT - 1) * (2**WOTS_C_CHAIN_BITS - 1) + 2**WOTS_C_CHAIN_BITS - 2**(WOTS_C_CHAIN_BITS * WOTS_C_CHAIN_COUNT - 128), 2)` | The most likely sum for Winternitz hash chain indexes. |
 |`FXMSS_SIGNATURE_SIZE_MIN`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MIN -->530<!-- CONST END FXMSS_SIGNATURE_SIZE_MIN --> | `2 + WOTS_C_CHAINS_SIZE + 16` | The minimum byte size of an FXMSS signature. |
 |`FXMSS_SIGNATURE_SIZE_MAX`| <!-- CONST START FXMSS_SIGNATURE_SIZE_MAX -->4594<!-- CONST END FXMSS_SIGNATURE_SIZE_MAX --> | `2 + WOTS_C_CHAINS_SIZE + 16 * FXMSS_HEIGHT` | The maximum byte size of an FXMSS signature. |
 |`SHRINCS_SF_SIGNATURE_SIZE_MIN`| <!-- CONST START SHRINCS_SF_SIGNATURE_SIZE_MIN -->548<!-- CONST END SHRINCS_SF_SIGNATURE_SIZE_MIN --> | `1 + 16 + 1 + FXMSS_SIGNATURE_SIZE_MIN` | The minimum byte size of a stateful SHRINCS signature: a randomizer, a leaf index, and an FXMSS signature. |
@@ -1509,10 +1509,14 @@ This prevents WOTS forgeries because an incremental increase in any index of a h
 It also ensures a fixed-work verifier because the total number of hash operations needed to complete every WOTS hash chain is fixed.
 
 The constant-sum parameter `WOTS_C_CONSTANT_SUM` is chosen to maximize the probability that a randomly selected set of indexes will sum to this value.
-It can be computed by:
+It can be computed[^const_sum_general_formula] by:
 
 ```py
-WOTS_C_CONSTANT_SUM = ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)
+WOTS_C_CONSTANT_SUM = ceildiv(
+  (WOTS_C_CHAIN_COUNT - 1) * (2**WOTS_C_CHAIN_BITS - 1)
+  + 2**WOTS_C_CHAIN_BITS - 2**(WOTS_C_CHAIN_BITS * WOTS_C_CHAIN_COUNT - 128),
+  2,
+)
 ```
 
 Only a subset of index-sets have this "constant-sum" property - for the chosen parameters, about 2<sup><!-- CONST START WOTS_C_CONST_SUM_MESSAGES_LOG -->122<!-- CONST END WOTS_C_CONST_SUM_MESSAGES_LOG --></sup> out of the possible 2<sup>128</sup> sets of indexes.
@@ -3176,3 +3180,4 @@ This document and the SHRINCS reference code are licensed under either the CC0-1
 [^fxmss_node_index]: The key requirement for a valid FXMSS tree shape is that the indexes of all nodes must fit in a 64-bit unsigned integer. This means that while FXMSS trees can be up to 255 layers deep, only the leftmost 2<sup>64</sup> nodes in each layer are indexable. This provides plenty of space while maintaining a fixed max-length encoding for node indexes.
 [^last_two_sigs]: The last two UXMSS leaves are both at equal depth, and so their signatures both have the same length.
 [^bip340_sha256_bench]: https://github.com/mjthatch/bip340-vs-sha256
+[^const_sum_general_formula]: When `WOTS_C_CHAIN_BITS` does not divide 128, `base_2b` pads the trailing index with `WOTS_C_CHAIN_BITS * WOTS_C_CHAIN_COUNT - 128` zero low-order bits. The formula accounts for this, so the target remains centered over the actual index distribution. When `128 % WOTS_C_CHAIN_BITS == 0`, then one may use the much simpler formula `ceildiv(WOTS_C_CHAIN_COUNT * (2**WOTS_C_CHAIN_BITS - 1), 2)`. We use the general formula for flexibility across parameter sets.

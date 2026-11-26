@@ -4,7 +4,7 @@ from functools import lru_cache
 from collections.abc import Hashable
 from dataclasses import dataclass
 
-from ..shrincs import ceildiv, base_2b
+from ..shrincs import ceildiv, base_2b, SHRINCS_SECURITY_BITS
 from .common import num_messages_sum, sha256_compressions
 
 
@@ -43,26 +43,39 @@ def encode_checksum(checksum: int, w: int, count2: int) -> list[int]:
   return checksum_indexes
 
 @lru_cache(maxsize=None)
-def wots_tw_checksum_index_avg(w: int, l1: int, l2: int) -> float:
+def wots_tw_checksum_index_avg(log_w: int, l1: int, l2: int) -> float:
   """
-  Average WOTS-TW checksum chain index over a uniform distribution of messages.
-
-  `w` is the WOTS chain length (2**log_w), which is also the base used to
-  re-encode the checksum. Depends only on log_w, so cache it across the many
-  parameter sets that share a log_w.
+  Average WOTS-TW checksum index for uniformly random 128-bit messages.
+  Cached, but expensive to compute for `log_w > 10`.
   """
-  msg_sum_counts = [num_messages_sum(w, l1, i) for i in range(1 + l1 * (w - 1))]
+  w = 2**log_w
+  trail_bits = SHRINCS_SECURITY_BITS - (l1 - 1) * log_w
+  pad_bits = log_w - trail_bits
 
-  # ensure we have accounted for every possible message.
-  assert sum(msg_sum_counts) == w**l1
+  # Count the number of ways the first `l1 - 1` indices can sum to `s`.
+  base_counts = [
+    num_messages_sum(w, l1 - 1, s)
+    for s in range((l1 - 1) * (w - 1) + 1)
+  ]
 
-  # Sum and average all the indexes for each possible encoded checksum,
-  # weighted by the probability of that checksum occurring.
+  # For each possible trailing index `v` in `[0, 1<<pad_bits, 2<<pad_bits, ...]`,
+  # and each possible sum `s`, tally the number of possible ways to arrive at the
+  # sum `s + v`.
+  msg_sum_counts = [0] * (l1 * (w - 1) + 1)
+  for i in range(2**trail_bits):
+    v = i << pad_bits
+    for s, count in enumerate(base_counts):
+      msg_sum_counts[s + v] += count
+
+  # The result should sum to the total number of possible messages, 2**128
+  total = 2 ** SHRINCS_SECURITY_BITS
+  assert sum(msg_sum_counts) == total
+
   checksum_index_acc = 0
   for msg_sum, weight in enumerate(msg_sum_counts):
     checksum = l1 * (w - 1) - msg_sum
     checksum_index_acc += sum(encode_checksum(checksum, w, l2)) * weight
-  return checksum_index_acc / (w**l1) / l2
+  return checksum_index_acc / total / l2
 
 sigma_context = Context(prec=int(log10(2**768)) + 1)
 
@@ -119,6 +132,15 @@ class StatelessParameterSet:
   def __str__(self):
     return (f"h={self.h} d={self.d} a={self.a} k={self.k} w={2**self.log_w}")
 
+  def trailing_index_max(self) -> int:
+    """
+    Maximum of the last WOTS-TW index digit. May be less than `w-1` for
+    `log_w` parameters which do not divide `SHRINCS_SECURITY_BITS`.
+    """
+    chains, _, _ = wots_tw_chain_counts(self.log_w)
+    pad_bits = chains * self.log_w - SHRINCS_SECURITY_BITS
+    return 2**self.log_w - 2**pad_bits
+
   def _metrics(self):
     """
     Computes and caches every stateless performance metric for this parameter set.
@@ -135,8 +157,8 @@ class StatelessParameterSet:
     xmss_height = self.h // self.d
 
     # Average WOTS-TW chain indexes over a uniform distribution of messages.
-    avg_msg_idx = (w - 1) / 2
-    avg_check_idx = wots_tw_checksum_index_avg(w, count1, count2)
+    avg_msg_idx = ((count1 - 1) * (w - 1) + self.trailing_index_max()) / 2 / count1
+    avg_check_idx = wots_tw_checksum_index_avg(self.log_w, count1, count2)
 
     # Combining WOTS-TW chain tips into a T_sl root.
     combine = sha256_compressions(22 + chains_size)

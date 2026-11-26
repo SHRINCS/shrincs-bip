@@ -4,7 +4,6 @@
 from ..shrincs import *
 from .stateless_params import StatelessParameterSet
 from .stateful_params import StatefulParameterSet
-from .common import num_messages_sum
 from math import floor, log2
 
 # The stateless (SPHINCS+) parameter set, used to populate the stateless
@@ -84,9 +83,7 @@ SHRINCS_SL_VERIFY_COMPRESSIONS_REDUCTION_PERCENT = \
 # WOTS+C grinding failure probability over 2**16 attempts.
 WOTS_C_GRIND_FAIL_PROBABILITY_LOG = floor(-STATEFUL.grind_fail_probability_log2(2**16))
 
-WOTS_C_CONST_SUM_MESSAGES_LOG = round(
-  log2(num_messages_sum(2**WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT, WOTS_C_CONSTANT_SUM)),
-)
+WOTS_C_CONST_SUM_MESSAGES_LOG = round(log2(STATEFUL.count_target_sum_messages(WOTS_C_CONSTANT_SUM)))
 
 # Average SHA256 compressions to sign with the SHRINCS stateful component, at
 # various UXMSS (unbalanced) / BXMSS (balanced) tree depths.
