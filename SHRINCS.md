@@ -380,7 +380,7 @@ Here follow the parameters of the stateful and stateless components.
 
 #### Stateful Parameters
 
-<!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
+<!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2**32)? -->
 
 | Parameter | Value | Description |
 |:-:|:-:|:--|
@@ -525,6 +525,22 @@ The [value types](#value-types) above are therefore refinements, not representat
 `UInt8` through `UInt64` assert that a value lies in `[0, 2**8)` through `[0, 2**64)`.
 
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
+
+
+#### Bitwise XOR
+
+For non-negative integers `x` and `y`, `x ^ y` is their bitwise exclusive OR. Align their binary representations at the least significant bit and extend each with leading zeros. Each result bit is `1` exactly when the corresponding input bits differ.
+
+<!-- DOC START xor -->
+Requires `len(s1) == len(s2)`. Returns a byte string of the same length
+by applying `^` to the corresponding bytes of `s1` and `s2`.
+
+```py
+def xor(s1: bytes, s2: bytes) -> bytes:
+  assert len(s1) == len(s2)
+  return bytes((b1 ^ b2 for (b1, b2) in zip(s1, s2)))
+```
+<!-- DOC END xor -->
 
 
 #### `base_2b(...)`
@@ -1547,7 +1563,7 @@ The verifier rejects counters which don't map the message to a constant-sum inde
 #### `wots_c_grind_to_constant_sum(...)`
 
 <!-- DOC START wots_c_grind_to_constant_sum -->
-The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message_digest` to a
+The WOTS+C grinding function. Grinds up to `2**16` counters until one maps `message_digest` to a
 constant-sum index set, returning the lowest such counter and its index set.
 
 - Inputs:

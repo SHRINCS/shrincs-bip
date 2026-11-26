@@ -31,7 +31,8 @@ def concat(array: list[bytes]) -> bytes:
 
 def xor(s1: bytes, s2: bytes) -> bytes:
   """
-  Returns the XOR of two arrays of bytes which must have equal length.
+  Requires `len(s1) == len(s2)`. Returns a byte string of the same length
+  by applying `^` to the corresponding bytes of `s1` and `s2`.
   """
   assert len(s1) == len(s2)
   return bytes((b1 ^ b2 for (b1, b2) in zip(s1, s2)))
@@ -735,7 +736,7 @@ def wots_c_grind_to_constant_sum(
     pk_seed: Bytes[16], message_digest: Bytes[32], node_height: UInt8, node_index: UInt64
 ) -> Optional[tuple[UInt16, Array[UInt16, WOTS_C_CHAIN_COUNT]]]:
   """
-  The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message_digest` to a
+  The WOTS+C grinding function. Grinds up to `2**16` counters until one maps `message_digest` to a
   constant-sum index set, returning the lowest such counter and its index set.
 
   - Inputs:
