@@ -3107,7 +3107,7 @@ Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`
 
 We provide a naive, highly inefficient, and non-constant-time pure Python 3 implementation of the SHRINCS algorithms in [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
 
-Tests are provided in [`impl/test.py`](./impl/test.py).
+Tests are provided in the [`tests`](./tests) directory.
 Comprehensive test vectors covering every algorithm are still TODO; they are required to advance this proposal from Draft to Complete.
 
 > [!WARNING]

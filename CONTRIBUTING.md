@@ -10,7 +10,7 @@ We have a few simple rules to keep things organized and running smoothly:
   - In conversation we can come to consensus on the best design.
   - Small bugfixes or typo corrections are welcome any time and can be submitted without prior check-in.
 - Specification changes should be checked for typos and grammatical errors.
-- Code changes should be checked for type consistency with `mypy`, and validated against the tests in [`impl`](./impl).
+- Code changes should be checked for type consistency with `mypy`, and validated against the tests in [`tests`](./tests) with `./run_tests.sh`.
 - Ensure `pydoc_insert.py` is run before any commit. This script synchronizes the code in [`impl`](./impl) with the spec in `SHRINCS.md`. See [the README](./README.md#templating) for more info.
 
 ## Use of AI
