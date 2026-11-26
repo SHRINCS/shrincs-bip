@@ -43,9 +43,13 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
   of `x` are parsed. If `x` is shorter than `out_len * b` bits, the missing
   trailing bits are treated as zero. Requires `b >= 0` and `out_len >= 0`.
 
-  The FIPS refill loop terminates because each byte adds eight bits.
-  Computing the refill count up front gives every loop used by SHRINCS an
-  explicit bound, so we can reason about them all the same way.
+  This version is equivalent to SLH-DSA Algorithm 4[^slhdsa] when `x`
+  contains at least `out_len * b` bits.
+
+  The FIPS `while` loop terminates because each byte adds eight bits.
+  Computing the refill count up front lets us write it as a `for` loop with
+  an explicit bound. We can then reason about every loop used by SHRINCS
+  the same way.
   """
   assert b >= 0
   assert out_len >= 0
@@ -56,40 +60,14 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
   total = 0             # accumulator, collects bits from x
 
   for out in range(out_len):
-    for _ in range(ceildiv(max(0, b - bits), 8)):
-      total = 256 * total + (x[j] if j < len(x) else 0)
+    for _ in range(ceildiv(max(0, b - bits), 8)): # FIPS-205 DIVERGENCE
+      total = 256 * total + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
       j = j + 1
       bits = bits + 8
 
     bits = bits - b
     baseb[out] = total // 2**bits
     total %= 2**bits # prevent accumulator from overflowing
-
-  return baseb
-
-def base_2b_alt(x: bytes, b: int, out_len: int) -> list[int]:
-  """
-  Alternative implementation using FIPS 205 Algorithm 4[^slhdsa], equivalent
-  to `base_2b` when `b >= 0`, `out_len >= 0`, and `x` contains at least
-  `out_len * b` bits.
-  """
-  assert b >= 0
-  assert out_len >= 0
-  assert len(x) * 8 >= out_len * b
-
-  baseb = [0] * out_len
-  j = 0
-  bits = 0
-  total = 0
-
-  for out in range(out_len):
-    while bits < b:
-      total = (total << 8) + x[j]
-      j = j + 1
-      bits = bits + 8
-
-    bits = bits - b
-    baseb[out] = (total >> bits) % 2**b
 
   return baseb
 
