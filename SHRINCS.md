@@ -527,6 +527,16 @@ The [value types](#value-types) above are therefore refinements, not representat
 Unless stated otherwise, all integers are serialized to and parsed from bytes as fixed-width, big-endian (network byte order) values, where the width is the size of the byte field the integer occupies.
 
 
+#### Integer shifts
+
+Both operands are integers and must satisfy `x >= 0` and `n >= 0`.
+
+- `x << n` equals `x * (2**n)`.
+- `x >> n` equals `x // (2**n)`.
+
+If `x` fits in `w` unsigned bits, `x >> n` is zero for `n >= w`.
+
+
 #### Bitwise XOR
 
 For non-negative integers `x` and `y`, `x ^ y` is their bitwise exclusive OR. Align their binary representations at the least significant bit and extend each with leading zeros. Each result bit is `1` exactly when the corresponding input bits differ.
@@ -571,12 +581,12 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
 
   for out in range(out_len):
     for _ in range(ceildiv(b - bits if b > bits else 0, 8)): # FIPS-205 DIVERGENCE
-      total = 256 * total + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
+      total = (total << 8) + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
       j = j + 1
       bits = bits + 8
 
     bits = bits - b
-    baseb[out] = total // 2**bits
+    baseb[out] = total >> bits
     total %= 2**bits # prevent accumulator from overflowing
 
   return baseb
@@ -771,7 +781,7 @@ class WotsCPrf(Address):
   def to_bytes(self) -> Bytes[22]:
     return self.pack(
       SF_WOTS_C_PRF,
-      word1=int(self.tree_balanced) * 2**24 + self.tree_depth * 2**16,
+      word1=(int(self.tree_balanced) << 24) + (self.tree_depth << 16),
       word2=self.chain_index,
     )
 
@@ -1358,7 +1368,7 @@ def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAI
 
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
-    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = (checksum // 2**(WOTS_TW_CHAIN_BITS * i)) % 2**WOTS_TW_CHAIN_BITS
+    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = (checksum >> (WOTS_TW_CHAIN_BITS * i)) % 2**WOTS_TW_CHAIN_BITS
 
   return msg_indexes + checksum_indexes
 ```
@@ -1373,7 +1383,7 @@ def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Array[UInt16, WOTS_TW_
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
   SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
-  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) * 2**SPHX_WOTS_CHECKSUM_SHIFT
+  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
   checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
   return msg_indexes + checksum_indexes
@@ -1835,7 +1845,7 @@ This means the interfaces of both XMSS and FXMSS are slightly different, and thi
 >   In this sense `FXMSS_HEIGHT` is an "imaginary" height because no real FXMSS tree can fully explore the enormous possible space of 2<sup>256</sup> nodes.
 > - In FORS, the preimage leaves sit at height 0, and the root of each of the merkle trees in the forest is at height `SPHX_FORS_HEIGHT`.
 >   All leaves share a common layer, but internally FORS tree node indexes count across the entire forest, and so the indexing scheme is more subtle.
->   A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `j * 2**(SPHX_FORS_HEIGHT - h) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type.
+>   A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `(j << (SPHX_FORS_HEIGHT - h)) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type.
 >   In other words, the index of a FORS node or leaf must account for all the other nodes to its left at the same height in the other FORS trees.
 >
 > When merkle nodes are combined with the hash function `H`, the coordinates written into the `ADRS` are those of the node being computed (the parent), not of its children.
@@ -1883,7 +1893,7 @@ def xmss_node(
     return wots_tw_pubkey_gen(sk_seed, pk_seed, layer, tree_address, node_index)
 
   # Recursively derive the left/right child nodes.
-  lchild_index = 2 * node_index
+  lchild_index = node_index << 1
   child_height = node_height - 1
   lchild = xmss_node(sk_seed, lchild_index, child_height, pk_seed, layer, tree_address)
   rchild = xmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, layer, tree_address)
@@ -1928,7 +1938,7 @@ def xmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(SPHX_XMSS_HEIGHT):
-    sibling_index = (keypair_index // 2**j) ^ 1
+    sibling_index = (keypair_index >> j) ^ 1
     sig += xmss_node(sk_seed, sibling_index, j, pk_seed, layer, tree_address)
 
   return sig
@@ -1969,9 +1979,9 @@ def xmss_pubkey_from_sig(
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, layer, tree_address, keypair_index)
 
   for k in range(SPHX_XMSS_HEIGHT):
-    parent = XmssTree(layer, tree_address, k + 1, keypair_index // 2**(k+1))
+    parent = XmssTree(layer, tree_address, k + 1, keypair_index >> (k + 1))
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (keypair_index // 2**k) % 2 == 1:
+    if (keypair_index >> k) % 2 == 1:
       node = H(pk_seed, parent, sibling + node)
     else:
       node = H(pk_seed, parent, node + sibling)
@@ -2029,7 +2039,7 @@ def hypertree_sign(
     layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-    tree_index //= 2**SPHX_XMSS_HEIGHT
+    tree_index >>= SPHX_XMSS_HEIGHT
     sig += layer_sig
 
   return sig
@@ -2068,7 +2078,7 @@ def hypertree_verify(
     layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-    tree_index //= 2**SPHX_XMSS_HEIGHT
+    tree_index >>= SPHX_XMSS_HEIGHT
 
   return message == sl_root
 ```
@@ -2235,7 +2245,7 @@ def fxmss_node(
     )
 
   # Recursively derive the left/right child nodes.
-  lchild_index = 2 * node_index
+  lchild_index = node_index << 1
   child_height = node_height - 1
   lchild = fxmss_node(
     sk_seed, lchild_index, child_height, pk_seed, tree_balanced, tree_depth
@@ -2296,7 +2306,7 @@ def fxmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
-    sibling_index = (leaf_index // 2**j) ^ 1
+    sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
     sig += fxmss_node(
       sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
@@ -2355,9 +2365,9 @@ def fxmss_pubkey_from_sig(
     return None
 
   for k in range(leaf_depth):
-    parent = FxmssTree(leaf_height + k + 1, leaf_index // 2**(k+1))
+    parent = FxmssTree(leaf_height + k + 1, leaf_index >> (k + 1))
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index // 2**k) % 2 == 0:
+    if (leaf_index >> k) % 2 == 0:
       node = H(pk_seed, parent, node + sibling)
     else:
       node = H(pk_seed, parent, sibling + node)
@@ -2421,14 +2431,14 @@ at `layer` and `tree_address`.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
   - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
   - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
-  - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
+  - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT << SPHX_FORS_HEIGHT)`.
 - Output:
   - a 16-byte preimage.
 
 This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
+within a single tree. The index of leaf `l` in tree `t` is `(t << SPHX_FORS_HEIGHT) + l`.
 
 ```py
 def fors_sk_gen(
@@ -2454,7 +2464,7 @@ The FORS internal node computation function. Recursively computes the FORS node 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
-    `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
+    `[0, SPHX_FORS_COUNT << (SPHX_FORS_HEIGHT - node_height))`.
   - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
   - `pk_seed`: a 16-byte public seed.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
@@ -2467,7 +2477,7 @@ This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
 within a single tree. The index of node `l` in tree `t` at height `h` is
-`t * 2**(SPHX_FORS_HEIGHT - h) + l`.
+`(t << (SPHX_FORS_HEIGHT - h)) + l`.
 
 ```py
 def fors_node(
@@ -2486,7 +2496,7 @@ def fors_node(
     leaf = ForsTree(layer, tree_address, keypair_index, 0, node_index)
     return F(pk_seed, leaf, preimage)
 
-  lchild_index = 2 * node_index
+  lchild_index = node_index << 1
   child_height = node_height - 1
   lchild = fors_node(
     sk_seed, lchild_index, child_height, pk_seed, layer, tree_address, keypair_index
@@ -2531,10 +2541,10 @@ def fors_sign(
   sig = b""
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
   for i in range(SPHX_FORS_COUNT):
-    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+    tree_index = (i << SPHX_FORS_HEIGHT) + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, tree_index)
     for j in range(SPHX_FORS_HEIGHT):
-      sibling_index = (tree_index // 2**j) ^ 1
+      sibling_index = (tree_index >> j) ^ 1
       sig += fors_node(
         sk_seed, sibling_index, j, pk_seed, layer, tree_address, keypair_index
       )
@@ -2577,19 +2587,19 @@ def fors_pubkey_from_sig(
   for i in range(SPHX_FORS_COUNT):
     signature_offset = i * 16 * (SPHX_FORS_HEIGHT + 1)
     preimage = signature[signature_offset : signature_offset+16]
-    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
+    tree_index = (i << SPHX_FORS_HEIGHT) + index_set[i]
 
     leaf = ForsTree(layer, tree_address, keypair_index, 0, tree_index)
     node = F(pk_seed, leaf, preimage)
     for j in range(SPHX_FORS_HEIGHT):
       parent = ForsTree(
-        layer, tree_address, keypair_index, j + 1, tree_index // 2**(j+1)
+        layer, tree_address, keypair_index, j + 1, tree_index >> (j + 1)
       )
 
       sibling_offset = signature_offset + 16 * (j + 1)
       sibling = signature[sibling_offset : sibling_offset+16]
 
-      if (tree_index // 2**j) % 2 == 1:
+      if (tree_index >> j) % 2 == 1:
         node = H(pk_seed, parent, sibling + node)
       else:
         node = H(pk_seed, parent, node + sibling)
