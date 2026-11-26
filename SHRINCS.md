@@ -522,27 +522,38 @@ Unless stated otherwise, all integers are serialized to and parsed from bytes as
 #### `base_2b(...)`
 
 <!-- DOC START base_2b -->
-Decomposes the bytes `x` into `outlen` groups of `b` bits which are each
-parsed as an integer in the range `[0, 2**b)`. The leading `outlen * b` bits
-of `x` are parsed. If `x` is shorter than `outlen * b` bits, the missing
-trailing bits are treated as zero.
+Decomposes the bytes `x` into `out_len` groups of `b` bits which are each
+parsed as an integer in the range `[0, 2**b)`. The leading `out_len * b` bits
+of `x` are parsed. If `x` is shorter than `out_len * b` bits, the missing
+trailing bits are treated as zero. Requires `b >= 0` and `out_len >= 0`.
+
+This version is equivalent to SLH-DSA Algorithm 4[^slhdsa] when `x`
+contains at least `out_len * b` bits.
+
+The FIPS `while` loop terminates because each byte adds eight bits.
+Computing the refill count up front lets us write it as a `for` loop with
+an explicit bound. We can then reason about every loop used by SHRINCS
+the same way.
 
 ```py
-def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
-  baseb = [0] * outlen # output array
-  j = 0                # counts the bytes read from the input x.
-  acc = 0              # accumulator, collects bits from x
-  bits_filled = 0      # counts the bits accumulated
+def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
+  assert b >= 0
+  assert out_len >= 0
 
-  for i in range(outlen):
-    while bits_filled < b:
-      acc = (acc << 8) + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
-      j += 1
-      bits_filled += 8
+  baseb = [0] * out_len # output array
+  j = 0                 # counts the bytes read from the input x.
+  bits = 0              # counts the bits accumulated
+  total = 0             # accumulator, collects bits from x
 
-    bits_filled -= b
-    baseb[i] = acc >> bits_filled
-    acc %= 2**bits_filled # prevent accumulator from overflowing
+  for out in range(out_len):
+    for _ in range(ceildiv(max(0, b - bits), 8)): # FIPS-205 DIVERGENCE
+      total = 256 * total + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
+      j = j + 1
+      bits = bits + 8
+
+    bits = bits - b
+    baseb[out] = total // 2**bits
+    total %= 2**bits # prevent accumulator from overflowing
 
   return baseb
 ```
