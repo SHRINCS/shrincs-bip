@@ -60,7 +60,7 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
   total = 0             # accumulator, collects bits from x
 
   for out in range(out_len):
-    for _ in range(ceildiv(max(0, b - bits), 8)): # FIPS-205 DIVERGENCE
+    for _ in range(ceildiv(b - bits if b > bits else 0, 8)): # FIPS-205 DIVERGENCE
       total = 256 * total + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
       j = j + 1
       bits = bits + 8
