@@ -38,7 +38,7 @@ class FuzzKeygenTest(unittest.TestCase):
     sk, pk = shrincs.shrincs_keygen(seed, sf_structure)
     self.assertEqual(len(sk), 82)
     self.assertEqual(len(pk), 48)
-    self.assertEqual(shrincs.shrincs_extract_pubkey(sk), pk)
+    self.assertEqual(shrincs.shrincs_pubkey_from_seckey(sk), pk)
 
   # The spec requires the shape byte to be one of the FXMSS_SHAPE_* values;
   # keygen over any other shape byte must fail.
