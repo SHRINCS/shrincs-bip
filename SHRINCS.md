@@ -522,43 +522,67 @@ Unless stated otherwise, all integers are serialized to and parsed from bytes as
 #### `base_2b(...)`
 
 <!-- DOC START base_2b -->
-Decomposes the bytes `x` into `outlen` groups of `b` bits, each parsed as a
-big-endian integer in the range `[0, 2**b)`. The leading `outlen * b` bits
-of `x` are parsed. If `x` is shorter than `outlen * b` bits, the missing
-trailing bits are treated as zero. Requires `b >= 0` and `outlen >= 0`.
-The result matches FIPS 205 Algorithm 4[^slhdsa] on its input domain.
+Decomposes the bytes `x` into `out_len` groups of `b` bits which are each
+parsed as an integer in the range `[0, 2**b)`. The leading `out_len * b` bits
+of `x` are parsed. If `x` is shorter than `out_len * b` bits, the missing
+trailing bits are treated as zero. Requires `b >= 0` and `out_len >= 0`.
+
+The FIPS refill loop terminates because each byte adds eight bits.
+Computing the refill count up front gives every loop used by SHRINCS an
+explicit bound, so we can reason about them all the same way.
 
 ```py
-def base_2b(x: bytes, b: int, outlen: int) -> list[int]:
+def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
   assert b >= 0
-  assert outlen >= 0
+  assert out_len >= 0
 
-  digits = [0] * outlen
-  if b == 0:
-    return digits
+  baseb = [0] * out_len # output array
+  j = 0                 # counts the bytes read from the input x.
+  bits = 0              # counts the bits accumulated
+  total = 0             # accumulator, collects bits from x
 
-  for i in range(outlen):
-    digit_start_bit = i * b
-    digit_end_bit = digit_start_bit + b
-    first_byte_index = digit_start_bit // 8
-    # Round up without adding to the bit offset.
-    end_byte_index = min(len(x), (digit_end_bit - 1) // 8 + 1)
+  for out in range(out_len):
+    for _ in range(ceildiv(max(0, b - bits), 8)):
+      total = 256 * total + (x[j] if j < len(x) else 0)
+      j = j + 1
+      bits += 8
 
-    for byte_index in range(first_byte_index, end_byte_index):
-      byte_start_bit = 8 * byte_index
-      # Intersect the digit and byte bit ranges.
-      fragment_start_bit = max(digit_start_bit, byte_start_bit)
-      fragment_end_bit = byte_start_bit + min(8, digit_end_bit - byte_start_bit)
-      fragment_bit_count = fragment_end_bit - fragment_start_bit
+    bits = bits - b
+    baseb[out] = total // 2**bits
+    total %= 2**bits # prevent accumulator from overflowing
 
-      byte_trailing_bits = 8 - (fragment_end_bit - byte_start_bit)
-      digit_trailing_bits = digit_end_bit - fragment_end_bit
-      fragment_value = (x[byte_index] // 2**byte_trailing_bits) % 2**fragment_bit_count
-      digits[i] += fragment_value * 2**digit_trailing_bits
-
-  return digits
+  return baseb
 ```
 <!-- DOC END base_2b -->
+
+<!-- DOC START base_2b_alt -->
+Alternative implementation using FIPS 205 Algorithm 4[^slhdsa], equivalent
+to `base_2b` when `b >= 0`, `out_len >= 0`, and `x` contains at least
+`out_len * b` bits.
+
+```py
+def base_2b_alt(x: bytes, b: int, out_len: int) -> list[int]:
+  assert b >= 0
+  assert out_len >= 0
+  assert len(x) * 8 >= out_len * b
+
+  baseb = [0] * out_len
+  j = 0
+  bits = 0
+  total = 0
+
+  for out in range(out_len):
+    while bits < b:
+      total = (total << 8) + x[j]
+      j = j + 1
+      bits = bits + 8
+
+    bits = bits - b
+    baseb[out] = (total >> bits) % 2**b
+
+  return baseb
+```
+<!-- DOC END base_2b_alt -->
 
 
 ### Building Blocks
