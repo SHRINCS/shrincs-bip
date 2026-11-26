@@ -59,7 +59,7 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
     for _ in range(ceildiv(max(0, b - bits), 8)):
       total = 256 * total + (x[j] if j < len(x) else 0)
       j = j + 1
-      bits += 8
+      bits = bits + 8
 
     bits = bits - b
     baseb[out] = total // 2**bits
