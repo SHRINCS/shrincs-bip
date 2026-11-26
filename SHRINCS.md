@@ -10,7 +10,7 @@
   Status: Draft
   Type: Specification
   Assigned: ?
-  License: CC0-1.0 or MIT
+  License: CC0-1.0 OR MIT
 ```
 
 ## Abstract
@@ -464,7 +464,7 @@ This aligns with the SHA256 block size, so that `pk_seed` can be absorbed into t
 ### Value Types
 
 A function signature states the size of each value it takes and returns, in the notation below.
-`impl/shrincs.py` declares that notation as [`typing.Annotated`](https://docs.python.org/3/library/typing.html#typing.Annotated) metadata, so that it can be checked mechanically.
+`shrincs.py` declares that notation as [`typing.Annotated`](https://docs.python.org/3/library/typing.html#typing.Annotated) metadata, so that it can be checked mechanically.
 They are inert in the implementation, and the sizes they state are requirements on any implementation.
 
 - `Bytes[n]` is a byte string of exactly `n` bytes.
@@ -772,11 +772,11 @@ class FxmssTree(Address):
 The following figures show, for each `ADRS` type, how the 22-byte address is laid out: the common leading fields (`layer` and `tree_address` for stateless types, `node_height` and `node_index` for stateful types) and the `type` field, followed by the type-specific interpretation of the 12-byte `payload`.
 Field widths are drawn proportional to their byte sizes, with byte offsets along the top.
 
-<img src="img/adrs-stateless.svg">
+<img src="img/adrs-stateless.svg" alt="Stateless ADRS types">
 
 <sup>Stateless (`SL_*`) `ADRS` types, used along the SLH-DSA hypertree signing path.</sup>
 
-<img src="img/adrs-stateful.svg">
+<img src="img/adrs-stateful.svg" alt="Stateful ADRS types">
 
 <sup>Stateful (`SF_*`) `ADRS` types, used along the FXMSS signing path.</sup>
 
@@ -1194,7 +1194,7 @@ To sign, the key holder maps an approved message to a set of integers which each
 The verifier maps the message to those same integers as the signer did, and finishes computing the hash chains.
 If the signer revealed the correct nodes, then the verifier will have recomputed the same hash chain tips that compose the signer's public key.
 
-<img src="img/wots-diagram-generic.svg">
+<img src="img/wots-diagram-generic.svg" alt="Simplified WOTS example with four hash chains of length four">
 
 <sup>This diagram illustrates a simplified example of WOTS, using 4 hash chains of length 4 to sign an 8-bit message.</sup>
 
@@ -1972,11 +1972,11 @@ Because each XMSS tree is generated deterministically from a seed, the signer do
 The signer can _just-in-time_ generate the XMSS trees that will be used for a specific signature, and thereafter those trees can be discarded from memory.
 This diagram shows a simplified example with three layers of XMSS trees with height 2.
 
-<img src="img/hypertree.svg">
+<img src="img/hypertree.svg" alt="Example of a three-layer hypertree of XMSS trees">
 
 A hypertree signature is simply a chain of `SPHX_LAYER_COUNT` XMSS signatures, starting from the bottom-layer which signs a given 16-byte message.
 
-<img src="img/hypertree-signature.svg">
+<img src="img/hypertree-signature.svg" alt="Example of a hypertree signature">
 
 The following algorithms are used only for stateless hypertree signing and verification.
 
@@ -2368,7 +2368,7 @@ When signing, a message and randomizer `R` are mapped via a hash to a set of `SP
 Each index identifies a specific preimage from each merkle tree which the signer must reveal, along with a merkle authentication path.
 The verifier uses the preimages and merkle paths to recompute the roots of each tree, and finally recomputes the FORS public key to verify the signature.
 
-<img src="img/fors.svg">
+<img src="img/fors.svg" alt="Example of a toy FORS keypair">
 
 <sup>This diagram illustrates a toy FORS keypair, with merkle trees of height 2. Messages are mapped to a set of `k` 2-bit integers which select an index from each tree.</sup>
 
@@ -2599,7 +2599,7 @@ The final SLH-DSA signature consists of:
 - A FORS signature on a message
 - A hypertree signature on the FORS public key
 
-<img src="img/slh-dsa-signature.svg">
+<img src="img/slh-dsa-signature.svg" alt="SLH-DSA signature structure">
 
 The following sections describe the algorithms used for SLH-DSA.
 
@@ -2775,7 +2775,7 @@ shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
 
 This encoding is chosen such that slicing off the last 18 bytes (`sf_structure + sf_root`) yields a valid secret key for the stateless component.
 
-<img src="./img/shrincs-keys.svg">
+<img src="./img/shrincs-keys.svg" alt="SHRINCS key structure">
 
 #### Contexts
 
@@ -2809,6 +2809,8 @@ Implementors must take care to avoid many dangerous state management practices w
 Signers are highly encouraged to store state counters only in durable, persistent, rollback-resistant storage which is protected against unauthorized modification.
 
 If correct state is not available for any reason, such as when restoring from a static backup, then a SHRINCS implementation MUST refuse to sign with the stateful path, and utilize only the stateless signing path.
+
+For more guidance on state management solutions, see [`state.md`](./docs/state.md).
 
 #### Maximum Message Length
 
@@ -3137,9 +3139,8 @@ Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`
 
 ## Reference Implementation
 
-We provide a naive, highly inefficient, and non-constant-time pure Python 3 implementation of the SHRINCS algorithms in [`impl/shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
+We provide a naive, highly inefficient, and non-constant-time pure Python 3 implementation of the SHRINCS algorithms in [`shrincs.py`](./impl/shrincs.py), which is the normative source for the algorithms specified in this document.
 
-Tests are provided in the [`tests`](./tests) directory.
 Comprehensive test vectors covering every algorithm are still TODO; they are required to advance this proposal from Draft to Complete.
 
 > [!WARNING]
