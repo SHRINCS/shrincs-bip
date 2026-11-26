@@ -80,6 +80,10 @@ SPHX_XMSS_HEIGHT   = 9
 SPHX_FORS_HEIGHT   = 13
 SPHX_FORS_COUNT    = 10
 FXMSS_HEIGHT       = 255
+BXMSS_MAX_DEPTH    = 64
+FXMSS_INDEX_BITS   = 64
+
+assert BXMSS_MAX_DEPTH <= FXMSS_INDEX_BITS
 
 #  Derived constants
 WOTS_TW_CHAIN_COUNT1          = ceildiv(128, WOTS_TW_CHAIN_BITS)
@@ -1178,9 +1182,19 @@ def fxmss_sign(
     return None # practically impossible
 
   # Append the Merkle authentication path.
-  for j in range(leaf_depth):
-    sibling_index = (leaf_index // 2**j) ^ 1
-    sibling_height = leaf_height + j
+  for level in range(leaf_depth):
+    # The quotient is zero when the divisor would exceed the index width.
+    if level < FXMSS_INDEX_BITS:
+      ancestor_index = leaf_index // 2**level
+    else:
+      ancestor_index = 0
+
+    if ancestor_index % 2 == 0:
+      sibling_index = ancestor_index + 1
+    else:
+      sibling_index = ancestor_index - 1
+
+    sibling_height = leaf_height + level
     sig += fxmss_node(
       sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
     )
@@ -1219,8 +1233,8 @@ def fxmss_pubkey_from_sig(
   # Ensure the XMSS path size matches leaf_depth.
   assert len(xmss_auth) == leaf_depth * 16
 
-  # Ensure leaf_index describes a valid position in the FXMSS tree.
-  assert leaf_index < 2 ** min(64, leaf_depth)
+  # At the index width or deeper, every input index fits and the bound would overflow.
+  assert leaf_depth >= FXMSS_INDEX_BITS or leaf_index < 2**leaf_depth
 
   node = wots_c_pubkey_from_sig(
     wots_sig, message_digest, pk_seed, leaf_height, leaf_index
@@ -1228,10 +1242,17 @@ def fxmss_pubkey_from_sig(
   if node is None:
     return None
 
-  for k in range(leaf_depth):
-    parent = FxmssTree(leaf_height + k + 1, leaf_index // 2**(k+1))
-    sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index // 2**k) % 2 == 0:
+  for level in range(leaf_depth):
+    # The quotient is zero when the divisor would exceed the index width.
+    if level < FXMSS_INDEX_BITS:
+      ancestor_index = leaf_index // 2**level
+    else:
+      ancestor_index = 0
+
+    parent = FxmssTree(leaf_height + level + 1, ancestor_index // 2)
+    sibling = xmss_auth[level*16 : (level+1)*16]
+
+    if ancestor_index % 2 == 0:
       node = H(pk_seed, parent, node + sibling)
     else:
       node = H(pk_seed, parent, sibling + node)
@@ -1538,21 +1559,20 @@ def slh_dsa_verify(
 
 #  SHRINCS algorithms
 
-def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
+def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> Optional[tuple[Bytes[82], Bytes[48]]]:
   """
   The SHRINCS key generation function. Computes the secret and public keys from a 48-byte `seed`
   and the stateful tree `sf_structure`.
 
   - Inputs:
     - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
-      must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
-      depths for each shape in [Tree Shapes](#tree-shapes).
-  - Outputs:
-    - an 82-byte SHRINCS secret key.
-    - a 48-byte SHRINCS public key.
+    - `sf_structure`: a 2-byte FXMSS structure, with a shape byte followed by a depth byte.
+      See [Tree Shapes](#tree-shapes) for the supported shapes and depths.
+  - Output:
+    - a pair consisting of an 82-byte SHRINCS secret key and a 48-byte SHRINCS public key, or null.
 
-  This function is used only during key generation.
+  This function returns `None` if `sf_structure` is invalid. An unknown shape or a balanced
+  depth above `BXMSS_MAX_DEPTH` is invalid.
 
   > [!WARNING]
   > The `sf_structure` argument, consisting of a shape byte followed by a depth byte `d`, must come
@@ -1561,17 +1581,20 @@ def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], 
   > of depth `d` requires `2**d` WOTS+C public-key generations, so implementations should reject a
   > depth they cannot afford to compute.
   """
-  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
+  tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
   pk_seed = seed[32:48]
 
   sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, SPHX_LAYER_COUNT - 1, 0)
-  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
-  sf_root = fxmss_node(
-    sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
-  )
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, tree_depth)
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root
@@ -1591,7 +1614,7 @@ def shrincs_sf_leaf_select(
   next WOTS+C leaf for the given `sf_structure` and `state_ctr`.
 
   - Inputs:
-    - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+    - `sf_structure`: a valid 2-byte FXMSS structure, with a supported shape and depth.
     - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
       previously issued, or `None`.
   - Outputs:
@@ -1604,10 +1627,13 @@ def shrincs_sf_leaf_select(
 
   This function is only used in the stateful path, and only by the signer.
   """
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= BXMSS_MAX_DEPTH
+
   if state_ctr is None:
     return None
 
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  tree_shape, tree_depth = sf_structure
 
   # A depth-zero tree holds no usable WOTS+C leaf.
   if tree_depth == 0:
@@ -1616,15 +1642,14 @@ def shrincs_sf_leaf_select(
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if state_ctr < tree_depth:
+    elif state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
-
   elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr < 2**tree_depth:
+    # At the index width, every counter selects a leaf and the leaf count would overflow.
+    if tree_depth >= FXMSS_INDEX_BITS or state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
-  # - unknown FXMSS tree shape
-  # - no more signatures left
+  # The counter is out of range for this tree.
   return None
 
 def shrincs_sign(
@@ -1636,9 +1661,11 @@ def shrincs_sign(
 ) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
                     Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
   """
-  The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`:
-  uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
-  falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
+  The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key
+  `shrincs_seckey` on the stateful FXMSS path when `state_ctr` selects a usable leaf, or on the
+  stateless SLH-DSA path otherwise. The function returns `None` if the key contains an unsupported
+  `sf_structure` or [WOTS+C grinding exhausts its attempts](#on-signing-fallibility).
+  Verifiers must use `shrincs_verify` with the same `ctx`.
 
   - Inputs:
     - `message`: a message of at most `2**61 - 384` bytes.
@@ -1664,9 +1691,10 @@ def shrincs_sign(
 
   > [!CAUTION]
   > Using the same key to sign different `(message, ctx)` pairs with the same `state_ctr` is
-  > a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
-  > which increments and saves the state counter as `state_ctr + 1` on a persistent,
-  > rollback-resistant storage medium before the signature is returned to the caller.
+  > a security vulnerability. The caller must follow [On Managing State](#on-managing-state).
+  > If incrementing the last usable counter would exceed the signer's supported counter range,
+  > the caller must durably record exhaustion before signing with that counter and pass `None`
+  > on subsequent calls.
   """
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
@@ -1676,7 +1704,12 @@ def shrincs_sign(
   sf_root      = shrincs_seckey[66:82]
 
   tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
   tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
 
@@ -1704,9 +1737,9 @@ def shrincs_sign(
   if fxmss_signature is None:
     return None # practically impossible
 
-  # Encode the leaf index with a byte size proportional to its maximum = 2**min(64, leaf_depth)
   leaf_depth = FXMSS_HEIGHT - leaf_height
-  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
+  # Encode the leaf index using the byte width of 2**min(leaf_depth, FXMSS_INDEX_BITS) - 1.
+  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8))
 
   return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
 
@@ -1767,11 +1800,11 @@ def shrincs_verify(
     R = signature[1:17]
     leaf_height = indicator
     leaf_depth = FXMSS_HEIGHT - leaf_height
-    leaf_index_size = ceildiv(min(leaf_depth, 64), 8)
+    leaf_index_size = ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8)
     leaf_index = int.from_bytes(signature[17 : 17+leaf_index_size])
 
-    # Reject a leaf_index that names no position in a tree of this depth.
-    if leaf_index >= 2 ** min(64, leaf_depth):
+    # At the index width or deeper, every encoded index fits and the bound would overflow.
+    if leaf_depth < FXMSS_INDEX_BITS and leaf_index >= 2**leaf_depth:
       return False
 
     fxmss_signature = signature[17+leaf_index_size:]

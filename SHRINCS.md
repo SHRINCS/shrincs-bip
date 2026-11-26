@@ -330,7 +330,9 @@ Meanwhile, the FXMSS verifier is left open to accept signatures from unorthodox 
 
 ### Does FXMSS have a big enough signature budget?
 
-FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->, but leaf indexing uses 64-bit unsigned integers, so in theory one could generate a BXMSS tree of at most depth 64 containing 2<sup>64</sup> WOTS+C leaves.
+FXMSS admits trees of depth at most <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT -->.
+FXMSS node indices are at most <!-- CONST START FXMSS_INDEX_BITS -->64<!-- CONST END FXMSS_INDEX_BITS --> bits wide, so BXMSS trees are limited to depth <!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH -->.
+A BXMSS tree at that depth contains 2<sup><!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --></sup> WOTS+C leaves.
 However, this is impractical because FXMSS is a single-tree design XMSS-variant.
 A single-tree design puts a fundamental limit on the signer: *The signature budget is limited to the number of WOTS+C keys that can be constructed **up-front,*** during key-generation.
 This is because all WOTS+C keys in FXMSS must be arranged into a single merkle tree, whose root must be known before the SHRINCS public key can be fully computed.
@@ -380,13 +382,13 @@ Here follow the parameters of the stateful and stateless components.
 
 #### Stateful Parameters
 
-<!--Mike: Should we add the parameters for maximum depth of the stateful XMSS and maximum width of the stateful XMSS (255 and 2^32)? -->
-
 | Parameter | Value | Description |
 |:-:|:-:|:--|
 | `WOTS_C_CHAIN_BITS` | <!-- CONST START WOTS_C_CHAIN_BITS -->4<!-- CONST END WOTS_C_CHAIN_BITS --> | The number of bits encoded by each Winternitz key chain. |
 | `WOTS_C_CHAIN_COUNT` | <!-- CONST START WOTS_C_CHAIN_COUNT -->32<!-- CONST END WOTS_C_CHAIN_COUNT --> | The number of Winternitz chains. |
-| `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The imaginary height of the FXMSS tree, i.e. the maximum depth of a WOTS+C leaf node. |
+| `FXMSS_HEIGHT` | <!-- CONST START FXMSS_HEIGHT -->255<!-- CONST END FXMSS_HEIGHT --> | The maximum FXMSS leaf depth, also used as the fixed root height. |
+| `BXMSS_MAX_DEPTH` | <!-- CONST START BXMSS_MAX_DEPTH -->64<!-- CONST END BXMSS_MAX_DEPTH --> | The maximum FXMSS leaf depth for balanced trees. |
+| `FXMSS_INDEX_BITS` | <!-- CONST START FXMSS_INDEX_BITS -->64<!-- CONST END FXMSS_INDEX_BITS --> | The maximum width in bits of the FXMSS node index. |
 
 #### Stateless Parameters
 
@@ -2091,6 +2093,8 @@ The two shapes are identified by their respective constants.
 | ... | 2...255 | Reserved. |
 
 We leave open the possibility to define new shape flags for new XMSS tree structures, but we encourage signers to utilize the recommended shapes wherever possible, for the sake of security and anonymity.
+The reference signing code rejects keys with reserved shape flags on both signing paths.
+Verification is agnostic to the tree shape.
 
 The following sections describe the usage properties of the two shapes, and we let the variable `depth` represent the depth byte as a parameter of the shape.
 
@@ -2148,7 +2152,8 @@ The `depth` of the BXMSS tree at key generation time has a significant impact on
 The exact size of the constant-size signatures is also dictated by `depth`: each step further from the root node we take, we must add 16 bytes to the FXMSS signature.
 Furthermore, each step doubles the number of leaf nodes, and so doubles the signature budget, but also doubles the amount of computational work needed for BXMSS key generation and/or signing.
 
-Signer implementations may specify any height for BXMSS trees depending on their use-cases, but typical safe defaults range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (1 million signatures), or more in special circumstances.
+Signer implementations may specify any depth up to `BXMSS_MAX_DEPTH`.
+Typical depths range from `depth = 8` (256 signatures, matching the budget of UXMSS) to `depth = 20` (about 1 million signatures).
 
 
 ##### Custom Shapes
@@ -2161,7 +2166,7 @@ This specification only defines two shapes: BXMSS and UXMSS. For security and pr
 ##### Caveats
 
 - Only nodes with index less than `2**64` are indexable in FXMSS.[^fxmss_node_index]
-- Some tree structures are invalid or impractical to generate, such as a balanced tree of height 255.
+- BXMSS depths above `BXMSS_MAX_DEPTH` are invalid. Generating a tree at a supported depth can still be impractical.
 - A tree of depth 0 has no stateful signatures, whatever its shape.
   Its root is the only position a WOTS+C leaf could occupy, and a signature made there carries no authentication path, so it falls below `FXMSS_SIGNATURE_SIZE_MIN` and every verifier rejects it.
   Signers MUST NOT issue a stateful signature under a depth-zero key; every state counter falls back to the stateless path.
@@ -2271,9 +2276,19 @@ def fxmss_sign(
     return None # practically impossible
 
   # Append the Merkle authentication path.
-  for j in range(leaf_depth):
-    sibling_index = (leaf_index // 2**j) ^ 1
-    sibling_height = leaf_height + j
+  for level in range(leaf_depth):
+    # The quotient is zero when the divisor would exceed the index width.
+    if level < FXMSS_INDEX_BITS:
+      ancestor_index = leaf_index // 2**level
+    else:
+      ancestor_index = 0
+
+    if ancestor_index % 2 == 0:
+      sibling_index = ancestor_index + 1
+    else:
+      sibling_index = ancestor_index - 1
+
+    sibling_height = leaf_height + level
     sig += fxmss_node(
       sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
     )
@@ -2321,8 +2336,8 @@ def fxmss_pubkey_from_sig(
   # Ensure the XMSS path size matches leaf_depth.
   assert len(xmss_auth) == leaf_depth * 16
 
-  # Ensure leaf_index describes a valid position in the FXMSS tree.
-  assert leaf_index < 2 ** min(64, leaf_depth)
+  # At the index width or deeper, every input index fits and the bound would overflow.
+  assert leaf_depth >= FXMSS_INDEX_BITS or leaf_index < 2**leaf_depth
 
   node = wots_c_pubkey_from_sig(
     wots_sig, message_digest, pk_seed, leaf_height, leaf_index
@@ -2330,10 +2345,17 @@ def fxmss_pubkey_from_sig(
   if node is None:
     return None
 
-  for k in range(leaf_depth):
-    parent = FxmssTree(leaf_height + k + 1, leaf_index // 2**(k+1))
-    sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index // 2**k) % 2 == 0:
+  for level in range(leaf_depth):
+    # The quotient is zero when the divisor would exceed the index width.
+    if level < FXMSS_INDEX_BITS:
+      ancestor_index = leaf_index // 2**level
+    else:
+      ancestor_index = 0
+
+    parent = FxmssTree(leaf_height + level + 1, ancestor_index // 2)
+    sibling = xmss_auth[level*16 : (level+1)*16]
+
+    if ancestor_index % 2 == 0:
       node = H(pk_seed, parent, node + sibling)
     else:
       node = H(pk_seed, parent, sibling + node)
@@ -2791,6 +2813,7 @@ To avoid using the same WOTS+C keypair more than once, signers using FXMSS must 
 This counter tracks the number of signatures previously issued by the keypair.
 It increments once for every stateful FXMSS signature created, and _must never decrement._
 When signing, the SHRINCS stateful signing algorithm chooses which WOTS+C leaf to use based on the state counter and the FXMSS tree structure.
+Signers may restrict the tree depths and counter range they support. The last usable counter is determined by both the tree and the signer's supported counter range.
 
 It is **absolutely critical for security that signers manage state counters extremely carefully.**
 Implementors must take care to avoid many dangerous state management practices which lead to state reuse:
@@ -2799,8 +2822,8 @@ Implementors must take care to avoid many dangerous state management practices w
 - State counters must not live in unprotected storage (e.g. shared memory, a user-accessible folder, etc).
 - State counters must not be exported and imported into other software.
 - Implementations must not allow concurrent signing.
-- Signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
-- If incrementing the last usable counter would overflow, signers must record exhaustion in persistent storage _before_ signing with that counter.
+- If the next counter is within the signer's supported counter range, signers must increment the state counter in persistent storage _before_ returning an FXMSS signature to the caller.
+- If incrementing the last usable counter would exceed that range, signers must record exhaustion in persistent storage _before_ signing with that counter. Subsequent calls must pass `None` to use the stateless path.
 
 Signers are highly encouraged to store state counters only in durable, persistent, rollback-resistant storage which is protected against unauthorized modification.
 
@@ -2830,14 +2853,13 @@ and the stateful tree `sf_structure`.
 
 - Inputs:
   - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
-    must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
-    depths for each shape in [Tree Shapes](#tree-shapes).
-- Outputs:
-  - an 82-byte SHRINCS secret key.
-  - a 48-byte SHRINCS public key.
+  - `sf_structure`: a 2-byte FXMSS structure, with a shape byte followed by a depth byte.
+    See [Tree Shapes](#tree-shapes) for the supported shapes and depths.
+- Output:
+  - a pair consisting of an 82-byte SHRINCS secret key and a 48-byte SHRINCS public key, or null.
 
-This function is used only during key generation.
+This function returns `None` if `sf_structure` is invalid. An unknown shape or a balanced
+depth above `BXMSS_MAX_DEPTH` is invalid.
 
 > [!WARNING]
 > The `sf_structure` argument, consisting of a shape byte followed by a depth byte `d`, must come
@@ -2847,18 +2869,21 @@ This function is used only during key generation.
 > depth they cannot afford to compute.
 
 ```py
-def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
-  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> Optional[tuple[Bytes[82], Bytes[48]]]:
+  tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
+  tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
   pk_seed = seed[32:48]
 
   sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, SPHX_LAYER_COUNT - 1, 0)
-  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
-  sf_root = fxmss_node(
-    sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
-  )
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, tree_depth)
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root
@@ -2874,7 +2899,7 @@ The SHRINCS stateful-path leaf-selection function. Computes the position `(index
 next WOTS+C leaf for the given `sf_structure` and `state_ctr`.
 
 - Inputs:
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure.
+  - `sf_structure`: a valid 2-byte FXMSS structure, with a supported shape and depth.
   - `state_ctr`: a 64-bit unsigned integer, the number of stateful signatures the keypair has
     previously issued, or `None`.
 - Outputs:
@@ -2891,10 +2916,13 @@ This function is only used in the stateful path, and only by the signer.
 def shrincs_sf_leaf_select(
     sf_structure: Bytes[2], state_ctr: Optional[UInt64]
 ) -> Optional[tuple[UInt64, UInt8]]:
+  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+  assert sf_structure[0] != FXMSS_SHAPE_BALANCED or sf_structure[1] <= BXMSS_MAX_DEPTH
+
   if state_ctr is None:
     return None
 
-  tree_shape, tree_depth = sf_structure[0], sf_structure[1]
+  tree_shape, tree_depth = sf_structure
 
   # A depth-zero tree holds no usable WOTS+C leaf.
   if tree_depth == 0:
@@ -2903,15 +2931,14 @@ def shrincs_sf_leaf_select(
   if tree_shape == FXMSS_SHAPE_UNBALANCED:
     if state_ctr == tree_depth:
       return (0, FXMSS_HEIGHT - tree_depth)
-    if state_ctr < tree_depth:
+    elif state_ctr < tree_depth:
       return (1, FXMSS_HEIGHT - 1 - state_ctr)
-
   elif tree_shape == FXMSS_SHAPE_BALANCED:
-    if state_ctr < 2**tree_depth:
+    # At the index width, every counter selects a leaf and the leaf count would overflow.
+    if tree_depth >= FXMSS_INDEX_BITS or state_ctr < 2**tree_depth:
       return (state_ctr, FXMSS_HEIGHT - tree_depth)
 
-  # - unknown FXMSS tree shape
-  # - no more signatures left
+  # The counter is out of range for this tree.
   return None
 ```
 <!-- DOC END shrincs_sf_leaf_select -->
@@ -2920,9 +2947,11 @@ def shrincs_sf_leaf_select(
 #### `shrincs_sign(...)`
 
 <!-- DOC START shrincs_sign -->
-The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`:
-uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
-falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
+The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key
+`shrincs_seckey` on the stateful FXMSS path when `state_ctr` selects a usable leaf, or on the
+stateless SLH-DSA path otherwise. The function returns `None` if the key contains an unsupported
+`sf_structure` or [WOTS+C grinding exhausts its attempts](#on-signing-fallibility).
+Verifiers must use `shrincs_verify` with the same `ctx`.
 
 - Inputs:
   - `message`: a message of at most `2**61 - 384` bytes.
@@ -2948,9 +2977,10 @@ This function is used only by the signer.
 
 > [!CAUTION]
 > Using the same key to sign different `(message, ctx)` pairs with the same `state_ctr` is
-> a security vulnerability. SHRINCS implementations must wrap `shrincs_sign` with code
-> which increments and saves the state counter as `state_ctr + 1` on a persistent,
-> rollback-resistant storage medium before the signature is returned to the caller.
+> a security vulnerability. The caller must follow [On Managing State](#on-managing-state).
+> If incrementing the last usable counter would exceed the signer's supported counter range,
+> the caller must durably record exhaustion before signing with that counter and pass `None`
+> on subsequent calls.
 
 ```py
 def shrincs_sign(
@@ -2969,7 +2999,12 @@ def shrincs_sign(
   sf_root      = shrincs_seckey[66:82]
 
   tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return None
+
   tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  if tree_balanced and tree_depth > BXMSS_MAX_DEPTH:
+    return None
 
   leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
 
@@ -2997,16 +3032,16 @@ def shrincs_sign(
   if fxmss_signature is None:
     return None # practically impossible
 
-  # Encode the leaf index with a byte size proportional to its maximum = 2**min(64, leaf_depth)
   leaf_depth = FXMSS_HEIGHT - leaf_height
-  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
+  # Encode the leaf index using the byte width of 2**min(leaf_depth, FXMSS_INDEX_BITS) - 1.
+  leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8))
 
   return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
 ```
 <!-- DOC END shrincs_sign -->
 
 > [!NOTE]
-> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
+> Assuming valid inputs, [the `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 #### `shrincs_verify(...)`
 
@@ -3068,11 +3103,11 @@ def shrincs_verify(
     R = signature[1:17]
     leaf_height = indicator
     leaf_depth = FXMSS_HEIGHT - leaf_height
-    leaf_index_size = ceildiv(min(leaf_depth, 64), 8)
+    leaf_index_size = ceildiv(min(leaf_depth, FXMSS_INDEX_BITS), 8)
     leaf_index = int.from_bytes(signature[17 : 17+leaf_index_size])
 
-    # Reject a leaf_index that names no position in a tree of this depth.
-    if leaf_index >= 2 ** min(64, leaf_depth):
+    # At the index width or deeper, every encoded index fits and the bound would overflow.
+    if leaf_depth < FXMSS_INDEX_BITS and leaf_index >= 2**leaf_depth:
       return False
 
     fxmss_signature = signature[17+leaf_index_size:]
@@ -3103,8 +3138,9 @@ def shrincs_verify(
 
 ## On Signing Fallibility
 
-The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` if the function fails.
-This originates from an edge case condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+`shrincs_sign` returns `None` if the secret key encodes an unsupported FXMSS structure.
+With a supported structure, the stateful signer can return `None` when `wots_c_grind_to_constant_sum` exhausts its attempts.
+This failure propagates through `wots_c_sign` and `fxmss_sign` to `shrincs_sign`.
 
 While this edge case is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe.
 See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.

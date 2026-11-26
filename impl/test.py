@@ -1,10 +1,10 @@
 from random import randbytes
-from typing import get_args, get_type_hints
+from typing import Protocol, get_args, get_type_hints
 from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
 from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
 from shrincs import LEN, UINT, SHRINCS_SL_SIGNATURE_SIZE, SPHX_SIGNATURE_SIZE
 from shrincs import wots_c_chain_iter, wots_tw_chain_iter
-from shrincs import Address, WotsTwHash, WotsTwPrf, WotsTwPk, XmssTree
+from shrincs import WotsTwHash, WotsTwPrf, WotsTwPk, XmssTree
 from shrincs import ForsTree, ForsRoots, ForsPrf
 from shrincs import WotsCHash, WotsCPrf, WotsCPk, WotsCGrind, FxmssTree
 from shrincs import SL_WOTS_TW_HASH, SL_WOTS_TW_PRF, SL_WOTS_TW_PK, SL_XMSS_TREE
@@ -23,7 +23,17 @@ def find_metadata(annotation, metadata_type):
   ]
 
 
-def assert_address_serializes_to(address: Address, address_type: int, payload: bytes):
+class SerializableAddress(Protocol):
+  @property
+  def height(self) -> int: ...
+
+  @property
+  def index(self) -> int: ...
+
+  def to_bytes(self) -> bytes: ...
+
+
+def assert_address_serializes_to(address: SerializableAddress, address_type: int, payload: bytes):
   assert len(payload) == 12
   expected = (
     address.height.to_bytes(1)
@@ -172,16 +182,20 @@ if __name__ == "__main__":
     (bytes([FXMSS_SHAPE_UNBALANCED, 16]), 17)
   ]
   for (i, (sf_structure, stateful_signature_count)) in enumerate(structures):
-    sk, pk = shrincs_keygen(randbytes(48), sf_structure)
+    keypair = shrincs_keygen(randbytes(48), sf_structure)
+    assert keypair is not None
+    sk, pk = keypair
 
     msg = b"foobar!"
     for j in range(stateful_signature_count):
       sig = shrincs_sign(msg, b"", sk, j, None)
+      assert sig is not None
       assert shrincs_verify(msg, sig, b"", pk)
     print(f'verified all stateful signatures for structure {sf_structure.hex()}')
 
     if i == len(structures) - 1:
       sig = shrincs_sign(msg, b"", sk, None, None)
+      assert sig is not None
       assert shrincs_verify(msg, sig, b"", pk)
       assert len(sig) == SHRINCS_SL_SIGNATURE_SIZE
       print(f'verified stateless signature')

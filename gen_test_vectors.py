@@ -34,18 +34,24 @@ KEYGEN_TEST_VEC_INPUTS = [
   KeygenVectorInput(seed=b"uxmss-255", balanced=False, depth=255),
 ]
 
-def generate_keygen_vectors():
+def generate_keygen_vectors() -> None:
+  rows = []
+  for inp in KEYGEN_TEST_VEC_INPUTS:
+    structure = bytes([shrincs.FXMSS_SHAPE_BALANCED, inp.depth]) if inp.balanced else \
+                bytes([shrincs.FXMSS_SHAPE_UNBALANCED, inp.depth])
+    derived = shrincs.sha256(inp.seed + b"1") + shrincs.sha256(inp.seed + b"2")
+    keypair = shrincs.shrincs_keygen(derived[:48], structure)
+    if keypair is None:
+      raise ValueError(f'key generation rejected tree structure {structure.hex()}')
+    seckey, pubkey = keypair
+    row = [derived[:48], structure, seckey, pubkey]
+    rows.append([hexlify(x).decode() for x in row])
+
   vec_path = path.join('test_vectors', 'keygen.csv')
   with open(vec_path, 'w', newline='') as fh:
     w = csv.writer(fh)
     w.writerow(['seed', 'structure', 'seckey', 'pubkey'])
-    for inp in KEYGEN_TEST_VEC_INPUTS:
-      structure = bytes([shrincs.FXMSS_SHAPE_BALANCED, inp.depth]) if inp.balanced else \
-                  bytes([shrincs.FXMSS_SHAPE_UNBALANCED, inp.depth])
-      derived = shrincs.sha256(inp.seed + b"1") + shrincs.sha256(inp.seed + b"2")
-      seckey, pubkey = shrincs.shrincs_keygen(derived[:48], structure)
-      row = [derived[:48], structure, seckey, pubkey]
-      w.writerow([hexlify(x).decode() for x in row])
+    w.writerows(rows)
   write_file_fingerprint(vec_path)
 
 class SignVectorInput:
@@ -130,32 +136,38 @@ SIGNATURES_VALID_TEST_VEC_INPUTS = [
   ),
 ]
 
-def generate_signatures_valid_test_vectors():
+def generate_signatures_valid_test_vectors() -> None:
+  rows = []
+  for fixture_number, inp in enumerate(SIGNATURES_VALID_TEST_VEC_INPUTS, start=1):
+    signature = shrincs.shrincs_sign(
+      inp.message,
+      inp.ctx,
+      inp.seckey,
+      inp.state_ctr,
+      inp.opt_rand
+    )
+    if signature is None:
+      raise ValueError(f'signing failed for signature vector {fixture_number}')
+
+    pubkey = shrincs.shrincs_extract_pubkey(inp.seckey)
+    if not shrincs.shrincs_verify(inp.message, signature, inp.ctx, pubkey):
+      raise ValueError(f'verification failed for signature vector {fixture_number}')
+
+    rows.append([
+      hexlify(inp.seckey).decode(),
+      hexlify(pubkey).decode(),
+      hexlify(inp.message).decode(),
+      hexlify(inp.ctx).decode(),
+      '' if inp.opt_rand is None else hexlify(inp.opt_rand).decode(),
+      '' if inp.state_ctr is None else inp.state_ctr,
+      hexlify(signature).decode(),
+    ])
+
   vec_path = path.join('test_vectors', 'signatures_valid.csv')
   with open(vec_path, 'w', newline='') as fh:
     w = csv.writer(fh)
     w.writerow(['seckey', 'pubkey', 'message', 'ctx', 'opt_rand', 'state_ctr', 'signature'])
-    for inp in SIGNATURES_VALID_TEST_VEC_INPUTS:
-      signature = shrincs.shrincs_sign(
-        inp.message,
-        inp.ctx,
-        inp.seckey,
-        inp.state_ctr,
-        inp.opt_rand
-      )
-      pubkey = shrincs.shrincs_extract_pubkey(inp.seckey)
-
-      assert shrincs.shrincs_verify(inp.message, signature, inp.ctx, pubkey)
-
-      w.writerow([
-        hexlify(inp.seckey).decode(),
-        hexlify(pubkey).decode(),
-        hexlify(inp.message).decode(),
-        hexlify(inp.ctx).decode(),
-        '' if inp.opt_rand is None else hexlify(inp.opt_rand).decode(),
-        '' if inp.state_ctr is None else inp.state_ctr,
-        hexlify(signature).decode(),
-      ])
+    w.writerows(rows)
   write_file_fingerprint(vec_path)
 
 def generate_test_vectors():
