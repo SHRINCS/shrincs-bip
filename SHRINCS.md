@@ -482,7 +482,7 @@ They are inert in the implementation, and the sizes they state are requirements 
   Each element is written into the field its caller gives it, so the group has no size of its own.
 - `Union[T, U]` is a value of one of the given types.
   Where this specification returns one, its length tells the reader which.
-- `Optional[T]` is either a `T` or the absence of one.
+- `Optional[T]` is either a value of type `T` or `None`.
 - `bool` is true or false.
   Where an address includes one, it is serialized as a single byte, 1 for true and 0 for false.
 
