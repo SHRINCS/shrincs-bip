@@ -483,6 +483,9 @@ They are inert in the implementation, and the sizes they state are requirements 
 - `Union[T, U]` is a value of one of the given types.
   For signatures, the length tells the reader which.
 - `Optional[T]` is either a value of type `T` or `None`.
+- `Result[T, E]` is either `Ok(value)` with a value of type `T`, or `Err(error)` with an error of type `E`.
+  The caller reads `result.value` on success and `result.error` on failure.
+  The errors `InvalidFxmssStructure` and `WotsCGrindExhausted` carry no fields.
 - `bool` is true or false.
   Where an address includes one, it is serialized as a single byte, 1 for true and 0 for false.
 
@@ -1587,25 +1590,25 @@ constant-sum index set, returning the lowest such counter and its index set.
   - `message_digest`: a 32-byte intermediate message digest (from `H_msg_sf`).
   - `node_height`: an 8-bit unsigned integer, the height of the WOTS+C leaf in the FXMSS tree.
   - `node_index`: a 64-bit unsigned integer, the index of the WOTS+C leaf in the FXMSS tree.
-- Outputs:
-  - the smallest valid grinding `counter`: a 16-bit unsigned integer.
-  - the constant-sum set of hash chain indexes it yields: `WOTS_C_CHAIN_COUNT` `WOTS_C_CHAIN_BITS`-bit unsigned integers.
-  - or null, in place of both.
+- Output:
+  - `Ok((counter, indexes))` with the smallest valid 16-bit counter and the
+    `WOTS_C_CHAIN_COUNT` constant-sum hash chain indexes it yields, each `WOTS_C_CHAIN_BITS` bits wide.
+  - `Err(WotsCGrindExhausted())` if no counter yields the required sum.
 
 This function is only used in the stateful path, and only by the signer.
 
 ```py
 def wots_c_grind_to_constant_sum(
     pk_seed: Bytes[16], message_digest: Bytes[32], node_height: UInt8, node_index: UInt64
-) -> Optional[tuple[UInt16, Array[UInt16, WOTS_C_CHAIN_COUNT]]]:
+) -> Result[tuple[UInt16, Array[UInt16, WOTS_C_CHAIN_COUNT]], WotsCGrindExhausted]:
   ADRS = WotsCGrind(node_height, node_index)
   for i in range(2**16):
     hashed = H_grind(pk_seed, ADRS, message_digest, i)
     indexes = base_2b(hashed, WOTS_C_CHAIN_BITS, WOTS_C_CHAIN_COUNT)
     if sum(indexes) == WOTS_C_CONSTANT_SUM:
-      return (i, indexes)
+      return Ok((i, indexes))
 
-  return None # practically impossible
+  return Err(WotsCGrindExhausted()) # practically impossible
 ```
 <!-- DOC END wots_c_grind_to_constant_sum -->
 
@@ -1613,7 +1616,7 @@ We max out at 2<sup>16</sup> grinding attempts because the counter is serialized
 There is technically a chance that the signer may exhaust all of these attempts without finding a valid counter; however, we have engineered our parameter set such that this probability is less than 1 chance in 2<sup><!-- CONST START WOTS_C_GRIND_FAIL_PROBABILITY_LOG -->1450<!-- CONST END WOTS_C_GRIND_FAIL_PROBABILITY_LOG --></sup>[^wotsgrind] - practically impossible.
 
 > [!NOTE]
-> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
+> [With valid inputs, `WotsCGrindExhausted` can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 #### `wots_c_map_digest(...)`
@@ -1710,7 +1713,8 @@ leaf at `node_height` and `node_index` in the FXMSS tree.
     unbalanced (UXMSS) tree.
   - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
-  - a `2 + WOTS_C_CHAINS_SIZE`-byte signature, or null.
+  - `Ok(signature)` with a `2 + WOTS_C_CHAINS_SIZE`-byte signature.
+  - `Err(WotsCGrindExhausted())` if WOTS+C grinding exhausts its attempts.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -1723,12 +1727,12 @@ def wots_c_sign(
     node_index: UInt64,
     tree_balanced: bool,
     tree_depth: UInt8,
-) -> Optional[Bytes[2 + WOTS_C_CHAINS_SIZE]]:
-  grinded = wots_c_grind_to_constant_sum(pk_seed, message_digest, node_height, node_index)
-  if grinded is None:
-    return None # practically impossible
+) -> Result[Bytes[2 + WOTS_C_CHAINS_SIZE], WotsCGrindExhausted]:
+  grinding_result = wots_c_grind_to_constant_sum(pk_seed, message_digest, node_height, node_index)
+  if isinstance(grinding_result, Err):
+    return grinding_result # practically impossible
 
-  counter, indexes = grinded
+  counter, indexes = grinding_result.value
   signature = [b''] * WOTS_C_CHAIN_COUNT
 
   for i in range(WOTS_C_CHAIN_COUNT):
@@ -1739,12 +1743,12 @@ def wots_c_sign(
     signature[i] = wots_c_chain_iter(
       sk, 0, indexes[i], pk_seed, node_height, node_index, i
     )
-  return counter.to_bytes(2) + concat(signature)
+  return Ok(counter.to_bytes(2) + concat(signature))
 ```
 <!-- DOC END wots_c_sign -->
 
 > [!NOTE]
-> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
+> [With valid inputs, `WotsCGrindExhausted` can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 #### `wots_c_pubkey_from_sig(...)`
@@ -2282,7 +2286,8 @@ The FXMSS signing function. Produces a deterministic WOTS+C signature at the lea
     unbalanced (UXMSS) tree.
   - `tree_depth`: an 8-bit unsigned integer, the depth of the FXMSS tree.
 - Output:
-  - a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature, or null.
+  - `Ok(signature)` with a `2 + 16 * (WOTS_C_CHAIN_COUNT + FXMSS_HEIGHT - leaf_height)`-byte signature.
+  - `Err(WotsCGrindExhausted())` if WOTS+C grinding exhausts its attempts.
 
 This function is only used in the stateful path, and only by the signer.
 
@@ -2295,7 +2300,7 @@ def fxmss_sign(
     pk_seed: Bytes[16],
     tree_balanced: bool,
     tree_depth: UInt8,
-) -> Optional[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX]]:
+) -> Result[Bytes[FXMSS_SIGNATURE_SIZE_MIN:FXMSS_SIGNATURE_SIZE_MAX], WotsCGrindExhausted]:
   leaf_depth = FXMSS_HEIGHT - leaf_height
 
   # Validate the leaf is positioned correctly for the specified tree structure.
@@ -2304,12 +2309,13 @@ def fxmss_sign(
   else:
     assert leaf_index == 1 or leaf_depth == tree_depth
 
-  sig = wots_c_sign(
+  wots_signature = wots_c_sign(
     message_digest, sk_seed, pk_seed, leaf_height, leaf_index, tree_balanced, tree_depth
   )
-  if sig is None:
-    return None # practically impossible
+  if isinstance(wots_signature, Err):
+    return wots_signature # practically impossible
 
+  sig = wots_signature.value
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
     sibling_index = (leaf_index >> j) ^ 1
@@ -2318,12 +2324,12 @@ def fxmss_sign(
       sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
     )
 
-  return sig
+  return Ok(sig)
 ```
 <!-- DOC END fxmss_sign -->
 
 > [!NOTE]
-> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
+> [With valid inputs, `WotsCGrindExhausted` can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 
 #### `fxmss_pubkey_from_sig(...)`
@@ -2870,12 +2876,11 @@ and the stateful tree `sf_structure`.
 
 - Inputs:
   - `seed`: a 48-byte random seed. Must be sampled from a CSRNG.
-  - `sf_structure`: a 2-byte identifier describing the FXMSS tree structure: a shape byte, which
-    must be one of the `FXMSS_SHAPE_*` values, followed by a depth byte. See the recommended
-    depths for each shape in [Tree Shapes](#tree-shapes).
-- Outputs:
-  - an 82-byte SHRINCS secret key.
-  - a 48-byte SHRINCS public key.
+  - `sf_structure`: a 2-byte FXMSS structure, with a shape byte followed by a depth byte.
+    See [Tree Shapes](#tree-shapes) for the supported shapes and recommended depths.
+- Output:
+  - `Ok((shrincs_seckey, shrincs_pubkey))` with an 82-byte secret key and a 48-byte public key.
+  - `Err(InvalidFxmssStructure())` if `sf_structure` specifies an unsupported tree shape.
 
 This function is used only during key generation.
 
@@ -2887,22 +2892,24 @@ This function is used only during key generation.
 > depth they cannot afford to compute.
 
 ```py
-def shrincs_keygen(seed: Bytes[48], sf_structure: Bytes[2]) -> tuple[Bytes[82], Bytes[48]]:
-  assert sf_structure[0] == FXMSS_SHAPE_UNBALANCED or sf_structure[0] == FXMSS_SHAPE_BALANCED
+def shrincs_keygen(
+    seed: Bytes[48], sf_structure: Bytes[2]
+) -> Result[tuple[Bytes[82], Bytes[48]], InvalidFxmssStructure]:
+  tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return Err(InvalidFxmssStructure())
 
   sk_seed = seed[0:16]
   sk_prf  = seed[16:32]
   pk_seed = seed[32:48]
 
   sl_root = xmss_node(sk_seed, 0, SPHX_XMSS_HEIGHT, pk_seed, SPHX_LAYER_COUNT - 1, 0)
-  tree_balanced = sf_structure[0] == FXMSS_SHAPE_BALANCED
-  sf_root = fxmss_node(
-    sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, sf_structure[1]
-  )
+  tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
+  sf_root = fxmss_node(sk_seed, 0, FXMSS_HEIGHT, pk_seed, tree_balanced, tree_depth)
 
   shrincs_seckey = sk_seed + sk_prf + pk_seed + sl_root + sf_structure + sf_root
   shrincs_pubkey = pk_seed + sl_root + sf_root
-  return (shrincs_seckey, shrincs_pubkey)
+  return Ok((shrincs_seckey, shrincs_pubkey))
 ```
 <!-- DOC END shrincs_keygen -->
 
@@ -2978,9 +2985,10 @@ def shrincs_sf_leaf_select(
 #### `shrincs_sign(...)`
 
 <!-- DOC START shrincs_sign -->
-The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`:
-uses the stateful FXMSS path when `state_ctr` is valid for the key's tree structure, otherwise
-falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` with the same `ctx`.
+The SHRINCS signing function. Signs `message` and `ctx` with the serialized secret key `shrincs_seckey`.
+For a supported shape, it uses the stateful FXMSS path when `state_ctr` selects a usable leaf and the
+stateless SLH-DSA path otherwise.
+Verifiers must use `shrincs_verify` with the same `ctx`.
 
 - Inputs:
   - `message`: a message of at most `2**61 - 384` bytes.
@@ -2991,9 +2999,10 @@ falls back to the stateless SLH-DSA path. Verifiers must use `shrincs_verify` wi
   - `opt_rand`: 16 bytes of additional randomness, or `None` for deterministic SLH-DSA signing.
     The stateful path ignores this argument.
 - Output:
-  - a `SHRINCS_SL_SIGNATURE_SIZE`-byte stateless signature, or a stateful signature of at least
-    `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes,
-    or null.
+  - `Ok(signature)` with a `SHRINCS_SL_SIGNATURE_SIZE`-byte stateless signature or a stateful signature
+    of at least `SHRINCS_SF_SIGNATURE_SIZE_MIN` bytes and at most `SHRINCS_SF_SIGNATURE_SIZE_MAX` bytes.
+  - `Err(InvalidFxmssStructure())` if the key specifies an unsupported tree shape.
+  - `Err(WotsCGrindExhausted())` if WOTS+C grinding exhausts its attempts.
 
 This function is used only by the signer.
 
@@ -3017,8 +3026,11 @@ def shrincs_sign(
     shrincs_seckey: Bytes[82],
     state_ctr: Optional[UInt64],
     opt_rand: Optional[Bytes[16]],
-) -> Optional[Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
-                    Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]]]:
+) -> Result[
+    Union[Bytes[SHRINCS_SL_SIGNATURE_SIZE],
+          Bytes[SHRINCS_SF_SIGNATURE_SIZE_MIN:SHRINCS_SF_SIGNATURE_SIZE_MAX]],
+    Union[InvalidFxmssStructure, WotsCGrindExhausted],
+]:
   sk_seed      = shrincs_seckey[0:16]
   sk_prf       = shrincs_seckey[16:32]
   pk_seed      = shrincs_seckey[32:48]
@@ -3027,6 +3039,9 @@ def shrincs_sign(
   sf_root      = shrincs_seckey[66:82]
 
   tree_shape, tree_depth = sf_structure
+  if tree_shape != FXMSS_SHAPE_UNBALANCED and tree_shape != FXMSS_SHAPE_BALANCED:
+    return Err(InvalidFxmssStructure())
+
   tree_balanced = tree_shape == FXMSS_SHAPE_BALANCED
 
   leaf_position = shrincs_sf_leaf_select(sf_structure, state_ctr)
@@ -3034,7 +3049,8 @@ def shrincs_sign(
   # Stateless signing path.
   if leaf_position is None:
     # Bind the stateless signature to the stateful keypair.
-    return bytes([FXMSS_HEIGHT]) + slh_dsa_sign(sf_root + message, ctx, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+    signature = slh_dsa_sign(sf_root + message, ctx, sk_seed, sk_prf, pk_seed, sl_root, opt_rand)
+    return Ok(bytes([FXMSS_HEIGHT]) + signature)
 
   # Stateful signing path.
   leaf_index, leaf_height = leaf_position
@@ -3052,19 +3068,19 @@ def shrincs_sign(
   fxmss_signature = fxmss_sign(
     message_digest, sk_seed, leaf_index, leaf_height, pk_seed, tree_balanced, tree_depth
   )
-  if fxmss_signature is None:
-    return None # practically impossible
+  if isinstance(fxmss_signature, Err):
+    return fxmss_signature # practically impossible
 
   # Encode the leaf index with a byte size proportional to its maximum = 2**min(64, leaf_depth)
   leaf_depth = FXMSS_HEIGHT - leaf_height
   leaf_index_bytes = leaf_index.to_bytes(ceildiv(min(leaf_depth, 64), 8))
 
-  return bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature
+  return Ok(bytes([leaf_height]) + R + leaf_index_bytes + fxmss_signature.value)
 ```
 <!-- DOC END shrincs_sign -->
 
 > [!NOTE]
-> [The `return None` control path can typically be ignored in real-world implementations](#on-signing-fallibility).
+> [With valid inputs, `WotsCGrindExhausted` can typically be ignored in real-world implementations](#on-signing-fallibility).
 
 #### `shrincs_verify(...)`
 
@@ -3161,14 +3177,16 @@ def shrincs_verify(
 
 ## On Signing Fallibility
 
-The declared return type of some signer functions like `fxmss_sign` is `Optional`, indicating the function may return `None` if the function fails.
-This originates from an edge case condition in `wots_c_grind_to_constant_sum` and bubbles up the stack in the stateful signing path, all the way up to `shrincs_sign`.
+The declared return type of some signer functions like `fxmss_sign` is `Result`, indicating that the function may return an `Err` if it fails.
+`shrincs_sign` returns `Err(InvalidFxmssStructure())` if the key's `sf_structure` is invalid.
+If `wots_c_grind_to_constant_sum` finds no valid counter, it returns `Err(WotsCGrindExhausted())`.
+This error passes through the stateful signing path all the way up to `shrincs_sign`.
 
 While this edge case is technically possible to hit, it has such a low probability due to the parameters we use that it is essentially impossible in our universe.
 See [the docs for `wots_c_grind_to_constant_sum`](#wots_c_grind_to_constant_sum) to see why.
 
-Still, as this python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms.
-Real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`, and `wots_c_grind_to_constant_sum` as infallible functions, provided all input invariants are satisfied.
+Still, as this Python code is the official specification of SHRINCS, we must account for even extremely low-probability paths in the control flow of the algorithms.
+With valid inputs, real-world implementations may treat `shrincs_sign`, `fxmss_sign`, `wots_c_sign`, and `wots_c_grind_to_constant_sum` as infallible.
 
 
 ## Reference Implementation
