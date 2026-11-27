@@ -8,7 +8,6 @@
 # `SHRINCS_FUZZ_ITERS`. Failures print the seed to reproduce the case
 # that caused the error.
 
-import os
 import unittest
 
 from impl import shrincs
@@ -93,6 +92,13 @@ class FuzzVerifyTest(unittest.TestCase):
     blob = rand_bytes(rng, rng.randrange(PUBKEY_LENGTH_LIMIT + 1, 4 * PUBKEY_LENGTH_LIMIT))
     for sig in (self.sf_sig, self.sl_sig):
       self.assertFalse(shrincs.shrincs_verify(MESSAGE, sig, b"", blob))
+
+  # Flipping one bit of the genuine public key must reject both signature kinds.
+  @fuzz(cases=20)
+  def test_flipped_bit_in_pubkey_never_verifies(self, rng, _):
+    candidate = flip_byte(self.pk, rng.randrange(len(self.pk)))
+    for sig in (self.sf_sig, self.sl_sig):
+      self.assertFalse(shrincs.shrincs_verify(MESSAGE, sig, b"", candidate))
 
   # Flipping one bit of a genuine signature (either path) at a random offset
   # must never verify.
