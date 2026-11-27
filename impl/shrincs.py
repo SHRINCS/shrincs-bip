@@ -31,7 +31,8 @@ def concat(array: list[bytes]) -> bytes:
 
 def xor(s1: bytes, s2: bytes) -> bytes:
   """
-  Returns the XOR of two arrays of bytes which must have equal length.
+  Requires `len(s1) == len(s2)`. Returns a byte string of the same length
+  by applying `^` to the corresponding bytes of `s1` and `s2`.
   """
   assert len(s1) == len(s2)
   return bytes((b1 ^ b2 for (b1, b2) in zip(s1, s2)))
@@ -61,12 +62,12 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
 
   for out in range(out_len):
     for _ in range(ceildiv(b - bits if b > bits else 0, 8)): # FIPS-205 DIVERGENCE
-      total = 256 * total + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
+      total = (total << 8) + (x[j] if j < len(x) else 0) # FIPS-205 DIVERGENCE
       j = j + 1
       bits = bits + 8
 
     bits = bits - b
-    baseb[out] = total // 2**bits
+    baseb[out] = total >> bits
     total %= 2**bits # prevent accumulator from overflowing
 
   return baseb
@@ -282,7 +283,7 @@ class WotsCPrf(Address):
   def to_bytes(self) -> Bytes[22]:
     return self.pack(
       SF_WOTS_C_PRF,
-      word1=int(self.tree_balanced) * 2**24 + self.tree_depth * 2**16,
+      word1=(int(self.tree_balanced) << 24) + (self.tree_depth << 16),
       word2=self.chain_index,
     )
 
@@ -624,7 +625,7 @@ def wots_tw_message_to_indexes(message: Bytes[16]) -> Array[UInt16, WOTS_TW_CHAI
 
   checksum_indexes = [0] * WOTS_TW_CHAIN_COUNT2
   for i in range(WOTS_TW_CHAIN_COUNT2):
-    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = (checksum // 2**(WOTS_TW_CHAIN_BITS * i)) % 2**WOTS_TW_CHAIN_BITS
+    checksum_indexes[WOTS_TW_CHAIN_COUNT2 - 1 - i] = (checksum >> (WOTS_TW_CHAIN_BITS * i)) % 2**WOTS_TW_CHAIN_BITS
 
   return msg_indexes + checksum_indexes
 
@@ -636,7 +637,7 @@ def wots_tw_message_to_indexes_alt(message: Bytes[16]) -> Array[UInt16, WOTS_TW_
   SPHX_WOTS_CHECKSUM_SHIFT = (8 - (WOTS_TW_CHAIN_BITS * WOTS_TW_CHAIN_COUNT2) % 8) % 8
   SPHX_WOTS_CHECKSUM_BYTE_LEN = ceildiv(WOTS_TW_CHAIN_COUNT2 * WOTS_TW_CHAIN_BITS, 8)
   msg_indexes = base_2b(message, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT1)
-  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) * 2**SPHX_WOTS_CHECKSUM_SHIFT
+  checksum = (WOTS_TW_CHECKSUM_MAX - sum(msg_indexes)) << SPHX_WOTS_CHECKSUM_SHIFT
   checksum_bytes = checksum.to_bytes(SPHX_WOTS_CHECKSUM_BYTE_LEN)
   checksum_indexes = base_2b(checksum_bytes, WOTS_TW_CHAIN_BITS, WOTS_TW_CHAIN_COUNT2)
   return msg_indexes + checksum_indexes
@@ -743,7 +744,7 @@ def wots_c_grind_to_constant_sum(
     pk_seed: Bytes[16], message_digest: Bytes[32], node_height: UInt8, node_index: UInt64
 ) -> Optional[tuple[UInt16, Array[UInt16, WOTS_C_CHAIN_COUNT]]]:
   """
-  The WOTS+C grinding function. Grinds up to 2^16 counters until one maps `message_digest` to a
+  The WOTS+C grinding function. Grinds up to `2**16` counters until one maps `message_digest` to a
   constant-sum index set, returning the lowest such counter and its index set.
 
   - Inputs:
@@ -946,7 +947,7 @@ def xmss_node(
     return wots_tw_pubkey_gen(sk_seed, pk_seed, layer, tree_address, node_index)
 
   # Recursively derive the left/right child nodes.
-  lchild_index = 2 * node_index
+  lchild_index = node_index << 1
   child_height = node_height - 1
   lchild = xmss_node(sk_seed, lchild_index, child_height, pk_seed, layer, tree_address)
   rchild = xmss_node(sk_seed, lchild_index + 1, child_height, pk_seed, layer, tree_address)
@@ -985,7 +986,7 @@ def xmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(SPHX_XMSS_HEIGHT):
-    sibling_index = (keypair_index // 2**j) ^ 1
+    sibling_index = (keypair_index >> j) ^ 1
     sig += xmss_node(sk_seed, sibling_index, j, pk_seed, layer, tree_address)
 
   return sig
@@ -1020,9 +1021,9 @@ def xmss_pubkey_from_sig(
   node = wots_tw_pubkey_from_sig(wots_sig, message, pk_seed, layer, tree_address, keypair_index)
 
   for k in range(SPHX_XMSS_HEIGHT):
-    parent = XmssTree(layer, tree_address, k + 1, keypair_index // 2**(k+1))
+    parent = XmssTree(layer, tree_address, k + 1, keypair_index >> (k + 1))
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (keypair_index // 2**k) % 2 == 1:
+    if (keypair_index >> k) % 2 == 1:
       node = H(pk_seed, parent, sibling + node)
     else:
       node = H(pk_seed, parent, node + sibling)
@@ -1058,7 +1059,7 @@ def hypertree_sign(
     layer_sig = xmss_sign(message, sk_seed, leaf_index, pk_seed, j, tree_index)
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-    tree_index //= 2**SPHX_XMSS_HEIGHT
+    tree_index >>= SPHX_XMSS_HEIGHT
     sig += layer_sig
 
   return sig
@@ -1091,7 +1092,7 @@ def hypertree_verify(
     layer_sig = signature[j * SPHX_XMSS_SIGNATURE_SIZE : (j+1) * SPHX_XMSS_SIGNATURE_SIZE]
     message = xmss_pubkey_from_sig(leaf_index, layer_sig, message, pk_seed, j, tree_index)
     leaf_index = tree_index % (2**SPHX_XMSS_HEIGHT)
-    tree_index //= 2**SPHX_XMSS_HEIGHT
+    tree_index >>= SPHX_XMSS_HEIGHT
 
   return message == sl_root
 
@@ -1132,7 +1133,7 @@ def fxmss_node(
     )
 
   # Recursively derive the left/right child nodes.
-  lchild_index = 2 * node_index
+  lchild_index = node_index << 1
   child_height = node_height - 1
   lchild = fxmss_node(
     sk_seed, lchild_index, child_height, pk_seed, tree_balanced, tree_depth
@@ -1187,7 +1188,7 @@ def fxmss_sign(
 
   # Append the Merkle authentication path.
   for j in range(leaf_depth):
-    sibling_index = (leaf_index // 2**j) ^ 1
+    sibling_index = (leaf_index >> j) ^ 1
     sibling_height = leaf_height + j
     sig += fxmss_node(
       sk_seed, sibling_index, sibling_height, pk_seed, tree_balanced, tree_depth
@@ -1237,9 +1238,9 @@ def fxmss_pubkey_from_sig(
     return None
 
   for k in range(leaf_depth):
-    parent = FxmssTree(leaf_height + k + 1, leaf_index // 2**(k+1))
+    parent = FxmssTree(leaf_height + k + 1, leaf_index >> (k + 1))
     sibling = xmss_auth[k*16 : (k+1)*16]
-    if (leaf_index // 2**k) % 2 == 0:
+    if (leaf_index >> k) % 2 == 0:
       node = H(pk_seed, parent, node + sibling)
     else:
       node = H(pk_seed, parent, sibling + node)
@@ -1318,7 +1319,7 @@ def fors_node(
     leaf = ForsTree(layer, tree_address, keypair_index, 0, node_index)
     return F(pk_seed, leaf, preimage)
 
-  lchild_index = 2 * node_index
+  lchild_index = node_index << 1
   child_height = node_height - 1
   lchild = fors_node(
     sk_seed, lchild_index, child_height, pk_seed, layer, tree_address, keypair_index
@@ -1360,7 +1361,7 @@ def fors_sign(
     tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, tree_index)
     for j in range(SPHX_FORS_HEIGHT):
-      sibling_index = (tree_index // 2**j) ^ 1
+      sibling_index = (tree_index >> j) ^ 1
       sig += fors_node(
         sk_seed, sibling_index, j, pk_seed, layer, tree_address, keypair_index
       )
@@ -1403,13 +1404,13 @@ def fors_pubkey_from_sig(
     node = F(pk_seed, leaf, preimage)
     for j in range(SPHX_FORS_HEIGHT):
       parent = ForsTree(
-        layer, tree_address, keypair_index, j + 1, tree_index // 2**(j+1)
+        layer, tree_address, keypair_index, j + 1, tree_index >> (j + 1)
       )
 
       sibling_offset = signature_offset + 16 * (j + 1)
       sibling = signature[sibling_offset : sibling_offset+16]
 
-      if (tree_index // 2**j) % 2 == 1:
+      if (tree_index >> j) % 2 == 1:
         node = H(pk_seed, parent, sibling + node)
       else:
         node = H(pk_seed, parent, node + sibling)
