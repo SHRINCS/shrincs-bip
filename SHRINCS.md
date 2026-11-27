@@ -539,7 +539,9 @@ If `x` fits in `w` unsigned bits, `x >> n` is zero for `n >= w`.
 
 #### Bitwise XOR
 
-For non-negative integers `x` and `y`, `x ^ y` is their bitwise exclusive OR. Align their binary representations at the least significant bit and extend each with leading zeros. Each result bit is `1` exactly when the corresponding input bits differ.
+For non-negative integers `x` and `y`, `x ^ y` is their bitwise exclusive OR.
+Align their binary representations at the least significant bit and extend each with leading zeros.
+Each result bit is `1` exactly when the corresponding input bits differ.
 
 <!-- DOC START xor -->
 Requires `len(s1) == len(s2)`. Returns a byte string of the same length
