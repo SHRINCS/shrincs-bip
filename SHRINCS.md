@@ -1847,7 +1847,7 @@ This means the interfaces of both XMSS and FXMSS are slightly different, and thi
 >   In this sense `FXMSS_HEIGHT` is an "imaginary" height because no real FXMSS tree can fully explore the enormous possible space of 2<sup>256</sup> nodes.
 > - In FORS, the preimage leaves sit at height 0, and the root of each of the merkle trees in the forest is at height `SPHX_FORS_HEIGHT`.
 >   All leaves share a common layer, but internally FORS tree node indexes count across the entire forest, and so the indexing scheme is more subtle.
->   A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `(j << (SPHX_FORS_HEIGHT - h)) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type.
+>   A node at index `i` in the `j`-th FORS tree at height `h` actually has a forest-wide index of `j * 2**(SPHX_FORS_HEIGHT - h) + i`, which is filled in the `tree_index` field in `ADRS` under the `SL_FORS_TREE` type.
 >   In other words, the index of a FORS node or leaf must account for all the other nodes to its left at the same height in the other FORS trees.
 >
 > When merkle nodes are combined with the hash function `H`, the coordinates written into the `ADRS` are those of the node being computed (the parent), not of its children.
@@ -2433,14 +2433,14 @@ at `layer` and `tree_address`.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
   - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
   - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
-  - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT << SPHX_FORS_HEIGHT)`.
+  - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
 - Output:
   - a 16-byte preimage.
 
 This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-within a single tree. The index of leaf `l` in tree `t` is `(t << SPHX_FORS_HEIGHT) + l`.
+within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
 
 ```py
 def fors_sk_gen(
@@ -2466,7 +2466,7 @@ The FORS internal node computation function. Recursively computes the FORS node 
 - Inputs:
   - `sk_seed`: a 16-byte secret.
   - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
-    `[0, SPHX_FORS_COUNT << (SPHX_FORS_HEIGHT - node_height))`.
+    `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
   - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
   - `pk_seed`: a 16-byte public seed.
   - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
@@ -2479,7 +2479,7 @@ This function is only used in the stateless path, and only by the signer.
 
 Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
 within a single tree. The index of node `l` in tree `t` at height `h` is
-`(t << (SPHX_FORS_HEIGHT - h)) + l`.
+`t * 2**(SPHX_FORS_HEIGHT - h) + l`.
 
 ```py
 def fors_node(
@@ -2543,7 +2543,7 @@ def fors_sign(
   sig = b""
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
   for i in range(SPHX_FORS_COUNT):
-    tree_index = (i << SPHX_FORS_HEIGHT) + index_set[i]
+    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, tree_index)
     for j in range(SPHX_FORS_HEIGHT):
       sibling_index = (tree_index >> j) ^ 1
@@ -2589,7 +2589,7 @@ def fors_pubkey_from_sig(
   for i in range(SPHX_FORS_COUNT):
     signature_offset = i * 16 * (SPHX_FORS_HEIGHT + 1)
     preimage = signature[signature_offset : signature_offset+16]
-    tree_index = (i << SPHX_FORS_HEIGHT) + index_set[i]
+    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
 
     leaf = ForsTree(layer, tree_address, keypair_index, 0, tree_index)
     node = F(pk_seed, leaf, preimage)

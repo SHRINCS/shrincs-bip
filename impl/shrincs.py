@@ -1261,14 +1261,14 @@ def fors_sk_gen(
     - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
     - `tree_address`: a 64-bit unsigned integer, the index of the XMSS tree in its layer.
     - `keypair_index`: a 32-bit unsigned integer, the index of the FORS keypair.
-    - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT << SPHX_FORS_HEIGHT)`.
+    - `node_index`: a 32-bit unsigned integer, a forest-wide leaf index in `[0, SPHX_FORS_COUNT * 2**SPHX_FORS_HEIGHT)`.
   - Output:
     - a 16-byte preimage.
 
   This function is only used in the stateless path, and only by the signer.
 
   Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
-  within a single tree. The index of leaf `l` in tree `t` is `(t << SPHX_FORS_HEIGHT) + l`.
+  within a single tree. The index of leaf `l` in tree `t` is `t * 2**SPHX_FORS_HEIGHT + l`.
   """
   return PRF(pk_seed, sk_seed, ForsPrf(layer, tree_address, keypair_index, node_index))
 
@@ -1289,7 +1289,7 @@ def fors_node(
   - Inputs:
     - `sk_seed`: a 16-byte secret.
     - `node_index`: a 32-bit unsigned integer, a forest-wide node index in
-      `[0, SPHX_FORS_COUNT << (SPHX_FORS_HEIGHT - node_height))`.
+      `[0, SPHX_FORS_COUNT * 2**(SPHX_FORS_HEIGHT - node_height))`.
     - `node_height`: a 32-bit unsigned integer, a node height in `[0, SPHX_FORS_HEIGHT]`.
     - `pk_seed`: a 16-byte public seed.
     - `layer`: an 8-bit unsigned integer, the hypertree layer of the XMSS tree.
@@ -1302,7 +1302,7 @@ def fors_node(
 
   Note the `node_index` of a FORS leaf or node is _indexed across the entire forest,_ not just
   within a single tree. The index of node `l` in tree `t` at height `h` is
-  `(t << (SPHX_FORS_HEIGHT - h)) + l`.
+  `t * 2**(SPHX_FORS_HEIGHT - h) + l`.
   """
   if node_height == 0:
     preimage = fors_sk_gen(
@@ -1350,7 +1350,7 @@ def fors_sign(
   sig = b""
   index_set = base_2b(message_digest, SPHX_FORS_HEIGHT, SPHX_FORS_COUNT)
   for i in range(SPHX_FORS_COUNT):
-    tree_index = (i << SPHX_FORS_HEIGHT) + index_set[i]
+    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
     sig += fors_sk_gen(sk_seed, pk_seed, layer, tree_address, keypair_index, tree_index)
     for j in range(SPHX_FORS_HEIGHT):
       sibling_index = (tree_index >> j) ^ 1
@@ -1390,7 +1390,7 @@ def fors_pubkey_from_sig(
   for i in range(SPHX_FORS_COUNT):
     signature_offset = i * 16 * (SPHX_FORS_HEIGHT + 1)
     preimage = signature[signature_offset : signature_offset+16]
-    tree_index = (i << SPHX_FORS_HEIGHT) + index_set[i]
+    tree_index = i * 2**SPHX_FORS_HEIGHT + index_set[i]
 
     leaf = ForsTree(layer, tree_address, keypair_index, 0, tree_index)
     node = F(pk_seed, leaf, preimage)

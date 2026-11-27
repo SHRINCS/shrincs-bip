@@ -81,7 +81,7 @@ SHRINCS_SL_SIGNATURE_SIZE_REDUCTION_PERCENT = round(
 # 200 years of blocks, assuming every block byte is a stateless signature made
 # under the same public key.
 SHRINCS_SL_SIGNATURE_BUDGET_USED_200_YEARS_PERCENT = round(
-  100 * 200 * 365 * 144 * (4_000_000 // SHRINCS_SL_SIGNATURE_SIZE) / (1 << 40),
+  100 * 200 * 365 * 144 * (4_000_000 // SHRINCS_SL_SIGNATURE_SIZE) / 2**40,
   2
 )
 
@@ -169,7 +169,7 @@ STATEFUL_VERIFY_SPEED_RATIO = round(STATELESS_VERIFY_COMPRESSIONS_MAX / STATEFUL
 
 # WOTS chains +
 # Combining WOTS chain tips
-WOTS_TW_KEYGEN_COMPRESSIONS = (WOTS_TW_CHAIN_COUNT << WOTS_TW_CHAIN_BITS) + \
+WOTS_TW_KEYGEN_COMPRESSIONS = WOTS_TW_CHAIN_COUNT * 2**WOTS_TW_CHAIN_BITS + \
                               sha256_compressions(22 + WOTS_TW_CHAIN_COUNT * 16)
 
 # PRF invocations +
@@ -188,7 +188,7 @@ XMSS_SIGN_COMPRESSIONS_AVG = (2**SPHX_XMSS_HEIGHT - 1) * WOTS_TW_KEYGEN_COMPRESS
 
 # One PRF call + one F call per leaf (total 2**(SPHX_FORS_HEIGHT+1)),
 # plus 2**SPHX_FORS_HEIGHT - 1 calls to H (merkle nodes).
-FORS_TREE_GEN_COMPRESSIONS = (3 << SPHX_FORS_HEIGHT) - 1
+FORS_TREE_GEN_COMPRESSIONS = 3 * 2**SPHX_FORS_HEIGHT - 1
 
 # SHA256 compressions needed to sign with the SHRINCS stateless component.
 #
@@ -225,7 +225,7 @@ EXPECTED_WOTS_C_GRINDING_ATTEMPTS = 1 / (1 - 2**target_sum_fail_probability_log2
 
 # WOTS chains +
 # Combining WOTS chain tips
-WOTS_C_KEYGEN_COMPRESSIONS = ((WOTS_C_CHAIN_COUNT << WOTS_C_CHAIN_BITS) + \
+WOTS_C_KEYGEN_COMPRESSIONS = (WOTS_C_CHAIN_COUNT * 2**WOTS_C_CHAIN_BITS + \
                              sha256_compressions(22 + 16 * WOTS_C_CHAIN_COUNT))
 
 # Average number of SHA256 compressions needed for UXMSS signing.
@@ -280,7 +280,7 @@ BXMSS_20_SIGN_COMPRESSIONS_AVG = bxmss_sign_compressions(20)
 
 # Generating leaves +
 # H() invocations (merkle nodes)
-STATELESS_KEYGEN_COMPRESSIONS = (WOTS_TW_KEYGEN_COMPRESSIONS << SPHX_XMSS_HEIGHT) + \
+STATELESS_KEYGEN_COMPRESSIONS = 2**SPHX_XMSS_HEIGHT * WOTS_TW_KEYGEN_COMPRESSIONS + \
                                 2**SPHX_XMSS_HEIGHT - 1
 
 # SHA256 compressions needed to generate a SHRINCS key with UXMSS at various depths.
@@ -299,7 +299,7 @@ UXMSS_255_KEYGEN_COMPRESSIONS_STATEFUL_ONLY = uxmss_keygen_compressions(255)
 #
 # Generating leaves + H() invocations (merkle nodes)
 def bxmss_keygen_compressions(depth: int) -> int:
-  return (WOTS_C_KEYGEN_COMPRESSIONS << depth) + (2**depth - 1)
+  return 2**depth * WOTS_C_KEYGEN_COMPRESSIONS + (2**depth - 1)
 
 BXMSS_5_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(5)
 BXMSS_8_KEYGEN_COMPRESSIONS  = STATELESS_KEYGEN_COMPRESSIONS + bxmss_keygen_compressions(8)
