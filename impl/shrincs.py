@@ -200,6 +200,13 @@ class Address:
   height: UInt8
   index: UInt64
 
+  def to_bytes(self) -> Bytes[22]:
+    """
+    Serializes the address to its 22-byte encoding. Each concrete address
+    overrides this to select its address type and lay out its payload words.
+    """
+    raise NotImplementedError
+
   def pack(
       self,
       address_type: UInt8,

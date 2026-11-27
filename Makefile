@@ -10,7 +10,7 @@ fuzz:
 	./run_tests.sh fuzz
 
 lint:
-	$(MYPY) $(MYPY_TARGETS)
+	$(MYPY) $(MYPY_TARGETS) --check-untyped-defs
 
 template:
 	./pydoc_insert.py
