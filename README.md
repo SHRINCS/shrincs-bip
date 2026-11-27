@@ -27,3 +27,9 @@ A simple git pre-commit validation hook is available in [`hooks/pre-commit`](./h
 ```
 cp hooks/pre-commit .git/hooks
 ```
+
+
+## BIP draft
+
+`make bip-shrincs` regenerates the specification, then writes `bips/bip-XXXX.md` and its auxiliary files under `bips/bip-XXXX/`.
+To propose the draft, copy the contents of `bips/` into the root of a checkout of the BIPS repository and open a pull request.
