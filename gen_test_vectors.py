@@ -43,7 +43,10 @@ def generate_keygen_vectors():
       structure = bytes([shrincs.FXMSS_SHAPE_BALANCED, inp.depth]) if inp.balanced else \
                   bytes([shrincs.FXMSS_SHAPE_UNBALANCED, inp.depth])
       derived = shrincs.sha256(inp.seed + b"1") + shrincs.sha256(inp.seed + b"2")
-      seckey, pubkey = shrincs.shrincs_keygen(derived[:48], structure)
+      keypair = shrincs.shrincs_keygen(derived[:48], structure)
+      if isinstance(keypair, shrincs.Err):
+        raise ValueError(f'key generation rejected tree structure {structure.hex()}: {keypair.error!r}')
+      seckey, pubkey = keypair.value
       row = [derived[:48], structure, seckey, pubkey]
       w.writerow([hexlify(x).decode() for x in row])
   write_file_fingerprint(vec_path)
@@ -136,13 +139,16 @@ def generate_signatures_valid_test_vectors():
     w = csv.writer(fh)
     w.writerow(['seckey', 'pubkey', 'message', 'ctx', 'opt_rand', 'state_ctr', 'signature'])
     for inp in SIGNATURES_VALID_TEST_VEC_INPUTS:
-      signature = shrincs.shrincs_sign(
+      signing_result = shrincs.shrincs_sign(
         inp.message,
         inp.ctx,
         inp.seckey,
         inp.state_ctr,
         inp.opt_rand
       )
+      if isinstance(signing_result, shrincs.Err):
+        raise ValueError(f'signing failed for a signature vector: {signing_result.error!r}')
+      signature = signing_result.value
       pubkey = shrincs.shrincs_pubkey_from_seckey(inp.seckey)
 
       assert shrincs.shrincs_verify(inp.message, signature, inp.ctx, pubkey)

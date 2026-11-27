@@ -1,6 +1,6 @@
 from random import randbytes
 from typing import get_args, get_type_hints
-from shrincs import shrincs_sign, shrincs_keygen, shrincs_verify
+from shrincs import Ok, shrincs_sign, shrincs_keygen, shrincs_verify
 from shrincs import FXMSS_SHAPE_UNBALANCED, FXMSS_SHAPE_BALANCED, FXMSS_HEIGHT
 from shrincs import LEN, UINT, SHRINCS_SL_SIGNATURE_SIZE, SPHX_SIGNATURE_SIZE
 from shrincs import wots_c_chain_iter, wots_tw_chain_iter
@@ -172,16 +172,20 @@ if __name__ == "__main__":
     (bytes([FXMSS_SHAPE_UNBALANCED, 16]), 17)
   ]
   for (i, (sf_structure, stateful_signature_count)) in enumerate(structures):
-    sk, pk = shrincs_keygen(randbytes(48), sf_structure)
+    keypair = shrincs_keygen(randbytes(48), sf_structure)
+    assert isinstance(keypair, Ok), keypair
+    sk, pk = keypair.value
 
     msg = b"foobar!"
     for j in range(stateful_signature_count):
-      sig = shrincs_sign(msg, b"", sk, j, None)
-      assert shrincs_verify(msg, sig, b"", pk)
+      signing_result = shrincs_sign(msg, b"", sk, j, None)
+      assert isinstance(signing_result, Ok), signing_result
+      assert shrincs_verify(msg, signing_result.value, b"", pk)
     print(f'verified all stateful signatures for structure {sf_structure.hex()}')
 
     if i == len(structures) - 1:
-      sig = shrincs_sign(msg, b"", sk, None, None)
-      assert shrincs_verify(msg, sig, b"", pk)
-      assert len(sig) == SHRINCS_SL_SIGNATURE_SIZE
+      signing_result = shrincs_sign(msg, b"", sk, None, None)
+      assert isinstance(signing_result, Ok), signing_result
+      assert shrincs_verify(msg, signing_result.value, b"", pk)
+      assert len(signing_result.value) == SHRINCS_SL_SIGNATURE_SIZE
       print(f'verified stateless signature')

@@ -35,7 +35,9 @@ class FuzzKeygenTest(unittest.TestCase):
     shape, depth = ALL_STRUCTURES[case]
     seed = rand_bytes(rng, 48)
     sf_structure = bytes([shape, depth])
-    sk, pk = shrincs.shrincs_keygen(seed, sf_structure)
+    keypair = shrincs.shrincs_keygen(seed, sf_structure)
+    assert isinstance(keypair, shrincs.Ok), keypair
+    sk, pk = keypair.value
     self.assertEqual(len(sk), 82)
     self.assertEqual(len(pk), 48)
     self.assertEqual(shrincs.shrincs_pubkey_from_seckey(sk), pk)
@@ -46,17 +48,24 @@ class FuzzKeygenTest(unittest.TestCase):
   def test_keygen_rejects_invalid_shape_byte(self, rng, _):
     shape = rng.randrange(2, 256)
     sf_structure = bytes([shape, rng.randrange(0, 8)])
-    with self.assertRaises(AssertionError):
-      shrincs.shrincs_keygen(rand_bytes(rng, 48), sf_structure)
+    self.assertEqual(
+      shrincs.shrincs_keygen(rand_bytes(rng, 48), sf_structure),
+      shrincs.Err(shrincs.InvalidFxmssStructure()),
+    )
 
 
 class FuzzVerifyTest(unittest.TestCase):
   @classmethod
   def setUpClass(cls):
-    sk, cls.pk = shrincs.shrincs_keygen(b"\xf0" * 48, bytes([shrincs.FXMSS_SHAPE_UNBALANCED, 3]))
-    cls.sf_sig = shrincs.shrincs_sign(MESSAGE, b"", sk, 0, None)
-    cls.sl_sig = shrincs.shrincs_sign(MESSAGE, b"", sk, None, None)
-    assert cls.sf_sig is not None and cls.sl_sig is not None
+    keypair = shrincs.shrincs_keygen(b"\xf0" * 48, bytes([shrincs.FXMSS_SHAPE_UNBALANCED, 3]))
+    assert isinstance(keypair, shrincs.Ok), keypair
+    sk, cls.pk = keypair.value
+    stateful_signature = shrincs.shrincs_sign(MESSAGE, b"", sk, 0, None)
+    stateless_signature = shrincs.shrincs_sign(MESSAGE, b"", sk, None, None)
+    assert isinstance(stateful_signature, shrincs.Ok), stateful_signature
+    assert isinstance(stateless_signature, shrincs.Ok), stateless_signature
+    cls.sf_sig = stateful_signature.value
+    cls.sl_sig = stateless_signature.value
 
   # A random blob is essentially never a valid signature.
   @fuzz(cases=SIGNATURE_LENGTH_LIMIT + 1)
@@ -136,8 +145,12 @@ class FuzzVerifyTest(unittest.TestCase):
 class FuzzSignTest(unittest.TestCase):
   @classmethod
   def setUpClass(cls):
-    ub_sk, ub_pk = shrincs.shrincs_keygen(b"\xf1" * 48, bytes([shrincs.FXMSS_SHAPE_UNBALANCED, 3]))
-    bal_sk, bal_pk = shrincs.shrincs_keygen(b"\xf2" * 48, bytes([shrincs.FXMSS_SHAPE_BALANCED, 3]))
+    unbalanced_keypair = shrincs.shrincs_keygen(b"\xf1" * 48, bytes([shrincs.FXMSS_SHAPE_UNBALANCED, 3]))
+    balanced_keypair = shrincs.shrincs_keygen(b"\xf2" * 48, bytes([shrincs.FXMSS_SHAPE_BALANCED, 3]))
+    assert isinstance(unbalanced_keypair, shrincs.Ok), unbalanced_keypair
+    assert isinstance(balanced_keypair, shrincs.Ok), balanced_keypair
+    ub_sk, ub_pk = unbalanced_keypair.value
+    bal_sk, bal_pk = balanced_keypair.value
     cls.keys = [
       (ub_sk, ub_pk, 4),
       (bal_sk, bal_pk, 8)
@@ -150,7 +163,9 @@ class FuzzSignTest(unittest.TestCase):
     sk, pk, capacity = self.keys[case % len(self.keys)]
     state_ctr = rng.randrange(0, capacity)
     opt_rand = rng.choice([None, rand_bytes(rng, 16)])
-    sig = shrincs.shrincs_sign(MESSAGE, b"", sk, state_ctr, opt_rand)
+    signing_result = shrincs.shrincs_sign(MESSAGE, b"", sk, state_ctr, opt_rand)
+    assert isinstance(signing_result, shrincs.Ok), signing_result
+    sig = signing_result.value
     self.assertNotEqual(sig[0], shrincs.FXMSS_HEIGHT) # must be stateful sig
     self.assertTrue(shrincs.shrincs_verify(MESSAGE, sig, b"", pk))
 
@@ -160,7 +175,9 @@ class FuzzSignTest(unittest.TestCase):
   def test_sign_beyond_capacity_falls_back_to_stateless(self, rng, case):
     sk, pk, capacity = self.keys[case % len(self.keys)]
     state_ctr = rng.choice([None, rng.randrange(capacity, 2**64)])
-    sig = shrincs.shrincs_sign(MESSAGE, b"", sk, state_ctr, None)
+    signing_result = shrincs.shrincs_sign(MESSAGE, b"", sk, state_ctr, None)
+    assert isinstance(signing_result, shrincs.Ok), signing_result
+    sig = signing_result.value
     self.assertEqual(sig[0], shrincs.FXMSS_HEIGHT) # must be stateless sig
     self.assertTrue(shrincs.shrincs_verify(MESSAGE, sig, b"", pk))
 
