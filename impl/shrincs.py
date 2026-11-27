@@ -42,7 +42,7 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
   Decomposes the bytes `x` into `out_len` groups of `b` bits which are each
   parsed as an integer in the range `[0, 2**b)`. The leading `out_len * b` bits
   of `x` are parsed. If `x` is shorter than `out_len * b` bits, the missing
-  trailing bits are treated as zero. Requires `b >= 0` and `out_len >= 0`.
+  trailing bits are treated as zero. Requires `b > 0` and `out_len > 0`.
 
   This version is equivalent to SLH-DSA Algorithm 4[^slhdsa] when `x`
   contains at least `out_len * b` bits.
@@ -52,8 +52,8 @@ def base_2b(x: bytes, b: int, out_len: int) -> list[int]:
   an explicit bound. We can then reason about every loop used by SHRINCS
   the same way.
   """
-  assert b >= 0
-  assert out_len >= 0
+  assert b > 0
+  assert out_len > 0
 
   baseb = [0] * out_len # output array
   j = 0                 # counts the bytes read from the input x.
