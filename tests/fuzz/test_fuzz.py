@@ -8,7 +8,6 @@
 # `SHRINCS_FUZZ_ITERS`. Failures print the seed to reproduce the case
 # that caused the error.
 
-import os
 import unittest
 
 from impl import shrincs
@@ -51,12 +50,19 @@ class FuzzKeygenTest(unittest.TestCase):
 
 
 class FuzzVerifyTest(unittest.TestCase):
+  pk: bytes
+  sf_sig: bytes
+  sl_sig: bytes
+
   @classmethod
   def setUpClass(cls):
-    sk, cls.pk = shrincs.shrincs_keygen(b"\xf0" * 48, bytes([shrincs.FXMSS_SHAPE_UNBALANCED, 3]))
-    cls.sf_sig = shrincs.shrincs_sign(MESSAGE, b"", sk, 0, None)
-    cls.sl_sig = shrincs.shrincs_sign(MESSAGE, b"", sk, None, None)
-    assert cls.sf_sig is not None and cls.sl_sig is not None
+    sk, pk = shrincs.shrincs_keygen(b"\xf0" * 48, bytes([shrincs.FXMSS_SHAPE_UNBALANCED, 3]))
+    sf_sig = shrincs.shrincs_sign(MESSAGE, b"", sk, 0, None)
+    sl_sig = shrincs.shrincs_sign(MESSAGE, b"", sk, None, None)
+    assert sf_sig is not None and sl_sig is not None
+    cls.pk = pk
+    cls.sf_sig = sf_sig
+    cls.sl_sig = sl_sig
 
   # A random blob is essentially never a valid signature.
   @fuzz(cases=SIGNATURE_LENGTH_LIMIT + 1)
@@ -86,6 +92,13 @@ class FuzzVerifyTest(unittest.TestCase):
     blob = rand_bytes(rng, rng.randrange(PUBKEY_LENGTH_LIMIT + 1, 4 * PUBKEY_LENGTH_LIMIT))
     for sig in (self.sf_sig, self.sl_sig):
       self.assertFalse(shrincs.shrincs_verify(MESSAGE, sig, b"", blob))
+
+  # Flipping one bit of the genuine public key must reject both signature kinds.
+  @fuzz(cases=20)
+  def test_flipped_bit_in_pubkey_never_verifies(self, rng, _):
+    candidate = flip_byte(self.pk, rng.randrange(len(self.pk)))
+    for sig in (self.sf_sig, self.sl_sig):
+      self.assertFalse(shrincs.shrincs_verify(MESSAGE, sig, b"", candidate))
 
   # Flipping one bit of a genuine signature (either path) at a random offset
   # must never verify.
@@ -134,6 +147,8 @@ class FuzzVerifyTest(unittest.TestCase):
 
 
 class FuzzSignTest(unittest.TestCase):
+  keys: list[tuple[bytes, bytes, int]]
+
   @classmethod
   def setUpClass(cls):
     ub_sk, ub_pk = shrincs.shrincs_keygen(b"\xf1" * 48, bytes([shrincs.FXMSS_SHAPE_UNBALANCED, 3]))
@@ -151,6 +166,7 @@ class FuzzSignTest(unittest.TestCase):
     state_ctr = rng.randrange(0, capacity)
     opt_rand = rng.choice([None, rand_bytes(rng, 16)])
     sig = shrincs.shrincs_sign(MESSAGE, b"", sk, state_ctr, opt_rand)
+    assert sig is not None
     self.assertNotEqual(sig[0], shrincs.FXMSS_HEIGHT) # must be stateful sig
     self.assertTrue(shrincs.shrincs_verify(MESSAGE, sig, b"", pk))
 
@@ -161,6 +177,7 @@ class FuzzSignTest(unittest.TestCase):
     sk, pk, capacity = self.keys[case % len(self.keys)]
     state_ctr = rng.choice([None, rng.randrange(capacity, 2**64)])
     sig = shrincs.shrincs_sign(MESSAGE, b"", sk, state_ctr, None)
+    assert sig is not None
     self.assertEqual(sig[0], shrincs.FXMSS_HEIGHT) # must be stateless sig
     self.assertTrue(shrincs.shrincs_verify(MESSAGE, sig, b"", pk))
 

@@ -1,3 +1,4 @@
 __pycache__
 SHRINCS.new.md
 test_vectors/*.csv
+.mypy_cache
