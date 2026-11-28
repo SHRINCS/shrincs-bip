@@ -46,7 +46,7 @@ def generate_keygen_vectors():
       keypair = shrincs.shrincs_keygen(derived[:48], structure)
       if isinstance(keypair, shrincs.Err):
         raise ValueError(f'key generation rejected tree structure {structure.hex()}: {keypair.error!r}')
-      seckey, pubkey = keypair.value
+      seckey, pubkey = keypair
       row = [derived[:48], structure, seckey, pubkey]
       w.writerow([hexlify(x).decode() for x in row])
   write_file_fingerprint(vec_path)
@@ -148,7 +148,7 @@ def generate_signatures_valid_test_vectors():
       )
       if isinstance(signing_result, shrincs.Err):
         raise ValueError(f'signing failed for a signature vector: {signing_result.error!r}')
-      signature = signing_result.value
+      signature = signing_result
       pubkey = shrincs.shrincs_pubkey_from_seckey(inp.seckey)
 
       assert shrincs.shrincs_verify(inp.message, signature, inp.ctx, pubkey)
