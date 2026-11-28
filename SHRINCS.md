@@ -282,7 +282,7 @@ With the parameter set specified here, this would result in stateful signatures 
 The additional code complexity appears to be worth the efficiency gains in this case:
 The stateful component exists to reduce signature size and verification cost, and thus the WOTS+C optimization is warranted.
 
-### Why statefulness?
+### Why combine stateful and stateless signatures?
 
 Stateful signing is a significant departure from the signature schemes already used in Bitcoin.
 Although SHRINCS also supports a stateless path, its stateful path requires signers to keep track of how many times each key pair has been used for stateful signing.
@@ -292,6 +292,19 @@ Signers using the stateful component accept this implementation complexity and i
 The smallest stateful signature is approximately <!-- CONST START STATEFUL_SIG_SIZE_RATIO -->10.54<!-- CONST END STATEFUL_SIG_SIZE_RATIO --> times smaller than a stateless signature.
 Verification of a maximum-depth stateful signature requires <!-- CONST START STATEFUL_VERIFY_COMPRESSIONS_MAX -->509<!-- CONST END STATEFUL_VERIFY_COMPRESSIONS_MAX --> SHA256 compressions.
 A stateless signature requires at most <!-- CONST START STATELESS_VERIFY_COMPRESSIONS_MAX -->2792<!-- CONST END STATELESS_VERIFY_COMPRESSIONS_MAX --> SHA256 compressions, approximately <!-- CONST START STATEFUL_VERIFY_SPEED_RATIO -->5.49<!-- CONST END STATEFUL_VERIFY_SPEED_RATIO --> times as many.
+
+However, relying solely on stateful signatures would be unsafe.
+If a signer loses her state, or if the signer simply cannot safely manage state in the first place - perhaps there is no robust storage media available - then a purely stateful keypair would be unusuable.
+
+Relying solely on stateless signatures would also be dangerous.
+Their enormous size would handicap the network's throughput, and with no stateful release-valve to reduce blockspace demand pressure, the cost of on-chain transactions may quickly become prohibitive for users.
+
+One alternative would be to deploy two schemes, a stateful scheme and a stateless scheme, separately.
+This would achieve the same basic principle as a unified scheme, but would be simpler to engineer cryptographically.
+However, this option is undesirable as it would limit users to a binary choice between complimentary schemes at signing time.
+Using a stateful key and a stateless key together, as would be most convenient to earn the benefits of both, would require multiple scripts or complex `IF` branches inside a single script.
+Multisignature scripts would be complicated by the possibility that some signers may want to sign with one of two distinct keys.
+Unifying stateless and stateful components into a single scheme abstracts this problem away from bitcoin scripting.
 
 ### Isn't statefulness unsafe?
 
